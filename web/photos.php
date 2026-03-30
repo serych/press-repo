@@ -67,7 +67,7 @@ require_once __DIR__ . '/inc/header.php';
     <?php else: ?>
         <div class="photo-grid">
             <?php foreach ($photos as $p): ?>
-                <div class="photo-card">
+                <div class="photo-card <?= $p['status']==='selected'?'selected':'' ?>">
                     <a href="/photo.php?id=<?= (int)$p['id'] ?>" class="photo-card-link">
                         <div class="thumb">
                             <?php if (!empty($p['preview_filepath'])): ?>
@@ -93,8 +93,34 @@ require_once __DIR__ . '/inc/header.php';
                                 <?php endif; ?>
                             </div>
 
+                            <div class="status-wrapper">
+                            
+                            <?php if (has_permission('photos.select')): ?>
+                            
+                            <?php if ($p['status'] === 'selected'): ?>
+                            
+                            <a href="/select.php?id=<?= (int)$p['id'] ?>&action=unselect"
+                            class="status status-selected status-clickable">
+                            selected
+                            </a>
+                            
+                            <?php else: ?>
+                            
+                            <a href="/select.php?id=<?= (int)$p['id'] ?>&action=select"
+                            class="status status-ready status-clickable">
+                            <?= h((string)$p['status']) ?>
+                            </a>
+                            
+                            <?php endif; ?>
+                            
+                            <?php else: ?>
+                            
                             <div class="status status-<?= h((string)$p['status']) ?>">
-                                <?= h((string)$p['status']) ?>
+                            <?= h((string)$p['status']) ?>
+                            </div>
+                            
+                            <?php endif; ?>
+                            
                             </div>
 
                             <div class="time">

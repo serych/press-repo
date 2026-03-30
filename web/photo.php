@@ -141,6 +141,27 @@ require_once __DIR__ . '/inc/header.php';
                     <td class="path-cell"><?= !empty($photo['checksum']) ? h((string)$photo['checksum']) : '—' ?></td>
                 </tr>
             </table>
+<?php if (has_permission('photos.select')): ?>
+<div class="photo-actions">
+
+<?php if ($photo['status'] === 'selected'): ?>
+
+<a href="/select.php?id=<?= (int)$photo['id'] ?>&action=unselect"
+class="btn btn-secondary">
+Zrušit výběr
+</a>
+
+<?php else: ?>
+
+<a href="/select.php?id=<?= (int)$photo['id'] ?>&action=select"
+class="btn btn-primary">
+Vybrat fotografii
+</a>
+
+<?php endif; ?>
+
+</div>
+<?php endif; ?>
         </div>
     </div>
 </section>
