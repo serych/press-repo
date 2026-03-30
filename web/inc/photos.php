@@ -76,3 +76,23 @@ function photos_build_where(array $filters): array
 
     return ['WHERE ' . implode(' AND ', $where), $params];
 }
+function photos_get_by_id(int $id): ?array
+{
+    $sql = "
+        SELECT
+            p.*,
+            u.jmeno,
+            u.prijmeni,
+            u.user AS web_user
+        FROM photos p
+        LEFT JOIN users u ON u.id = p.user_id
+        WHERE p.id = :id
+        LIMIT 1
+    ";
+
+    $stmt = db()->prepare($sql);
+    $stmt->execute([':id' => $id]);
+
+    $row = $stmt->fetch();
+    return $row ?: null;
+}
