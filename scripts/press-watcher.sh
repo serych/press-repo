@@ -377,11 +377,17 @@ process_file() {
     return 0
 }
 
-log "Press watcher start"
+run_watcher() {
+    log "Press watcher start"
 
-inotifywait -m -r \
-    -e close_write -e moved_to \
-    --format '%w%f' \
-    "$FTP_ROOT" | while read -r file; do
-    process_file "$file"
-done
+    inotifywait -m -r \
+        -e close_write -e moved_to \
+        --format '%w%f' \
+        "$FTP_ROOT" | while read -r file; do
+        process_file "$file"
+    done
+}
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    run_watcher
+fi
