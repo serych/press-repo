@@ -42,9 +42,16 @@ copy_file /etc/pam.d/vsftpd "$CONFIG_DIR/pam.vsftpd"
 copy_file /etc/systemd/system/press-watcher.service "$CONFIG_DIR/press-watcher.service"
 copy_exec /usr/local/bin/press-watcher.sh "$SCRIPTS_DIR/press-watcher.sh"
 
-if [[ -f /var/www/press/README.md ]]; then
-  copy_file /var/www/press/README.md "$DOCS_DIR/README.md"
-fi
+
+# Webová aplikace
+rsync -av --delete \
+    --exclude 'config/config.php' \
+    /var/www/press/web/ \
+    "$REPO_ROOT/web/"
+
+echo "Hotovo."
+echo "Pozn.: /var/www/press/web/config/config.php se z bezpečnostních důvodů nekopíruje."
+
 
 echo
 echo "Doporučený další postup:"
