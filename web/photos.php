@@ -31,6 +31,19 @@ $photographers = photos_get_photographers();
 
 $totalPages = max(1, (int)ceil($total / $perPage));
 
+$user = current_user();
+$currentUserId = (int)$user['id'];
+
+$lockedMineCount = 0;
+foreach ($photos as $p) {
+    if (
+        ($p['status'] ?? '') === 'locked'
+        && (int)($p['locked_by_user_id'] ?? 0) === $currentUserId
+    ) {
+        $lockedMineCount++;
+    }
+}
+
 require_once __DIR__ . '/inc/header.php';
 ?>
 
@@ -61,6 +74,20 @@ require_once __DIR__ . '/inc/header.php';
 <button type="submit">Filtrovat</button>
 
 </form>
+
+<?php if (!empty($photos)): ?>
+
+<div class="bulk-toolbar">
+    <form id="bulk-download-form" method="POST" action="/bulk-download-create.php" style="display:inline;">
+        <button type="submit">Bulk download locked</button>
+    </form>
+
+    <span>
+        Moje zamčené na této stránce: <?= $lockedMineCount ?>
+    </span>
+</div>
+
+<?php endif; ?>
 
 <?php if (empty($photos)): ?>
 <p>Žádné fotografie.</p>
@@ -102,7 +129,7 @@ downloaded
 
 <?php elseif ($p['locked_by_user_id']): ?>
 
-<?php if ($p['locked_by_user_id'] == current_user()['id']): ?>
+<?php if ($p['locked_by_user_id'] == $currentUserId): ?>
 
 <a href="/select.php?id=<?= (int)$p['id'] ?>&action=unlock"
 class="status status-selected status-clickable"

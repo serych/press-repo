@@ -80,6 +80,7 @@ h1 {
 .photo-card,
 .photo-preview-card,
 .photo-info-card {
+    position: relative;
     background: var(--bg-card);
     border-radius: 10px;
     padding: 20px;
@@ -387,4 +388,17 @@ cursor:not-allowed;
 background:#1e293b;
 color:#93c5fd;
 border:1px solid #3b82f6;
+}
+.bulk-toolbar {
+    margin-bottom: 10px;
+    display: flex;
+    gap: 15px;
+    align-items: center;
+}
+
+.bulk-checkbox {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 5;
 }
