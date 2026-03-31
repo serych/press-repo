@@ -25,26 +25,51 @@ if (is_post()) {
         redirect(default_homepage_for_user(current_user()));
     }
 }
-
-require_once __DIR__ . '/inc/header.php';
 ?>
+<!doctype html>
+<html lang="cs">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title><?= h(APP_NAME) ?></title>
+    <link rel="stylesheet" href="/assets/style.css">
+</head>
+<body class="login-page">
 
-<section class="login-box">
-    <h1>Přihlášení</h1>
+<div class="login-layout">
 
-    <?php if ($error !== ''): ?>
-        <div class="alert alert-error"><?= h($error) ?></div>
-    <?php endif; ?>
+    <section class="login-hero">
+        <div class="login-hero-inner">
+            <img src="/assets/logo-cs.svg" alt="Člověk a Víra" class="login-hero-logo">
 
-    <form method="post" action="/login.php" class="form">
-        <label for="username">Uživatel</label>
-        <input type="text" name="username" id="username" required autofocus>
+            <div class="login-hero-title">
+                <div>PRESS centrum</div>
+                <div>Člověk a Víra</div>
+            </div>
+        </div>
+    </section>
 
-        <label for="password">Heslo</label>
-        <input type="password" name="password" id="password" required>
+    <section class="login-side">
+        <div class="login-box">
+            <h1>Přihlášení</h1>
 
-        <button type="submit">Přihlásit</button>
-    </form>
-</section>
+            <?php if ($error !== ''): ?>
+                <div class="alert alert-error"><?= h($error) ?></div>
+            <?php endif; ?>
 
-<?php require_once __DIR__ . '/inc/footer.php'; ?>
+            <form method="post" action="/login.php" class="form">
+                <label for="username">Uživatel</label>
+                <input type="text" name="username" id="username" required autofocus>
+
+                <label for="password">Heslo</label>
+                <input type="password" name="password" id="password" required>
+
+                <button type="submit">Přihlásit</button>
+            </form>
+        </div>
+    </section>
+
+</div>
+
+</body>
+</html>

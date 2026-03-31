@@ -17,7 +17,12 @@ $user = current_user();
 <body>
 <header class="site-header">
     <div class="wrap">
-        <div class="brand"><?= h(APP_NAME) ?></div>
+        <div class="brand">
+            <a href="/" class="brand-link">
+                <img src="/assets/logo-cs.svg" alt="Logo Člověk a Víra" class="brand-logo">
+                <span class="brand-text">PRESS centrum Člověk a Víra</span>
+            </a>
+        </div>
         <?php if ($user): ?>
         <nav class="top-nav">
             <a href="/dashboard.php">Dashboard</a>

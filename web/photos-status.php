@@ -22,16 +22,10 @@ if ($userId <= 0) {
 
 $pdo = db();
 
-/*
- * roli bereme z DB, ne ze session/current_user(),
- * aby to fungovalo spolehlivě i když current_user neobsahuje role_code
- */
 $stmt = $pdo->prepare("
     SELECT
-        u.ftp_user,
-        r.code AS role_code
+        u.ftp_user
     FROM users u
-    INNER JOIN roles r ON r.id = u.role_id
     WHERE u.id = ?
     LIMIT 1
 ");
@@ -76,17 +70,20 @@ require_once __DIR__ . '/inc/header.php';
 
 <section class="panel panel-status">
     <div class="status-head">
-        <h1>Stav mých fotografií</h1>
+        <h1>Moje fotky</h1>
         <div class="status-subhead">
             Fotograf: <?= h($ftpUser) ?>
         </div>
     </div>
 
     <?php if (empty($photos)): ?>
-        <p>Nemáte zatím žádné fotografie.</p>
+        <p id="status-empty">Nemáte zatím žádné fotografie.</p>
+        <div class="status-photo-list" id="status-photo-list" style="display:none;"></div>
     <?php else: ?>
 
-        <div class="status-photo-list">
+        <p id="status-empty" style="display:none;">Nemáte zatím žádné fotografie.</p>
+
+        <div class="status-photo-list" id="status-photo-list">
 
             <?php foreach ($photos as $photo): ?>
 
@@ -134,7 +131,7 @@ require_once __DIR__ . '/inc/header.php';
                 }
                 ?>
 
-                <div class="status-photo-card">
+                <div class="status-photo-card" data-photo-id="<?= (int)$photo['id'] ?>">
                     <div class="status-photo-thumb">
                         <?php if (!empty($photo['preview_filepath'])): ?>
                             <img src="/preview.php?id=<?= (int)$photo['id'] ?>" alt="<?= h((string)$photo['filename']) ?>">
@@ -144,23 +141,23 @@ require_once __DIR__ . '/inc/header.php';
                     </div>
 
                     <div class="status-photo-meta">
-                        <div class="status-photo-file">
+                        <div class="status-photo-file" data-role="filename">
                             <?= h((string)$photo['filename']) ?>
                         </div>
 
                         <div class="status-photo-state">
-                            <span class="status <?= h($statusClass) ?>">
+                            <span class="status <?= h($statusClass) ?>" data-role="status-badge">
                                 <?= h($statusText) ?>
                             </span>
 
-                            <?php if ($statusNote !== ''): ?>
-                                <span class="lock-owner">
+                            <span class="lock-owner" data-role="status-note" <?= $statusNote === '' ? 'style="display:none;"' : '' ?>>
+                                <?php if ($statusNote !== ''): ?>
                                     (<?= h($statusNote) ?>)
-                                </span>
-                            <?php endif; ?>
+                                <?php endif; ?>
+                            </span>
                         </div>
 
-                        <div class="status-photo-time">
+                        <div class="status-photo-time" data-role="uploaded-at">
                             <?= h((string)$photo['uploaded_at']) ?>
                         </div>
                     </div>
@@ -172,5 +169,165 @@ require_once __DIR__ . '/inc/header.php';
 
     <?php endif; ?>
 </section>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const POLL_INTERVAL_MS = 30000;
+    let timer = null;
+
+    const list = document.getElementById('status-photo-list');
+    const empty = document.getElementById('status-empty');
+
+    function escapeHtml(value) {
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function renderPhotoCard(item) {
+        const previewHtml = item.preview_url
+            ? '<img src="' + escapeHtml(item.preview_url) + '" alt="' + escapeHtml(item.filename) + '">'
+            : '<div class="status-no-preview">bez náhledu</div>';
+
+        const noteHtml = item.status_note
+            ? '<span class="lock-owner" data-role="status-note">(' + escapeHtml(item.status_note) + ')</span>'
+            : '<span class="lock-owner" data-role="status-note" style="display:none;"></span>';
+
+        return '' +
+            '<div class="status-photo-card" data-photo-id="' + item.id + '">' +
+                '<div class="status-photo-thumb">' +
+                    previewHtml +
+                '</div>' +
+                '<div class="status-photo-meta">' +
+                    '<div class="status-photo-file" data-role="filename">' + escapeHtml(item.filename) + '</div>' +
+                    '<div class="status-photo-state">' +
+                        '<span class="status ' + escapeHtml(item.status_class) + '" data-role="status-badge">' + escapeHtml(item.status_text) + '</span>' +
+                        noteHtml +
+                    '</div>' +
+                    '<div class="status-photo-time" data-role="uploaded-at">' + escapeHtml(item.uploaded_at) + '</div>' +
+                '</div>' +
+            '</div>';
+    }
+
+    function ensureListVisibility(hasItems) {
+        if (!list || !empty) {
+            return;
+        }
+
+        if (hasItems) {
+            list.style.display = '';
+            empty.style.display = 'none';
+        } else {
+            list.style.display = 'none';
+            empty.style.display = '';
+        }
+    }
+
+    function upsertItem(item) {
+        let card = document.querySelector('[data-photo-id="' + item.id + '"]');
+
+        if (!card) {
+            if (list) {
+                list.insertAdjacentHTML('afterbegin', renderPhotoCard(item));
+                ensureListVisibility(true);
+            }
+            return;
+        }
+
+        const badge = card.querySelector('[data-role="status-badge"]');
+        const note = card.querySelector('[data-role="status-note"]');
+        const time = card.querySelector('[data-role="uploaded-at"]');
+        const file = card.querySelector('[data-role="filename"]');
+
+        if (badge) {
+            badge.className = 'status ' + item.status_class;
+            badge.textContent = item.status_text;
+        }
+
+        if (note) {
+            if (item.status_note && item.status_note !== '') {
+                note.textContent = '(' + item.status_note + ')';
+                note.style.display = '';
+            } else {
+                note.textContent = '';
+                note.style.display = 'none';
+            }
+        }
+
+        if (time) {
+            time.textContent = item.uploaded_at;
+        }
+
+        if (file) {
+            file.textContent = item.filename;
+        }
+    }
+
+    async function refreshStatuses() {
+        if (document.visibilityState !== 'visible') {
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/photos-status.php', {
+                cache: 'no-store'
+            });
+
+            if (!response.ok) {
+                return;
+            }
+
+            const data = await response.json();
+
+            if (!data || !Array.isArray(data.items)) {
+                return;
+            }
+
+            if (data.items.length === 0) {
+                ensureListVisibility(false);
+                return;
+            }
+
+            data.items.forEach(function (item) {
+                upsertItem(item);
+            });
+
+            ensureListVisibility(true);
+        } catch (e) {
+            // ticho, zkusíme příště
+        }
+    }
+
+    function startPolling() {
+        if (timer !== null) {
+            return;
+        }
+        timer = window.setInterval(refreshStatuses, POLL_INTERVAL_MS);
+    }
+
+    function stopPolling() {
+        if (timer !== null) {
+            clearInterval(timer);
+            timer = null;
+        }
+    }
+
+    document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'visible') {
+            refreshStatuses();
+            startPolling();
+        } else {
+            stopPolling();
+        }
+    });
+
+    if (document.visibilityState === 'visible') {
+        startPolling();
+    }
+});
+</script>
 
 <?php require_once __DIR__ . '/inc/footer.php'; ?>
