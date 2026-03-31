@@ -14,69 +14,98 @@ if (!has_permission('photos.select')) {
 }
 
 $id = (int)($_GET['id'] ?? 0);
-$action = $_GET['action'] ?? 'select';
+$action = $_GET['action'] ?? 'lock';
 
 if ($id <= 0) {
     http_response_code(404);
-    exit('Neplatné ID');
+    exit;
 }
 
-$sql = "SELECT id, user_id FROM photos WHERE id = :id LIMIT 1";
+$user = current_user();
+
+/* načti fotku */
+
+$sql = "
+SELECT id, locked_by_user_id
+FROM photos
+WHERE id = :id
+LIMIT 1
+";
+
 $stmt = db()->prepare($sql);
-$stmt->execute(['id' => $id]);
+$stmt->execute(['id'=>$id]);
 $photo = $stmt->fetch();
 
 if (!$photo) {
     http_response_code(404);
-    exit('Fotografie neexistuje');
+    exit;
 }
 
-if ($action === 'unselect') {
+/* LOCK */
+
+if ($action === 'lock') {
+
+    /* někdo jiný už locknul */
+
+    if ($photo['locked_by_user_id']
+        && $photo['locked_by_user_id'] != $user['id']) {
+
+        redirect($_SERVER['HTTP_REFERER'] ?? '/photos.php');
+    }
 
     $sql = "
-        UPDATE photos
-        SET
-            status = 'ready',
-            selected_at = NULL
-        WHERE id = :id
+    UPDATE photos
+    SET
+        status = 'locked',
+        locked_by_user_id = :uid,
+        locked_at = NOW()
+    WHERE id = :id
     ";
 
-    db()->prepare($sql)->execute(['id' => $id]);
+    db()->prepare($sql)->execute([
+        'id'=>$id,
+        'uid'=>$user['id']
+    ]);
 
-    $logAction = 'unselected';
+    $logAction = 'locked';
+}
 
-} else {
+/* UNLOCK */
+
+if ($action === 'unlock') {
+
+    /* odemknout může jen autor */
+
+    if ($photo['locked_by_user_id'] != $user['id']) {
+        redirect($_SERVER['HTTP_REFERER'] ?? '/photos.php');
+    }
 
     $sql = "
-        UPDATE photos
-        SET
-            status = 'selected',
-            selected_at = NOW()
-        WHERE id = :id
+    UPDATE photos
+    SET
+        status = 'ready',
+        locked_by_user_id = NULL,
+        locked_at = NULL
+    WHERE id = :id
     ";
 
-    db()->prepare($sql)->execute(['id' => $id]);
+    db()->prepare($sql)->execute(['id'=>$id]);
 
-    $logAction = 'selected';
+    $logAction = 'unlocked';
 }
 
 /* log */
 
-$user = current_user();
-
 $sql = "
 INSERT INTO photo_log
-(photo_id, user_id, action, created_at)
-VALUES (:photo_id, :user_id, :action, NOW())
+(photo_id,user_id,action,created_at)
+VALUES (:pid,:uid,:action,NOW())
 ";
 
 db()->prepare($sql)->execute([
-    'photo_id' => $id,
-    'user_id' => $user['id'],
-    'action' => $logAction
+    'pid'=>$id,
+    'uid'=>$user['id'],
+    'action'=>$logAction
 ]);
 
-/* redirect zpět */
-
-$back = $_SERVER['HTTP_REFERER'] ?? '/photos.php';
-redirect($back);
+redirect($_SERVER['HTTP_REFERER'] ?? '/photos.php');

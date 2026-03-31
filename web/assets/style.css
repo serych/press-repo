@@ -361,3 +361,25 @@ transition:0.15s;
 .status-selected.status-clickable {
 box-shadow:0 0 0 1px #f59e0b;
 }
+.btn-download {
+background:#111;
+color:#f59e0b;
+border:1px solid #f59e0b;
+}
+
+.btn-download:hover {
+background:#f59e0b;
+color:black;
+}
+.status-locked {
+background:#111;
+color:#f59e0b;
+border:1px solid #f59e0b;
+}
+
+.btn-disabled {
+background:#111;
+color:#777;
+border:1px solid #333;
+cursor:not-allowed;
+}
