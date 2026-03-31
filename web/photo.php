@@ -69,7 +69,10 @@ require_once __DIR__ . '/inc/header.php';
 <th>Stav</th>
 <td>
 
-<?php if ($photo['locked_by_user_id']): ?>
+<?php if ($photo['status'] === 'downloaded'): ?>
+<span class="status status-downloaded">downloaded</span>
+
+<?php elseif ($photo['locked_by_user_id']): ?>
 
 <?php if ($photo['locked_by_user_id'] == current_user()['id']): ?>
 <span class="status status-selected">locked (váš)</span>
@@ -78,7 +81,9 @@ require_once __DIR__ . '/inc/header.php';
 <?php endif; ?>
 
 <?php else: ?>
+
 <span class="status status-ready">ready</span>
+
 <?php endif; ?>
 
 </td>
@@ -105,10 +110,20 @@ require_once __DIR__ . '/inc/header.php';
 
 <div class="photo-actions">
 
+<?php if ($photo['locked_by_user_id'] == current_user()['id']): ?>
+
 <a href="/download.php?id=<?= (int)$photo['id'] ?>"
 class="btn btn-download">
 Stáhnout originál
 </a>
+
+<?php else: ?>
+
+<div class="btn btn-disabled">
+Nejprve zamkněte fotografii
+</div>
+
+<?php endif; ?>
 
 </div>
 

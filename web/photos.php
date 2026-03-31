@@ -94,7 +94,13 @@ require_once __DIR__ . '/inc/header.php';
 
 <div class="status-wrapper">
 
-<?php if ($p['locked_by_user_id']): ?>
+<?php if ($p['status'] === 'downloaded'): ?>
+
+<div class="status status-downloaded">
+downloaded
+</div>
+
+<?php elseif ($p['locked_by_user_id']): ?>
 
 <?php if ($p['locked_by_user_id'] == current_user()['id']): ?>
 

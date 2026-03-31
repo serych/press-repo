@@ -383,3 +383,8 @@ color:#777;
 border:1px solid #333;
 cursor:not-allowed;
 }
+.status-downloaded {
+background:#1e293b;
+color:#93c5fd;
+border:1px solid #3b82f6;
+}

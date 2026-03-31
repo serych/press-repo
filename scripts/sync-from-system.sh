@@ -41,6 +41,7 @@ copy_file /etc/vsftpd.conf "$CONFIG_DIR/vsftpd.conf"
 copy_file /etc/pam.d/vsftpd "$CONFIG_DIR/pam.vsftpd"
 copy_file /etc/systemd/system/press-watcher.service "$CONFIG_DIR/press-watcher.service"
 copy_exec /usr/local/bin/press-watcher.sh "$SCRIPTS_DIR/press-watcher.sh"
+copy_exec /usr/local/bin/press-backfill.sh "$SCRIPTS_DIR/press-backfill.sh"
 
 
 # Webová aplikace

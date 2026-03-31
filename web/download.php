@@ -24,15 +24,26 @@ $sql = "
 SELECT
     id,
     filename,
-    filepath
+    filepath,
+    locked_by_user_id
 FROM photos
 WHERE id = :id
 LIMIT 1
 ";
 
 $stmt = db()->prepare($sql);
-$stmt->execute(['id' => $id]);
+$stmt->execute(['id'=>$id]);
 $photo = $stmt->fetch();
+$user = current_user();
+
+/* musí být locked a náležet uživateli */
+
+if (!$photo['locked_by_user_id']
+    || $photo['locked_by_user_id'] != $user['id']) {
+
+    http_response_code(403);
+    exit('Fotografie není zamčena pro tohoto uživatele.');
+}
 
 if (!$photo) {
     http_response_code(404);
@@ -46,19 +57,39 @@ if (!is_file($file)) {
     exit;
 }
 
-/* log download */
+if (str_ends_with($photo['filename'], '.thumb.jpg')) {
+    http_response_code(404);
+    exit;
+}
+
+/* update status */
 
 $user = current_user();
 
 $sql = "
+UPDATE photos
+SET
+    status = 'downloaded',
+    downloaded = 1,
+    downloaded_at = NOW(),
+    locked_by_user_id = NULL,
+    locked_at = NULL
+WHERE id = :id
+";
+
+db()->prepare($sql)->execute(['id'=>$id]);
+
+/* log */
+
+$sql = "
 INSERT INTO photo_log
-(photo_id, user_id, action, created_at)
-VALUES (:photo_id, :user_id, 'downloaded', NOW())
+(photo_id,user_id,action,created_at)
+VALUES (:pid,:uid,'downloaded',NOW())
 ";
 
 db()->prepare($sql)->execute([
-    'photo_id' => $id,
-    'user_id' => $user['id']
+    'pid'=>$id,
+    'uid'=>$user['id']
 ]);
 
 /* download */

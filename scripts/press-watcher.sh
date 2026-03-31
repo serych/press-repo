@@ -52,6 +52,45 @@ is_jpeg() {
     [[ "$ext" == "jpg" || "$ext" == "jpeg" ]]
 }
 
+should_ignore_file() {
+    local file="$1"
+    local filename
+    filename="$(basename "$file")"
+    local lower
+    lower="$(echo "$filename" | tr '[:upper:]' '[:lower:]')"
+
+    # ignoruj vše mimo FTP root
+    case "$file" in
+        "$FTP_ROOT"/*) ;;
+        *)
+            return 0
+            ;;
+    esac
+
+    # ignoruj cokoliv z previews
+    case "$file" in
+        "$PREVIEW_ROOT"/*)
+            return 0
+            ;;
+    esac
+
+    # ignoruj doèasné a pomocné soubory
+    case "$lower" in
+        *.thumb.jpg|*.thumb.jpeg|*.tmp|*.part|*.swp|*.swx|*.ds_store)
+            return 0
+            ;;
+    esac
+
+    # ignoruj skryté soubory
+    case "$filename" in
+        .*)
+            return 0
+            ;;
+    esac
+
+    return 1
+}
+
 wait_until_stable() {
     local file="$1"
     local last_size="-1"
@@ -284,6 +323,11 @@ process_file() {
     local file="$1"
 
     if [ ! -f "$file" ]; then
+        return 0
+    fi
+
+    if should_ignore_file "$file"; then
+        log "Ignoruji soubor: $file"
         return 0
     fi
 
