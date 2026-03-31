@@ -22,11 +22,12 @@ $user = current_user();
         <nav class="top-nav">
             <a href="/dashboard.php">Dashboard</a>
             <a href="/photos.php">Fotografie</a>
-
+            <a href="/photos-status.php">Moje fotky</a>
+        
             <?php if (has_permission('users.manage')): ?>
                 <a href="/users.php">Uživatelé</a>
             <?php endif; ?>
-
+        
             <a href="/logout.php">Odhlásit</a>
         </nav>
         <?php endif; ?>

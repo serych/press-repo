@@ -33,7 +33,7 @@ function default_homepage_for_user(?array $user = null): string
 
     switch ($roleCode) {
         case 'photographer':
-            return '/photos.php'; // později změnit na /photos-status.php
+            return '/photos-status.php'; // mini verze pro mobil
         default:
             return '/photos.php';
     }
