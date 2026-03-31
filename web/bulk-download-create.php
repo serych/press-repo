@@ -34,7 +34,6 @@ if (!$ids) {
 $pdo->beginTransaction();
 
 try {
-
     /*
      * vytvoøení jobu
      */
@@ -58,7 +57,6 @@ try {
     $seq = 1;
 
     foreach ($ids as $photoId) {
-
         $insert->execute([
             $jobId,
             $photoId,
@@ -68,14 +66,15 @@ try {
 
     $pdo->commit();
 
+    $total = count($ids);
+
     /*
-     * redirect na queue page
+     * redirect zpìt do galerie s parametry pro spuštìní downloadu
      */
-    header("Location: /download-queue.php?job=" . $jobId);
+    header("Location: /photos.php?download_job=" . $jobId . "&download_total=" . $total);
     exit;
 
 } catch (Throwable $e) {
-
     $pdo->rollBack();
 
     http_response_code(500);

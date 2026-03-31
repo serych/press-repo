@@ -21,3 +21,20 @@ function is_post(): bool
 {
     return ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST';
 }
+function default_homepage_for_user(?array $user = null): string
+{
+    $user = $user ?? current_user();
+
+    if (!$user) {
+        return '/login.php';
+    }
+
+    $roleCode = (string)($user['role_code'] ?? '');
+
+    switch ($roleCode) {
+        case 'photographer':
+            return '/photos.php'; // později změnit na /photos-status.php
+        default:
+            return '/photos.php';
+    }
+}

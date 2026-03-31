@@ -84,9 +84,13 @@ function photos_get_by_id(int $id): ?array
             p.*,
             u.jmeno,
             u.prijmeni,
-            u.user AS web_user
+            u.user AS web_user,
+            lu.user AS locked_by_user,
+            lu.jmeno AS locked_jmeno,
+            lu.prijmeni AS locked_prijmeni
         FROM photos p
         LEFT JOIN users u ON u.id = p.user_id
+        LEFT JOIN users lu ON lu.id = p.locked_by_user_id
         WHERE p.id = :id
         LIMIT 1
     ";

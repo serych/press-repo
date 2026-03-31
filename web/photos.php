@@ -16,6 +16,9 @@ if (!has_permission('photos.view')) {
 $ftpUser = isset($_GET['ftp_user']) ? trim((string)$_GET['ftp_user']) : '';
 $status  = isset($_GET['status']) ? trim((string)$_GET['status']) : '';
 
+$downloadJobId = max(0, (int)($_GET['download_job'] ?? 0));
+$downloadTotal = max(0, (int)($_GET['download_total'] ?? 0));
+
 $page = max(1, (int)($_GET['page'] ?? 1));
 $perPage = 24;
 $offset = ($page - 1) * $perPage;
@@ -75,15 +78,19 @@ require_once __DIR__ . '/inc/header.php';
 
 </form>
 
-<?php if (!empty($photos)): ?>
+<?php if (!empty($photos) && has_permission('photos.download')): ?>
 
 <div class="bulk-toolbar">
     <form id="bulk-download-form" method="POST" action="/bulk-download-create.php" style="display:inline;">
-        <button type="submit">Bulk download locked</button>
+        <button type="submit">Hromadné stažení zamčených</button>
     </form>
 
-    <span>
-        Moje zamčené na této stránce: <?= $lockedMineCount ?>
+    <span id="bulk-status-text">
+        <?php if ($downloadJobId > 0 && $downloadTotal > 0): ?>
+            Připraven download <?= $downloadTotal ?> fotografií.
+        <?php else: ?>
+            Moje zamčené na této stránce: <?= $lockedMineCount ?>
+        <?php endif; ?>
     </span>
 </div>
 
@@ -97,7 +104,19 @@ require_once __DIR__ . '/inc/header.php';
 
 <?php foreach ($photos as $p): ?>
 
-<div class="photo-card <?= $p['locked_by_user_id'] ? 'selected' : '' ?>">
+<?php
+$cardClass = 'photo-card';
+
+if (($p['status'] ?? '') === 'locked' && !empty($p['locked_by_user_id'])) {
+    if ((int)$p['locked_by_user_id'] === $currentUserId) {
+        $cardClass .= ' selected';
+    } else {
+        $cardClass .= ' locked';
+    }
+}
+?>
+
+<div class="<?= h($cardClass) ?>">
 
 <a href="/photo.php?id=<?= (int)$p['id'] ?>" class="photo-card-link">
 
@@ -134,13 +153,32 @@ downloaded
 <a href="/select.php?id=<?= (int)$p['id'] ?>&action=unlock"
 class="status status-selected status-clickable"
 onclick="event.stopPropagation();">
-locked
+ke stažení
 </a>
 
 <?php else: ?>
 
-<div class="status status-locked">
-locked
+<div class="status-line">
+    <div class="status status-locked">
+        zamknuto
+    </div>
+
+    <?php
+    $lockedByName = trim(
+        ((string)($p['locked_jmeno'] ?? '')) . ' ' .
+        ((string)($p['locked_prijmeni'] ?? ''))
+    );
+    ?>
+
+    <?php if ($lockedByName !== ''): ?>
+        <div class="lock-owner">
+            (<?= h($lockedByName) ?>)
+        </div>
+    <?php elseif (!empty($p['locked_by_user'])): ?>
+        <div class="lock-owner">
+            (<?= h((string)$p['locked_by_user']) ?>)
+        </div>
+    <?php endif; ?>
 </div>
 
 <?php endif; ?>
@@ -200,5 +238,71 @@ href="?page=<?= $i ?>&ftp_user=<?= urlencode($ftpUser) ?>&status=<?= urlencode($
 <?php endif; ?>
 
 </section>
+
+<script>
+async function runBulkDownload(jobId, total) {
+    const statusBox = document.getElementById('bulk-status-text');
+
+    async function fetchStatus() {
+        const response = await fetch('/api/download-job-status.php?job=' + jobId, {
+            cache: 'no-store'
+        });
+        return await response.json();
+    }
+
+    async function step() {
+        const status = await fetchStatus();
+        const downloaded = Number(status.downloaded || 0);
+        const current = status.next_item ? downloaded + 1 : downloaded;
+
+        if (statusBox) {
+            statusBox.textContent = 'Probíhá download ' + current + ' / ' + total;
+        }
+
+        if (!status.next_item) {
+            if (statusBox) {
+                statusBox.textContent = 'Download dokončen. Obnovuji galerii…';
+            }
+
+            const url = new URL(window.location.href);
+            url.searchParams.delete('download_job');
+            url.searchParams.delete('download_total');
+
+            setTimeout(() => {
+                window.location.href = url.toString();
+            }, 800);
+
+            return;
+        }
+
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = '/download-item.php?job=' + jobId + '&item=' + status.next_item;
+        document.body.appendChild(iframe);
+
+        setTimeout(step, 1500);
+    }
+
+    step();
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    const jobId = <?= $downloadJobId ?>;
+    const total = <?= $downloadTotal ?>;
+
+    if (jobId > 0 && total > 0) {
+        const ok = window.confirm('Bude se stahovat ' + total + ' fotografií. Pokračovat?');
+
+        if (ok) {
+            runBulkDownload(jobId, total);
+        } else {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('download_job');
+            url.searchParams.delete('download_total');
+            window.location.href = url.toString();
+        }
+    }
+});
+</script>
 
 <?php require_once __DIR__ . '/inc/footer.php'; ?>

@@ -6,7 +6,7 @@ require_once __DIR__ . '/inc/auth.php';
 require_once __DIR__ . '/inc/functions.php';
 
 if (is_logged_in()) {
-    redirect('/dashboard.php');
+    redirect(default_homepage_for_user(current_user()));
 }
 
 redirect('/login.php');

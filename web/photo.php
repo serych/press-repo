@@ -27,6 +27,9 @@ if (!$photo) {
     exit;
 }
 
+$currentUser = current_user();
+$currentUserId = (int)$currentUser['id'];
+
 require_once __DIR__ . '/inc/header.php';
 ?>
 
@@ -72,12 +75,29 @@ require_once __DIR__ . '/inc/header.php';
 <?php if ($photo['status'] === 'downloaded'): ?>
 <span class="status status-downloaded">downloaded</span>
 
-<?php elseif ($photo['locked_by_user_id']): ?>
+<?php elseif (!empty($photo['locked_by_user_id'])): ?>
 
-<?php if ($photo['locked_by_user_id'] == current_user()['id']): ?>
-<span class="status status-selected">locked (váš)</span>
+<?php if ((int)$photo['locked_by_user_id'] === $currentUserId): ?>
+<span class="status status-selected">ke stažení</span>
 <?php else: ?>
-<span class="status status-locked">locked</span>
+
+<?php
+$lockedByName = trim(
+    ((string)($photo['locked_jmeno'] ?? '')) . ' ' .
+    ((string)($photo['locked_prijmeni'] ?? ''))
+);
+?>
+
+<span class="status-line">
+    <span class="status status-locked">zamknuto</span>
+
+    <?php if ($lockedByName !== ''): ?>
+        <span class="lock-owner">(<?= h($lockedByName) ?>)</span>
+    <?php elseif (!empty($photo['locked_by_user'])): ?>
+        <span class="lock-owner">(<?= h((string)$photo['locked_by_user']) ?>)</span>
+    <?php endif; ?>
+</span>
+
 <?php endif; ?>
 
 <?php else: ?>
@@ -96,7 +116,7 @@ require_once __DIR__ . '/inc/header.php';
 
 <tr>
 <th>Velikost</th>
-<td><?= number_format((int)$photo['filesize'],0,' ',' ') ?> B</td>
+<td><?= number_format((int)$photo['filesize'], 0, ' ', ' ') ?> B</td>
 </tr>
 
 <tr>
@@ -110,7 +130,7 @@ require_once __DIR__ . '/inc/header.php';
 
 <div class="photo-actions">
 
-<?php if ($photo['locked_by_user_id'] == current_user()['id']): ?>
+<?php if ((int)($photo['locked_by_user_id'] ?? 0) === $currentUserId): ?>
 
 <a href="/download.php?id=<?= (int)$photo['id'] ?>"
 class="btn btn-download">
@@ -133,9 +153,9 @@ Nejprve zamkněte fotografii
 
 <div class="photo-actions">
 
-<?php if ($photo['locked_by_user_id']): ?>
+<?php if (!empty($photo['locked_by_user_id'])): ?>
 
-<?php if ($photo['locked_by_user_id'] == current_user()['id']): ?>
+<?php if ((int)$photo['locked_by_user_id'] === $currentUserId): ?>
 
 <a href="/select.php?id=<?= (int)$photo['id'] ?>&action=unlock"
 class="btn btn-secondary">

@@ -8,7 +8,7 @@ require_once __DIR__ . '/inc/auth.php';
 start_session_if_needed();
 
 if (is_logged_in()) {
-    redirect('/dashboard.php');
+    redirect(default_homepage_for_user(current_user()));
 }
 
 $error = '';
@@ -22,7 +22,7 @@ if (is_post()) {
     } elseif (!login_user($username, $password)) {
         $error = 'Neplatné přihlašovací údaje.';
     } else {
-        redirect('/dashboard.php');
+        redirect(default_homepage_for_user(current_user()));
     }
 }
 
