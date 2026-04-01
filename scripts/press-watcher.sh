@@ -269,53 +269,52 @@ generate_preview_from_raw() {
 
     mkdir -p "$(dirname "$dst")"
 
-    if ! command -v dcraw >/dev/null 2>&1; then
-        log "ERROR: dcraw není dostupnı pro RAW soubor $src"
-        return 1
-    fi
+    # 1) Hlavní cesta: rawtherapee-cli
+    if command -v rawtherapee-cli >/dev/null 2>&1; then
+        local tmp="/tmp/press_rt_$$.jpg"
+        rm -f "$tmp"
 
-    local src_dir
-    src_dir="$(dirname "$src")"
-    local src_file
-    src_file="$(basename "$src")"
-    local src_base="${src_file%.*}"
-    local thumb="${src_dir}/${src_base}.thumb.jpg"
-    local tmpbase="/tmp/press_preview_$$"
+        if rawtherapee-cli \
+            -o "$tmp" \
+            -c "$src" \
+            -Y >> "$LOG_FILE" 2>&1; then
 
-    rm -f "$thumb" "${tmpbase}.ppm"
-
-    # 1) Pokus o embedded thumbnail
-    if dcraw -e "$src" >> "$LOG_FILE" 2>&1; then
-        if [ -f "$thumb" ]; then
-            if "$IM_CONVERT" "$thumb" \
+            if "$IM_CONVERT" "$tmp" \
                 -auto-orient \
                 -resize "1600x1600>" \
                 -strip \
                 -interlace Plane \
                 -quality 82 \
                 "$dst" >> "$LOG_FILE" 2>&1; then
-                rm -f "$thumb"
+                rm -f "$tmp"
                 return 0
             fi
-            rm -f "$thumb"
         fi
+
+        rm -f "$tmp"
     fi
 
-    # 2) Fallback pøes dcraw -> ppm -> jpg
-    if dcraw -c -w "$src" > "${tmpbase}.ppm" 2>> "$LOG_FILE"; then
-        if "$IM_CONVERT" "${tmpbase}.ppm" \
-            -auto-orient \
-            -resize "1600x1600>" \
-            -strip \
-            -interlace Plane \
-            -quality 82 \
-            "$dst" >> "$LOG_FILE" 2>&1; then
-            rm -f "${tmpbase}.ppm"
-            return 0
+    # 2) Legacy fallback: dcraw
+    if command -v dcraw >/dev/null 2>&1; then
+        local tmpbase="/tmp/press_preview_$$"
+        rm -f "${tmpbase}.ppm"
+
+        if dcraw -c -w "$src" > "${tmpbase}.ppm" 2>> "$LOG_FILE"; then
+            if "$IM_CONVERT" "${tmpbase}.ppm" \
+                -auto-orient \
+                -resize "1600x1600>" \
+                -strip \
+                -interlace Plane \
+                -quality 82 \
+                "$dst" >> "$LOG_FILE" 2>&1; then
+                rm -f "${tmpbase}.ppm"
+                return 0
+            fi
         fi
+
+        rm -f "${tmpbase}.ppm"
     fi
 
-    rm -f "$thumb" "${tmpbase}.ppm"
     return 1
 }
 

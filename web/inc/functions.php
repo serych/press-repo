@@ -21,6 +21,34 @@ function is_post(): bool
 {
     return ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST';
 }
+function is_probably_mobile_device(): bool
+{
+    $ua = strtolower((string)($_SERVER['HTTP_USER_AGENT'] ?? ''));
+
+    if ($ua === '') {
+        return false;
+    }
+
+    $needles = [
+        'android',
+        'iphone',
+        'ipad',
+        'ipod',
+        'mobile',
+        'opera mini',
+        'windows phone',
+        'blackberry'
+    ];
+
+    foreach ($needles as $needle) {
+        if (strpos($ua, $needle) !== false) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 function default_homepage_for_user(?array $user = null): string
 {
     $user = $user ?? current_user();
@@ -31,10 +59,13 @@ function default_homepage_for_user(?array $user = null): string
 
     $roleCode = (string)($user['role_code'] ?? '');
 
-    switch ($roleCode) {
-        case 'photographer':
-            return '/photos-status.php'; // mini verze pro mobil
-        default:
-            return '/photos.php';
+    if ($roleCode === 'photographer') {
+        return '/photos-status.php';
     }
+
+    if (is_probably_mobile_device()) {
+        return '/photos-status.php';
+    }
+
+    return '/photos.php';
 }

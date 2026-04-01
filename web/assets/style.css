@@ -878,3 +878,72 @@ border:1px solid #3b82f6;
 .login-hero-title div:last-child {
     font-weight: 500;
 }
+.header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    position: relative;
+}
+
+.nav-toggle {
+    display: none;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #111;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.nav-toggle span {
+    display: block;
+    width: 20px;
+    height: 2px;
+    background: var(--text-main);
+    border-radius: 2px;
+}
+
+@media (max-width: 900px) {
+    .nav-toggle {
+        display: inline-flex;
+    }
+
+    .top-nav {
+        display: none;
+        position: absolute;
+        top: calc(100% + 10px);
+        right: 20px;
+        left: 20px;
+        margin-left: 0;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 10px;
+        z-index: 1000;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+    }
+
+    .top-nav.is-open {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+    }
+
+    .top-nav a {
+        margin-left: 0;
+        padding: 12px 10px;
+        border-radius: 8px;
+        color: var(--text-main);
+    }
+
+    .top-nav a:hover {
+        background: rgba(255,255,255,0.04);
+        color: var(--accent);
+    }
+}

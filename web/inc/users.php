@@ -262,7 +262,7 @@ function users_create(array $data): int
         ':homedir'       => $data['homedir'],
         ':role_id'       => $data['role_id'],
     ]);
-
+    users_ensure_ftp_directory($data['homedir']);
     return (int)$pdo->lastInsertId();
 }
 function users_update(int $id, array $data): void
@@ -307,6 +307,7 @@ function users_update(int $id, array $data): void
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
+    users_ensure_ftp_directory($data['homedir']);
 }
 
 function users_delete(int $id): void
@@ -319,4 +320,30 @@ function users_delete(int $id): void
         LIMIT 1
     ");
     $stmt->execute([$id]);
+}
+function users_ensure_ftp_directory(string $homedir): void
+{
+    $homedir = trim($homedir);
+
+    if ($homedir === '') {
+        throw new RuntimeException('Chybí home directory.');
+    }
+
+    $base = '/var/www/press/ftp/';
+    if (strncmp($homedir, $base, strlen($base)) !== 0) {
+        throw new RuntimeException('Home directory je mimo povolený FTP koøen.');
+    }
+
+    if (!is_dir($homedir)) {
+        if (!mkdir($homedir, 0755, true) && !is_dir($homedir)) {
+            throw new RuntimeException('Nepodaøilo se vytvoøit FTP adresáø.');
+        }
+    }
+
+    @chmod($homedir, 0755);
+
+    if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+        @chown($homedir, 'www-data');
+        @chgrp($homedir, 'www-data');
+    }
 }
