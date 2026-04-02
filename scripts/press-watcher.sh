@@ -12,27 +12,44 @@ log() {
     echo "$(date '+%F %T') $*" >> "$LOG_FILE"
 }
 
-# Kontrola pot�ebn�ch n�stroj�
+# Kontrola potřebných nástrojů
 if command -v convert >/dev/null 2>&1; then
     IM_CONVERT="convert"
 else
-    log "ERROR: Nenalezen p��kaz 'convert' z ImageMagick"
+    log "ERROR: Nenalezen příkaz 'convert' z ImageMagick"
     exit 1
 fi
 
 if ! command -v identify >/dev/null 2>&1; then
-    log "ERROR: Nenalezen p��kaz 'identify'"
+    log "ERROR: Nenalezen příkaz 'identify'"
+    exit 1
+fi
+
+if ! command -v exiftool >/dev/null 2>&1; then
+    log "ERROR: Nenalezen příkaz 'exiftool'"
     exit 1
 fi
 
 if ! command -v dcraw >/dev/null 2>&1; then
-    log "WARNING: Nenalezen p��kaz 'dcraw' - RAW preview nemus� fungovat"
+    log "WARNING: Nenalezen příkaz 'dcraw' - část RAW preview nemusí fungovat"
 fi
+
+if command -v rawtherapee-cli >/dev/null 2>&1; then
+    log "INFO: rawtherapee-cli nalezen"
+else
+    log "WARNING: rawtherapee-cli nenalezen - moderní RAW preview fallback může selhávat"
+fi
+
+get_extension() {
+    local file="$1"
+    local ext="${file##*.}"
+    echo "$ext" | tr '[:upper:]' '[:lower:]'
+}
 
 is_supported_file() {
     local file="$1"
-    local ext="${file##*.}"
-    ext="$(echo "$ext" | tr '[:upper:]' '[:lower:]')"
+    local ext
+    ext="$(get_extension "$file")"
 
     case "$ext" in
         cr2|cr3|nef|nrw|arw|sr2|srf|raf|rw2|orf|dng|pef|iiq|3fr|jpg|jpeg)
@@ -46,8 +63,8 @@ is_supported_file() {
 
 is_jpeg() {
     local file="$1"
-    local ext="${file##*.}"
-    ext="$(echo "$ext" | tr '[:upper:]' '[:lower:]')"
+    local ext
+    ext="$(get_extension "$file")"
 
     [[ "$ext" == "jpg" || "$ext" == "jpeg" ]]
 }
@@ -59,7 +76,7 @@ should_ignore_file() {
     local lower
     lower="$(echo "$filename" | tr '[:upper:]' '[:lower:]')"
 
-    # ignoruj v�e mimo FTP root
+    # ignoruj vše mimo FTP root
     case "$file" in
         "$FTP_ROOT"/*) ;;
         *)
@@ -74,14 +91,14 @@ should_ignore_file() {
             ;;
     esac
 
-    # ignoruj do�asn� a pomocn� soubory
+    # ignoruj dočasné a pomocné soubory
     case "$lower" in
         *.thumb.jpg|*.thumb.jpeg|*.tmp|*.part|*.swp|*.swx|*.ds_store)
             return 0
             ;;
     esac
 
-    # ignoruj skryt� soubory
+    # ignoruj skryté soubory
     case "$filename" in
         .*)
             return 0
@@ -136,6 +153,24 @@ get_user_id() {
         WHERE ftp_user = '$(sql_escape "$ftp_user")'
         LIMIT 1;
     " 2>/dev/null
+}
+
+get_user_author_name() {
+    local ftp_user="$1"
+    local result
+
+    result="$(mysql --batch --skip-column-names -e "
+        SELECT TRIM(CONCAT(COALESCE(jmeno,''), ' ', COALESCE(prijmeni,'')))
+        FROM users
+        WHERE ftp_user = '$(sql_escape "$ftp_user")'
+        LIMIT 1;
+    " 2>/dev/null)"
+
+    if [ -n "$result" ]; then
+        echo "$result"
+    else
+        echo "$ftp_user"
+    fi
 }
 
 get_existing_photo_id() {
@@ -248,6 +283,52 @@ get_image_dimensions() {
     identify -format "%w %h" "$file" 2>/dev/null
 }
 
+is_preview_too_dark() {
+    local file="$1"
+
+    if [ ! -f "$file" ]; then
+        return 0
+    fi
+
+    local mean
+    mean=$("$IM_CONVERT" "$file" -colorspace Gray -format "%[fx:mean]" info: 2>/dev/null || echo "0")
+
+    # mean je 0.0 až 1.0; pod 0.01 bereme jako prakticky černé
+    awk -v m="$mean" 'BEGIN { exit !(m < 0.01) }'
+}
+
+write_press_metadata() {
+    local file="$1"
+    local author="$2"
+
+    if [ -z "$author" ]; then
+        return 0
+    fi
+
+    if exiftool \
+        -q -q \
+        -overwrite_original \
+        -Artist="$author" \
+        -Copyright="© $author" \
+        -XMP-dc:Creator="$author" \
+        -XMP-dc:Rights="© $author" \
+        -IPTC:By-line="$author" \
+        -IPTC:CopyrightNotice="© $author" \
+        -XMP-xmpRights:Marked=True \
+        -IPTC:CopyrightFlag=True \
+        -Description="via PressCentrum" \
+        -XMP-dc:Description="via PressCentrum" \
+        -IPTC:Caption-Abstract="via PressCentrum" \
+        "$file" >> "$LOG_FILE" 2>&1; then
+
+        log "Metadata zapsána: $file ($author)"
+        return 0
+    fi
+
+    log "WARNING: Nepodařilo se zapsat metadata: $file"
+    return 1
+}
+
 generate_preview_from_jpeg() {
     local src="$1"
     local dst="$2"
@@ -256,64 +337,180 @@ generate_preview_from_jpeg() {
 
     "$IM_CONVERT" "$src" \
         -auto-orient \
-        -resize "1600x1600>" \
+        -resize "2000x2000>" \
         -strip \
         -interlace Plane \
         -quality 82 \
         "$dst" >> "$LOG_FILE" 2>&1
 }
 
-generate_preview_from_raw() {
+extract_embedded_preview() {
+    local src="$1"
+    local dst="$2"
+    local ext
+    ext="$(get_extension "$src")"
+
+    mkdir -p "$(dirname "$dst")"
+    rm -f "$dst"
+
+    case "$ext" in
+        nef|nrw|cr2|cr3)
+            if exiftool -b -JpgFromRaw "$src" > "$dst" 2>> "$LOG_FILE"; then
+                if [ -s "$dst" ]; then
+                    exiftool -q -q -overwrite_original -TagsFromFile "$src" -Orientation "$dst" >> "$LOG_FILE" 2>&1 || true
+                    return 0
+                fi
+            fi
+            ;;
+    esac
+
+    if exiftool -b -PreviewImage "$src" > "$dst" 2>> "$LOG_FILE"; then
+        if [ -s "$dst" ]; then
+            exiftool -q -q -overwrite_original -TagsFromFile "$src" -Orientation "$dst" >> "$LOG_FILE" 2>&1 || true
+            return 0
+        fi
+    fi
+
+    rm -f "$dst"
+    return 1
+}
+
+finalize_embedded_preview() {
     local src="$1"
     local dst="$2"
 
+    "$IM_CONVERT" "$src" \
+        -auto-orient \
+        -resize "2000x2000>" \
+        -strip \
+        -interlace Plane \
+        -quality 82 \
+        "$dst" >> "$LOG_FILE" 2>&1
+}
+
+generate_preview_rawtherapee() {
+    local src="$1"
+    local dst="$2"
+    local tmp
+    tmp="$(mktemp /tmp/press_rt_XXXXXX.jpg)"
+
+    rm -f "$tmp"
+
+    if ! command -v rawtherapee-cli >/dev/null 2>&1; then
+        return 1
+    fi
+
+    if timeout 60 rawtherapee-cli \
+        -o "$tmp" \
+        -c "$src" \
+        -Y >> "$LOG_FILE" 2>&1; then
+
+        if "$IM_CONVERT" "$tmp" \
+            -auto-orient \
+            -resize "2000x2000>" \
+            -strip \
+            -interlace Plane \
+            -quality 82 \
+            "$dst" >> "$LOG_FILE" 2>&1; then
+
+            rm -f "$tmp"
+
+            if is_preview_too_dark "$dst"; then
+                log "Preview z rawtherapee je příliš tmavý, fallback: $src"
+                rm -f "$dst"
+                return 1
+            fi
+
+            log "RAW decode via rawtherapee: $src"
+            return 0
+        fi
+    fi
+
+    rm -f "$tmp" "$dst"
+    return 1
+}
+
+generate_preview_dcraw() {
+    local src="$1"
+    local dst="$2"
+    local tmpbase
+    tmpbase="$(mktemp -u /tmp/press_preview_XXXXXX)"
+
+    rm -f "${tmpbase}.ppm"
+
+    if ! command -v dcraw >/dev/null 2>&1; then
+        return 1
+    fi
+
+    if dcraw -c -w "$src" > "${tmpbase}.ppm" 2>> "$LOG_FILE"; then
+        if "$IM_CONVERT" "${tmpbase}.ppm" \
+            -auto-orient \
+            -resize "2000x2000>" \
+            -strip \
+            -interlace Plane \
+            -quality 82 \
+            "$dst" >> "$LOG_FILE" 2>&1; then
+
+            rm -f "${tmpbase}.ppm"
+
+            if is_preview_too_dark "$dst"; then
+                log "Preview z dcraw je příliš tmavý, fallback: $src"
+                rm -f "$dst"
+                return 1
+            fi
+
+            log "RAW decode via dcraw: $src"
+            return 0
+        fi
+    fi
+
+    rm -f "${tmpbase}.ppm" "$dst"
+    return 1
+}
+
+generate_preview_from_raw() {
+    local src="$1"
+    local dst="$2"
+    local ext
+    ext="$(get_extension "$src")"
+
     mkdir -p "$(dirname "$dst")"
 
-    # 1) Hlavn� cesta: rawtherapee-cli
-    if command -v rawtherapee-cli >/dev/null 2>&1; then
-        local tmp="/tmp/press_rt_$$.jpg"
-        rm -f "$tmp"
+    local embedded_tmp
+    embedded_tmp="$(mktemp /tmp/press_embedded_XXXXXX.jpg)"
 
-        if rawtherapee-cli \
-            -o "$tmp" \
-            -c "$src" \
-            -Y >> "$LOG_FILE" 2>&1; then
+    # 1) Primárně embedded preview / JpgFromRaw
+    if extract_embedded_preview "$src" "$embedded_tmp"; then
+        if finalize_embedded_preview "$embedded_tmp" "$dst"; then
+            rm -f "$embedded_tmp"
 
-            if "$IM_CONVERT" "$tmp" \
-                -auto-orient \
-                -resize "1600x1600>" \
-                -strip \
-                -interlace Plane \
-                -quality 82 \
-                "$dst" >> "$LOG_FILE" 2>&1; then
-                rm -f "$tmp"
+            if is_preview_too_dark "$dst"; then
+                log "Embedded preview je příliš tmavý, fallback: $src"
+                rm -f "$dst"
+            else
+                log "RAW preview via embedded image: $src"
                 return 0
             fi
         fi
-
-        rm -f "$tmp"
     fi
 
-    # 2) Legacy fallback: dcraw
-    if command -v dcraw >/dev/null 2>&1; then
-        local tmpbase="/tmp/press_preview_$$"
-        rm -f "${tmpbase}.ppm"
+    rm -f "$embedded_tmp"
 
-        if dcraw -c -w "$src" > "${tmpbase}.ppm" 2>> "$LOG_FILE"; then
-            if "$IM_CONVERT" "${tmpbase}.ppm" \
-                -auto-orient \
-                -resize "1600x1600>" \
-                -strip \
-                -interlace Plane \
-                -quality 82 \
-                "$dst" >> "$LOG_FILE" 2>&1; then
-                rm -f "${tmpbase}.ppm"
-                return 0
-            fi
-        fi
-
-        rm -f "${tmpbase}.ppm"
-    fi
+    # 2) Fallback podle typu RAW
+    case "$ext" in
+        cr3|cr2)
+            generate_preview_rawtherapee "$src" "$dst" && return 0
+            generate_preview_dcraw "$src" "$dst" && return 0
+            ;;
+        nef|nrw)
+            generate_preview_dcraw "$src" "$dst" && return 0
+            generate_preview_rawtherapee "$src" "$dst" && return 0
+            ;;
+        *)
+            generate_preview_rawtherapee "$src" "$dst" && return 0
+            generate_preview_dcraw "$src" "$dst" && return 0
+            ;;
+    esac
 
     return 1
 }
@@ -343,7 +540,7 @@ process_file() {
     local ftp_user="${rel_path%%/*}"
 
     if [ -z "$ftp_user" ] || [ "$ftp_user" = "$rel_path" ]; then
-        log "Nepoda�ilo se ur�it ftp_user z cesty: $file"
+        log "Nepodařilo se určit ftp_user z cesty: $file"
         return 1
     fi
 
@@ -359,6 +556,9 @@ process_file() {
     user_id="$(get_user_id "$ftp_user")"
     [ -z "$user_id" ] && user_id="NULL"
 
+    local author_name
+    author_name="$(get_user_author_name "$ftp_user")"
+
     local filesize
     filesize="$(stat -c%s "$file" 2>/dev/null || echo NULL)"
 
@@ -368,22 +568,30 @@ process_file() {
     local existing_id
     existing_id="$(get_existing_photo_id "$file")"
 
-    local photo_id
-    if [ -n "$existing_id" ]; then
-        photo_id="$existing_id"
-    else
-        insert_photo_row "$filename" "$file" "$ftp_user" "$user_id" "$filesize" "$filetype" "$checksum"
-        photo_id="$(mysql --batch --skip-column-names -e "SELECT id FROM photos WHERE filepath = '$(sql_escape "$file")' ORDER BY id DESC LIMIT 1;" 2>/dev/null)"
+local photo_id
+local is_new_file=0
 
-        if [ -z "$photo_id" ]; then
-            log "Nepoda�ilo se vlo�it DB z�znam: $file"
-            return 1
-        fi
+if [ -n "$existing_id" ]; then
+    photo_id="$existing_id"
+else
+    insert_photo_row "$filename" "$file" "$ftp_user" "$user_id" "$filesize" "$filetype" "$checksum"
+    photo_id="$(mysql --batch --skip-column-names -e "SELECT id FROM photos WHERE filepath = '$(sql_escape "$file")' ORDER BY id DESC LIMIT 1;" 2>/dev/null)"
 
-        insert_photo_log "$photo_id" "$user_id" "upload"
+    if [ -z "$photo_id" ]; then
+        log "Nepodařilo se vložit DB záznam: $file"
+        return 1
     fi
 
-    update_photo_processing "$photo_id"
+    insert_photo_log "$photo_id" "$user_id" "upload"
+    is_new_file=1
+fi
+
+update_photo_processing "$photo_id"
+
+# Zápis metadat jen při prvním zpracování nového souboru
+if [ "$is_new_file" -eq 1 ]; then
+    write_press_metadata "$file" "$author_name"
+fi
 
     local base_no_ext="${filename%.*}"
     local preview_dir="$PREVIEW_ROOT/$ftp_user"
@@ -416,8 +624,16 @@ process_file() {
     update_photo_ready "$photo_id" "$preview_filename" "$preview_filepath" "$width" "$height"
     insert_photo_log "$photo_id" "$user_id" "preview_generated"
 
-    log "Zpracov�no OK: $file -> $preview_filepath"
+    log "Zpracováno OK: $file -> $preview_filepath"
     return 0
+}
+
+reprocess_existing() {
+    log "Press watcher reprocess start"
+
+    find "$FTP_ROOT" -type f | while read -r file; do
+        process_file "$file"
+    done
 }
 
 run_watcher() {
@@ -430,6 +646,11 @@ run_watcher() {
         process_file "$file"
     done
 }
+
+if [[ "${1:-}" == "--reprocess" ]]; then
+    reprocess_existing
+    exit 0
+fi
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     run_watcher

@@ -179,15 +179,65 @@ h1 {
     display: block;
 }
 
+.thumb {
+    aspect-ratio: 1 / 1;
+    background: #111;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
 .thumb img {
     width: 100%;
+    height: 100%;
+    object-fit: contain;
     display: block;
 }
 
 .no-preview {
-    padding: 40px;
-    text-align: center;
-    background: #111;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    background:
+        repeating-linear-gradient(
+            45deg,
+            #111,
+            #111 6px,
+            #151515 6px,
+            #151515 12px
+        );
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+
+    color: transparent;
+    font-size: 0;
+    line-height: 0;
+}
+
+.no-preview::before {
+    content: "?";
+    color: #777;
+    font-size: 42px;
+    line-height: 1;
+    opacity: 0.65;
+}
+
+.no-preview::after {
+    content: "NO PREVIEW";
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #888;
+    font-size: 11px;
+    line-height: 1;
+    letter-spacing: 0.08em;
+    opacity: 0.75;
+    white-space: nowrap;
 }
 
 .meta {

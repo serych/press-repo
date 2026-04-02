@@ -303,6 +303,48 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 });
+const AUTO_REFRESH_MS = 30000;
+let autoRefreshTimer = null;
+
+function startAutoRefresh() {
+    if (autoRefreshTimer !== null) {
+        return;
+    }
+
+    autoRefreshTimer = window.setInterval(function () {
+        const url = new URL(window.location.href);
+
+        // při bulk downloadu stránku automaticky neobnovujeme
+        if (url.searchParams.get('download_job')) {
+            return;
+        }
+
+        if (document.visibilityState !== 'visible') {
+            return;
+        }
+
+        window.location.reload();
+    }, AUTO_REFRESH_MS);
+}
+
+function stopAutoRefresh() {
+    if (autoRefreshTimer !== null) {
+        clearInterval(autoRefreshTimer);
+        autoRefreshTimer = null;
+    }
+}
+
+document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') {
+        startAutoRefresh();
+    } else {
+        stopAutoRefresh();
+    }
+});
+
+if (document.visibilityState === 'visible') {
+    startAutoRefresh();
+}
 </script>
 
 <?php require_once __DIR__ . '/inc/footer.php'; ?>
