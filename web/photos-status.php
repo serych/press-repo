@@ -74,6 +74,18 @@ require_once __DIR__ . '/inc/header.php';
         <div class="status-subhead">
             Fotograf: <?= h($ftpUser) ?>
         </div>
+
+        <div class="ingest-status" id="ingest-status" style="display:none">
+            <span class="ingest-pill ingest-uploading">
+                U:<strong id="uploading-count">0</strong>
+                <span class="ingest-dots" id="uploading-dots"><span>.</span><span>.</span><span>.</span></span>
+            </span>
+
+            <span class="ingest-pill ingest-processing">
+                P:<strong id="processing-count">0</strong>
+                <span class="status-spinner"></span>
+            </span>
+        </div>
     </div>
 
     <?php if (empty($photos)): ?>
@@ -147,6 +159,9 @@ require_once __DIR__ . '/inc/header.php';
 
                         <div class="status-photo-state">
                             <span class="status <?= h($statusClass) ?>" data-role="status-badge">
+                                <?php if ($statusClass === 'status-processing'): ?>
+                                    <span class="status-spinner"></span>
+                                <?php endif; ?>
                                 <?= h($statusText) ?>
                             </span>
 
@@ -177,6 +192,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const list = document.getElementById('status-photo-list');
     const empty = document.getElementById('status-empty');
+    const uploadingCountEl = document.getElementById('uploading-count');
+    const processingCountEl = document.getElementById('processing-count');
+    const uploadingDotsEl = document.getElementById('uploading-dots');
 
     function escapeHtml(value) {
         return String(value)
@@ -187,6 +205,34 @@ document.addEventListener('DOMContentLoaded', function () {
             .replace(/'/g, '&#039;');
     }
 
+function updateIngestStatus(data) {
+    const uploading = Number(data.uploading_count || 0);
+    const processing = Number(data.processing_count || 0);
+
+    const container = document.getElementById('ingest-status');
+
+    if (uploadingCountEl) {
+        uploadingCountEl.textContent = String(uploading);
+    }
+
+    if (processingCountEl) {
+        processingCountEl.textContent = String(processing);
+    }
+
+    if (uploadingDotsEl) {
+        uploadingDotsEl.style.visibility = uploading > 0 ? 'visible' : 'hidden';
+    }
+
+    // zobraz jen pokud se něco děje
+    if (container) {
+        if (uploading > 0 || processing > 0) {
+            container.style.display = 'flex';
+        } else {
+            container.style.display = 'none';
+        }
+    }
+}
+
     function renderPhotoCard(item) {
         const previewHtml = item.preview_url
             ? '<img src="' + escapeHtml(item.preview_url) + '" alt="' + escapeHtml(item.filename) + '">'
@@ -196,6 +242,10 @@ document.addEventListener('DOMContentLoaded', function () {
             ? '<span class="lock-owner" data-role="status-note">(' + escapeHtml(item.status_note) + ')</span>'
             : '<span class="lock-owner" data-role="status-note" style="display:none;"></span>';
 
+        const spinnerHtml = item.status_class === 'status-processing'
+            ? '<span class="status-spinner"></span>'
+            : '';
+
         return '' +
             '<div class="status-photo-card" data-photo-id="' + item.id + '">' +
                 '<div class="status-photo-thumb">' +
@@ -204,7 +254,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 '<div class="status-photo-meta">' +
                     '<div class="status-photo-file" data-role="filename">' + escapeHtml(item.filename) + '</div>' +
                     '<div class="status-photo-state">' +
-                        '<span class="status ' + escapeHtml(item.status_class) + '" data-role="status-badge">' + escapeHtml(item.status_text) + '</span>' +
+                        '<span class="status ' + escapeHtml(item.status_class) + '" data-role="status-badge">' + spinnerHtml + escapeHtml(item.status_text) + '</span>' +
                         noteHtml +
                     '</div>' +
                     '<div class="status-photo-time" data-role="uploaded-at">' + escapeHtml(item.uploaded_at) + '</div>' +
@@ -243,8 +293,12 @@ document.addEventListener('DOMContentLoaded', function () {
         const file = card.querySelector('[data-role="filename"]');
 
         if (badge) {
+            const spinnerHtml = item.status_class === 'status-processing'
+                ? '<span class="status-spinner"></span>'
+                : '';
+
             badge.className = 'status ' + item.status_class;
-            badge.textContent = item.status_text;
+            badge.innerHTML = spinnerHtml + escapeHtml(item.status_text);
         }
 
         if (note) {
@@ -286,6 +340,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
+            updateIngestStatus(data);
+
             if (data.items.length === 0) {
                 ensureListVisibility(false);
                 return;
@@ -305,6 +361,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (timer !== null) {
             return;
         }
+
         timer = window.setInterval(refreshStatuses, POLL_INTERVAL_MS);
     }
 
@@ -325,6 +382,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     if (document.visibilityState === 'visible') {
+        refreshStatuses();
         startPolling();
     }
 });

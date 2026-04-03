@@ -56,6 +56,11 @@ function photos_list(array $filters, int $limit, int $offset): array
     return $stmt->fetchAll();
 }
 
+function photos_feed(array $filters, int $limit, int $offset): array
+{
+    return photos_list($filters, $limit, $offset);
+}
+
 function photos_build_where(array $filters): array
 {
     $where = [];
@@ -77,6 +82,7 @@ function photos_build_where(array $filters): array
 
     return ['WHERE ' . implode(' AND ', $where), $params];
 }
+
 function photos_get_by_id(int $id): ?array
 {
     $sql = "

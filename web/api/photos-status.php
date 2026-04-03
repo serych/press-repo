@@ -13,6 +13,101 @@ if (!has_permission('photos.view')) {
     exit('Přístup odepřen.');
 }
 
+const FTP_ROOT = '/var/www/press/ftp';
+const UPLOADING_RECENT_SECONDS = 300;
+
+function get_extension(string $file): string
+{
+    return strtolower(pathinfo($file, PATHINFO_EXTENSION));
+}
+
+function is_supported_upload_file(string $file): bool
+{
+    $ext = get_extension($file);
+
+    return in_array($ext, [
+        'cr2','cr3','nef','nrw','arw','sr2','srf','raf','rw2','orf','dng','pef','iiq','3fr','jpg','jpeg'
+    ], true);
+}
+
+function should_ignore_upload_file(string $file): bool
+{
+    $filename = basename($file);
+    $lower = strtolower($filename);
+
+    if ($filename === '' || $filename[0] === '.') {
+        return true;
+    }
+
+    foreach (['.thumb.jpg', '.thumb.jpeg', '.tmp', '.part', '.swp', '.swx', '.ds_store'] as $suffix) {
+        if (str_ends_with($lower, $suffix)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function count_uploading_files_for_user(PDO $pdo, string $ftpUser): int
+{
+    $userRoot = FTP_ROOT . '/' . $ftpUser;
+
+    if (!is_dir($userRoot)) {
+        return 0;
+    }
+
+    $stmt = $pdo->prepare("
+        SELECT filepath
+        FROM photos
+        WHERE ftp_user = ?
+    ");
+    $stmt->execute([$ftpUser]);
+
+    $knownFiles = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $path) {
+        $knownFiles[(string)$path] = true;
+    }
+
+    $now = time();
+    $count = 0;
+
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($userRoot, FilesystemIterator::SKIP_DOTS)
+    );
+
+    foreach ($iterator as $fileInfo) {
+        if (!$fileInfo->isFile()) {
+            continue;
+        }
+
+        $path = $fileInfo->getPathname();
+
+        if (should_ignore_upload_file($path)) {
+            continue;
+        }
+
+        if (!is_supported_upload_file($path)) {
+            continue;
+        }
+
+        if (isset($knownFiles[$path])) {
+            continue;
+        }
+
+        if ($fileInfo->getSize() <= 0) {
+            continue;
+        }
+
+        if (($now - $fileInfo->getMTime()) > UPLOADING_RECENT_SECONDS) {
+            continue;
+        }
+
+        $count++;
+    }
+
+    return $count;
+}
+
 $user = current_user();
 $userId = (int)($user['id'] ?? 0);
 
@@ -65,6 +160,17 @@ $stmt = $pdo->prepare("
 ");
 $stmt->execute([$ftpUser]);
 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+$stmt = $pdo->prepare("
+    SELECT COUNT(*)
+    FROM photos
+    WHERE ftp_user = ?
+      AND status = 'processing'
+");
+$stmt->execute([$ftpUser]);
+$processingCount = (int)$stmt->fetchColumn();
+
+$uploadingCount = count_uploading_files_for_user($pdo, $ftpUser);
 
 $data = [];
 
@@ -130,5 +236,8 @@ header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 
 echo json_encode([
     'ok' => true,
+    'ftp_user' => $ftpUser,
+    'uploading_count' => $uploadingCount,
+    'processing_count' => $processingCount,
     'items' => $data,
 ], JSON_UNESCAPED_UNICODE);

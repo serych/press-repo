@@ -92,6 +92,18 @@ require_once __DIR__ . '/inc/header.php';
             Moje zamčené na této stránce: <?= $lockedMineCount ?>
         <?php endif; ?>
     </span>
+
+    <span class="ingest-status ingest-status-inline" id="ingest-status" style="display:none">
+        <span class="ingest-pill ingest-uploading">
+            U:<strong id="uploading-count">0</strong>
+            <span class="ingest-dots" id="uploading-dots"><span>.</span><span>.</span><span>.</span></span>
+        </span>
+
+        <span class="ingest-pill ingest-processing">
+            P:<strong id="processing-count">0</strong>
+            <span class="status-spinner"></span>
+        </span>
+    </span>
 </div>
 
 <?php endif; ?>
@@ -100,7 +112,7 @@ require_once __DIR__ . '/inc/header.php';
 <p>Žádné fotografie.</p>
 <?php else: ?>
 
-<div class="photo-grid">
+<div class="photo-grid" id="photo-grid">
 
 <?php foreach ($photos as $p): ?>
 
@@ -286,9 +298,165 @@ async function runBulkDownload(jobId, total) {
     step();
 }
 
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function renderPhotoCard(item, currentUserId, canSelect) {
+    let cardClass = 'photo-card';
+
+    if (item.status === 'locked' && item.locked_by_user_id) {
+        if (Number(item.locked_by_user_id) === Number(currentUserId)) {
+            cardClass += ' selected';
+        } else {
+            cardClass += ' locked';
+        }
+    }
+
+    let thumbHtml = '';
+    if (item.preview_exists) {
+        thumbHtml = '<img src="/preview.php?id=' + item.id + '" loading="lazy">';
+    } else {
+        thumbHtml = '<div class="no-preview">bez náhledu</div>';
+    }
+
+    let statusHtml = '';
+
+    if (item.status === 'downloaded') {
+        statusHtml = '<div class="status status-downloaded">downloaded</div>';
+    } else if (item.status === 'processing') {
+        statusHtml = '<div class="status status-processing">processing</div>';
+    } else if (item.locked_by_user_id) {
+        if (Number(item.locked_by_user_id) === Number(currentUserId)) {
+            statusHtml =
+                '<a href="/select.php?id=' + item.id + '&action=unlock" class="status status-selected status-clickable" onclick="event.stopPropagation();">ke stažení</a>';
+        } else {
+            const lockedByName = (item.locked_jmeno + ' ' + item.locked_prijmeni).trim();
+            let ownerHtml = '';
+
+            if (lockedByName !== '') {
+                ownerHtml = '<div class="lock-owner">(' + escapeHtml(lockedByName) + ')</div>';
+            } else if (item.locked_by_user) {
+                ownerHtml = '<div class="lock-owner">(' + escapeHtml(item.locked_by_user) + ')</div>';
+            }
+
+            statusHtml =
+                '<div class="status-line">' +
+                    '<div class="status status-locked">zamknuto</div>' +
+                    ownerHtml +
+                '</div>';
+        }
+    } else {
+        if (canSelect) {
+            statusHtml =
+                '<a href="/select.php?id=' + item.id + '&action=lock" class="status status-ready status-clickable" onclick="event.stopPropagation();">ready</a>';
+        } else {
+            statusHtml = '<div class="status status-ready">ready</div>';
+        }
+    }
+
+    return '' +
+        '<div class="' + cardClass + '">' +
+            '<a href="/photo.php?id=' + item.id + '" class="photo-card-link">' +
+                '<div class="thumb">' +
+                    thumbHtml +
+                '</div>' +
+                '<div class="meta">' +
+                    '<div class="file">' + escapeHtml(item.filename) + '</div>' +
+                    '<div class="author">' + escapeHtml(item.ftp_user) + '</div>' +
+                    '<div class="status-wrapper">' + statusHtml + '</div>' +
+                    '<div class="time">' + escapeHtml(item.uploaded_at) + '</div>' +
+                '</div>' +
+            '</a>' +
+        '</div>';
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     const jobId = <?= $downloadJobId ?>;
     const total = <?= $downloadTotal ?>;
+    const canSelect = <?= has_permission('photos.select') ? 'true' : 'false' ?>;
+    const currentUserId = <?= (int)$currentUserId ?>;
+    const photoGrid = document.getElementById('photo-grid');
+    const statusBox = document.getElementById('bulk-status-text');
+    const ingestStatus = document.getElementById('ingest-status');
+    const uploadingCountEl = document.getElementById('uploading-count');
+    const processingCountEl = document.getElementById('processing-count');
+    const uploadingDotsEl = document.getElementById('uploading-dots');
+    ['click', 'keydown', 'touchstart'].forEach(function (eventName) {
+    document.addEventListener(eventName, unlockAudio, { once: true });
+});
+
+    let lastSignature = '';
+    let knownIds = new Set();
+let audioUnlocked = false;
+let audioContext = null;
+
+function unlockAudio() {
+    if (audioUnlocked) {
+        return;
+    }
+
+    try {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) {
+            return;
+        }
+
+        audioContext = new Ctx();
+
+        if (audioContext.state === 'suspended') {
+            audioContext.resume();
+        }
+
+        audioUnlocked = true;
+    } catch (e) {
+        // ticho
+    }
+}
+
+function beepNewPhoto() {
+    if (!audioUnlocked || !audioContext) {
+        return;
+    }
+
+    try {
+        const now = audioContext.currentTime;
+
+        const osc1 = audioContext.createOscillator();
+        const osc2 = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+
+        // příjemnější "notifikace"
+        osc1.type = 'sine';
+        osc1.frequency.value = 880;
+
+        osc2.type = 'sine';
+        osc2.frequency.value = 1320;
+
+        // hlasitější a delší
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.18, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
+
+        osc1.connect(gain);
+        osc2.connect(gain);
+        gain.connect(audioContext.destination);
+
+        osc1.start(now);
+        osc2.start(now);
+
+        osc1.stop(now + 0.45);
+        osc2.stop(now + 0.45);
+
+    } catch (e) {
+        // ticho
+    }
+}
 
     if (jobId > 0 && total > 0) {
         const ok = window.confirm('Bude se stahovat ' + total + ' fotografií. Pokračovat?');
@@ -302,49 +470,144 @@ document.addEventListener('DOMContentLoaded', function () {
             window.location.href = url.toString();
         }
     }
-});
-const AUTO_REFRESH_MS = 30000;
-let autoRefreshTimer = null;
 
-function startAutoRefresh() {
-    if (autoRefreshTimer !== null) {
-        return;
+    function updateIngestStatus(data) {
+    const uploading = Number(data.uploading_count || 0);
+    const processing = Number(data.processing_count || 0);
+
+    if (uploadingCountEl) {
+        uploadingCountEl.textContent = String(uploading);
     }
 
-    autoRefreshTimer = window.setInterval(function () {
-        const url = new URL(window.location.href);
+    if (processingCountEl) {
+        processingCountEl.textContent = String(processing);
+    }
 
-        // při bulk downloadu stránku automaticky neobnovujeme
-        if (url.searchParams.get('download_job')) {
-            return;
-        }
+    if (uploadingDotsEl) {
+        uploadingDotsEl.style.visibility = uploading > 0 ? 'visible' : 'hidden';
+    }
 
-        if (document.visibilityState !== 'visible') {
-            return;
-        }
-
-        window.location.reload();
-    }, AUTO_REFRESH_MS);
-}
-
-function stopAutoRefresh() {
-    if (autoRefreshTimer !== null) {
-        clearInterval(autoRefreshTimer);
-        autoRefreshTimer = null;
+    if (ingestStatus) {
+        ingestStatus.style.display = (uploading > 0 || processing > 0) ? 'inline-flex' : 'none';
     }
 }
 
-document.addEventListener('visibilitychange', function () {
+    async function refreshPhotoFeed() {
+        const url = new URL('/api/photos-feed.php', window.location.origin);
+        const current = new URL(window.location.href);
+
+        url.searchParams.set('page', current.searchParams.get('page') || '1');
+        if (current.searchParams.get('ftp_user')) {
+            url.searchParams.set('ftp_user', current.searchParams.get('ftp_user'));
+        }
+        if (current.searchParams.get('status')) {
+            url.searchParams.set('status', current.searchParams.get('status'));
+        }
+
+        try {
+            const response = await fetch(url.toString(), { cache: 'no-store' });
+            if (!response.ok) {
+                return;
+            }
+
+            const data = await response.json();
+            if (!data || !Array.isArray(data.items)) {
+                return;
+            }
+            const newIds = new Set(data.items.map(function (item) {
+                return Number(item.id);
+            }));
+            
+            if (knownIds.size > 0) {
+                let hasNewPhoto = false;
+            
+                newIds.forEach(function (id) {
+                    if (!knownIds.has(id)) {
+                        hasNewPhoto = true;
+                    }
+                });
+            
+                if (hasNewPhoto) {
+                    beepNewPhoto();
+                }
+            }
+            
+            knownIds = newIds;
+            
+            updateIngestStatus(data);
+            const signature = JSON.stringify(data.items.map(function (item) {
+                return [
+                    item.id,
+                    item.status,
+                    item.preview_exists ? 1 : 0,
+                    item.locked_by_user_id || 0
+                ];
+            }));
+
+            if (signature === lastSignature) {
+                return;
+            }
+
+            lastSignature = signature;
+
+            if (photoGrid) {
+                photoGrid.innerHTML = data.items.map(function (item) {
+                    return renderPhotoCard(item, currentUserId, canSelect);
+                }).join('');
+            }
+
+            if (statusBox && !current.searchParams.get('download_job')) {
+                statusBox.textContent = 'Moje zamčené na této stránce: ' + Number(data.locked_mine_count || 0);
+            }
+        } catch (e) {
+            // ticho, zkusíme příště
+        }
+    }
+
+    const AUTO_REFRESH_MS = 15000;
+    let autoRefreshTimer = null;
+
+    function startAutoRefresh() {
+        if (autoRefreshTimer !== null) {
+            return;
+        }
+
+        autoRefreshTimer = window.setInterval(function () {
+            const current = new URL(window.location.href);
+
+            if (current.searchParams.get('download_job')) {
+                return;
+            }
+
+            if (document.visibilityState !== 'visible') {
+                return;
+            }
+
+            refreshPhotoFeed();
+        }, AUTO_REFRESH_MS);
+    }
+
+    function stopAutoRefresh() {
+        if (autoRefreshTimer !== null) {
+            clearInterval(autoRefreshTimer);
+            autoRefreshTimer = null;
+        }
+    }
+
+    document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'visible') {
+            refreshPhotoFeed();
+            startAutoRefresh();
+        } else {
+            stopAutoRefresh();
+        }
+    });
+
     if (document.visibilityState === 'visible') {
+        refreshPhotoFeed();
         startAutoRefresh();
-    } else {
-        stopAutoRefresh();
     }
 });
-
-if (document.visibilityState === 'visible') {
-    startAutoRefresh();
-}
 </script>
 
 <?php require_once __DIR__ . '/inc/footer.php'; ?>
