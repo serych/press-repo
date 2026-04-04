@@ -145,6 +145,26 @@ sql_escape() {
     echo "$1" | sed "s/'/''/g"
 }
 
+normalize_spaces() {
+    printf '%s' "$1" | tr '\r\n\t' '   ' | sed -E 's/[[:space:]]+/ /g; s/^ +//; s/ +$//'
+}
+
+normalize_author() {
+    local value="$1"
+
+    value="$(normalize_spaces "$value")"
+
+    if command -v iconv >/dev/null 2>&1; then
+        value="$(printf '%s' "$value" | iconv -f UTF-8 -t ASCII//TRANSLIT 2>/dev/null || printf '%s' "$value")"
+    fi
+
+    value="$(printf '%s' "$value" \
+        | tr '[:upper:]' '[:lower:]' \
+        | sed -E 's/[\"'"'"'`´.,;:_+=~!?|(){}\[\]<>\/\\-]+/ /g; s/[[:space:]]+/ /g; s/^ +//; s/ +$//')"
+
+    printf '%s\n' "$value"
+}
+
 get_user_id() {
     local ftp_user="$1"
     mysql --batch --skip-column-names -e "
@@ -160,7 +180,11 @@ get_user_author_name() {
     local result
 
     result="$(mysql --batch --skip-column-names -e "
-        SELECT TRIM(CONCAT(COALESCE(jmeno,''), ' ', COALESCE(prijmeni,'')))
+        SELECT
+            CASE
+                WHEN TRIM(CONCAT(COALESCE(jmeno,''), ' ', COALESCE(prijmeni,''))) <> '' THEN TRIM(CONCAT(COALESCE(jmeno,''), ' ', COALESCE(prijmeni,'')))
+                ELSE ftp_user
+            END
         FROM users
         WHERE ftp_user = '$(sql_escape "$ftp_user")'
         LIMIT 1;
@@ -171,6 +195,209 @@ get_user_author_name() {
     else
         echo "$ftp_user"
     fi
+}
+
+get_active_event_id() {
+    mysql --batch --skip-column-names -e "
+        SELECT id
+        FROM events
+        WHERE status = 'active'
+          AND is_temporary = 0
+        ORDER BY id DESC
+        LIMIT 1;
+    " 2>/dev/null
+}
+
+get_temporary_event_id() {
+    mysql --batch --skip-column-names -e "
+        SELECT id
+        FROM events
+        WHERE status = 'active'
+          AND is_temporary = 1
+        ORDER BY id DESC
+        LIMIT 1;
+    " 2>/dev/null
+}
+
+get_current_event_id() {
+    local id
+
+    id="$(get_active_event_id)"
+
+    if [ -n "$id" ]; then
+        echo "$id"
+        return
+    fi
+
+    id="$(get_temporary_event_id)"
+
+    if [ -n "$id" ]; then
+        echo "$id"
+        return
+    fi
+
+    echo ""
+}
+
+is_runner_for_event() {
+    local ftp_user="$1"
+    local event_id="$2"
+    local result
+
+    if [ -z "$event_id" ] || [ "$event_id" = "NULL" ]; then
+        return 1
+    fi
+
+    result="$(mysql --batch --skip-column-names -e "
+        SELECT 1
+        FROM event_users eu
+        INNER JOIN users u ON u.id = eu.user_id
+        WHERE eu.event_id = ${event_id}
+          AND eu.role_in_event = 'photographer'
+          AND eu.runner = 1
+          AND u.ftp_user = '$(sql_escape "$ftp_user")'
+        LIMIT 1;
+    " 2>/dev/null)"
+
+    [ "$result" = "1" ]
+}
+
+read_exif_author() {
+    local file="$1"
+    local value=""
+
+    local tags=(
+        "Artist"
+        "Author"
+        "Creator"
+        "XPAuthor"
+        "IPTC:By-line"
+        "XMP-dc:Creator"
+    )
+
+    local tag
+    for tag in "${tags[@]}"; do
+        value="$(exiftool -s3 "-$tag" "$file" 2>> "$LOG_FILE" | head -n 1)"
+        value="$(normalize_spaces "$value")"
+        if [ -n "$value" ]; then
+            echo "$value"
+            return
+        fi
+    done
+
+    echo ""
+}
+
+find_matching_photographer_for_event_by_exif_author() {
+    local event_id="$1"
+    local exif_author_raw="$2"
+    local normalized_needle
+    normalized_needle="$(normalize_author "$exif_author_raw")"
+
+    if [ -z "$event_id" ] || [ "$event_id" = "NULL" ] || [ -z "$normalized_needle" ]; then
+        return 1
+    fi
+
+    local rows
+    rows="$(mysql --batch --raw --skip-column-names -e "
+        SELECT
+            u.id,
+            u.ftp_user,
+            TRIM(CONCAT(COALESCE(u.jmeno,''), ' ', COALESCE(u.prijmeni,''))) AS author_name,
+            COALESCE(u.exif_author, '')
+        FROM event_users eu
+        INNER JOIN users u ON u.id = eu.user_id
+        WHERE eu.event_id = ${event_id}
+          AND eu.role_in_event = 'photographer'
+        ORDER BY eu.runner ASC, u.id ASC;
+    " 2>/dev/null)"
+
+    [ -z "$rows" ] && return 1
+
+    local line
+    while IFS=$'\t' read -r user_id candidate_ftp_user author_name candidate_exif_author; do
+        [ -z "$user_id" ] && continue
+
+        candidate_exif_author="$(normalize_spaces "$candidate_exif_author")"
+        [ -z "$candidate_exif_author" ] && continue
+
+        local normalized_candidate
+        normalized_candidate="$(normalize_author "$candidate_exif_author")"
+
+        if [ -n "$normalized_candidate" ] && [ "$normalized_candidate" = "$normalized_needle" ]; then
+            printf '%s\t%s\t%s\n' "$user_id" "$candidate_ftp_user" "$author_name"
+            return 0
+        fi
+    done <<< "$rows"
+
+    return 1
+}
+
+ensure_dir_exists() {
+    local dir="$1"
+
+    if [ ! -d "$dir" ]; then
+        mkdir -p "$dir" || return 1
+    fi
+
+    return 0
+}
+
+get_unique_destination_path() {
+    local target_dir="$1"
+    local filename="$2"
+
+    local base="${filename%.*}"
+    local ext=""
+    if [ "$base" != "$filename" ]; then
+        ext=".${filename##*.}"
+    else
+        base="$filename"
+    fi
+
+    local candidate="$target_dir/$filename"
+    if [ ! -e "$candidate" ]; then
+        echo "$candidate"
+        return
+    fi
+
+    local i=1
+    while true; do
+        candidate="$target_dir/${base}_$i${ext}"
+        if [ ! -e "$candidate" ]; then
+            echo "$candidate"
+            return
+        fi
+        i=$((i + 1))
+    done
+}
+
+move_file_to_ftp_user_dir() {
+    local src="$1"
+    local target_ftp_user="$2"
+
+    local filename
+    filename="$(basename "$src")"
+
+    local target_dir="$FTP_ROOT/$target_ftp_user"
+    ensure_dir_exists "$target_dir" || return 1
+
+    local dst
+    dst="$(get_unique_destination_path "$target_dir" "$filename")"
+
+    if [ "$src" = "$dst" ]; then
+        echo "$src"
+        return 0
+    fi
+
+    if mv -f "$src" "$dst"; then
+        log "Soubor přesunut: $src -> $dst"
+        echo "$dst"
+        return 0
+    fi
+
+    log "ERROR: Nepodařilo se přesunout soubor: $src -> $dst"
+    return 1
 }
 
 get_existing_photo_id() {
@@ -191,6 +418,7 @@ insert_photo_row() {
     local filesize="$5"
     local filetype="$6"
     local checksum="$7"
+    local event_id="$8"
 
     mysql -e "
         INSERT INTO photos (
@@ -202,6 +430,7 @@ insert_photo_row() {
             filetype,
             status,
             checksum,
+            event_id,
             uploaded_at
         ) VALUES (
             '$(sql_escape "$filename")',
@@ -212,6 +441,7 @@ insert_photo_row() {
             '$(sql_escape "$filetype")',
             'uploaded',
             '$(sql_escape "$checksum")',
+            ${event_id:-NULL},
             NOW()
         );
     " 2>/dev/null
@@ -256,6 +486,20 @@ update_photo_error() {
     " 2>/dev/null
 }
 
+update_photo_exif_problem() {
+    local photo_id="$1"
+    local exif_problem="$2"
+    local note="$3"
+
+    mysql -e "
+        UPDATE photos
+        SET
+            exif_problem = ${exif_problem},
+            exif_problem_note = $( [ -n "$note" ] && printf "'%s'" "$(sql_escape "$note")" || printf "NULL" )
+        WHERE id = ${photo_id};
+    " 2>/dev/null
+}
+
 insert_photo_log() {
     local photo_id="$1"
     local user_id="$2"
@@ -293,7 +537,6 @@ is_preview_too_dark() {
     local mean
     mean=$("$IM_CONVERT" "$file" -colorspace Gray -format "%[fx:mean]" info: 2>/dev/null || echo "0")
 
-    # mean je 0.0 až 1.0; pod 0.01 bereme jako prakticky černé
     awk -v m="$mean" 'BEGIN { exit !(m < 0.01) }'
 }
 
@@ -552,6 +795,16 @@ process_file() {
         filetype="jpeg"
     fi
 
+    local filesize
+    filesize="$(stat -c%s "$file" 2>/dev/null || echo NULL)"
+
+    local checksum
+    checksum="$(sha256sum "$file" 2>/dev/null | awk '{print $1}')"
+
+    local event_id
+    event_id="$(get_current_event_id)"
+    [ -z "$event_id" ] && event_id="NULL"
+
     local user_id
     user_id="$(get_user_id "$ftp_user")"
     [ -z "$user_id" ] && user_id="NULL"
@@ -559,39 +812,93 @@ process_file() {
     local author_name
     author_name="$(get_user_author_name "$ftp_user")"
 
-    local filesize
-    filesize="$(stat -c%s "$file" 2>/dev/null || echo NULL)"
+    local skip_metadata_write=0
+    local exif_problem=0
+    local exif_problem_note=""
 
-    local checksum
-    checksum="$(sha256sum "$file" 2>/dev/null | awk '{print $1}')"
+    if [ "$event_id" != "NULL" ] && is_runner_for_event "$ftp_user" "$event_id"; then
+        local runner_exif_author_raw
+        runner_exif_author_raw="$(read_exif_author "$file")"
+
+        if [ -z "$runner_exif_author_raw" ]; then
+            exif_problem=1
+            exif_problem_note="Runner upload: chybí EXIF author"
+            skip_metadata_write=1
+            log "Runner bez EXIF author: $file"
+        else
+            local match_row
+            match_row="$(find_matching_photographer_for_event_by_exif_author "$event_id" "$runner_exif_author_raw" || true)"
+
+            if [ -n "$match_row" ]; then
+                local matched_user_id
+                local matched_ftp_user
+                local matched_author_name
+
+                IFS=$'\t' read -r matched_user_id matched_ftp_user matched_author_name <<< "$match_row"
+
+                if [ -n "$matched_ftp_user" ]; then
+                    local original_file="$file"
+                    local original_ftp_user="$ftp_user"
+
+                    local moved_file
+                    moved_file="$(move_file_to_ftp_user_dir "$file" "$matched_ftp_user")"
+                    if [ $? -ne 0 ] || [ -z "$moved_file" ] || [ ! -f "$moved_file" ]; then
+                        log "ERROR: Runner match nalezen, ale přesun selhal: $file -> $matched_ftp_user"
+                        return 1
+                    fi
+
+                    file="$moved_file"
+                    filename="$(basename "$file")"
+                    ftp_user="$matched_ftp_user"
+                    user_id="$matched_user_id"
+                    author_name="$matched_author_name"
+
+                    rel_path="${file#$FTP_ROOT/}"
+
+                    log "Runner match: EXIF author '$runner_exif_author_raw' přiřazen k ftp_user '$ftp_user' (původně '$original_ftp_user')"
+                else
+                    exif_problem=1
+                    exif_problem_note="Runner upload: EXIF author '$runner_exif_author_raw' neodpovídá žádnému fotografovi eventu"
+                    skip_metadata_write=1
+                    log "Runner bez shody: $file | EXIF author='$runner_exif_author_raw'"
+                fi
+            else
+                exif_problem=1
+                exif_problem_note="Runner upload: EXIF author '$runner_exif_author_raw' neodpovídá žádnému fotografovi eventu"
+                skip_metadata_write=1
+                log "Runner bez shody: $file | EXIF author='$runner_exif_author_raw'"
+            fi
+        fi
+    fi
 
     local existing_id
     existing_id="$(get_existing_photo_id "$file")"
 
-local photo_id
-local is_new_file=0
+    local photo_id
+    local is_new_file=0
 
-if [ -n "$existing_id" ]; then
-    photo_id="$existing_id"
-else
-    insert_photo_row "$filename" "$file" "$ftp_user" "$user_id" "$filesize" "$filetype" "$checksum"
-    photo_id="$(mysql --batch --skip-column-names -e "SELECT id FROM photos WHERE filepath = '$(sql_escape "$file")' ORDER BY id DESC LIMIT 1;" 2>/dev/null)"
+    if [ -n "$existing_id" ]; then
+        photo_id="$existing_id"
+    else
+        insert_photo_row "$filename" "$file" "$ftp_user" "$user_id" "$filesize" "$filetype" "$checksum" "$event_id"
+        photo_id="$(mysql --batch --skip-column-names -e "SELECT id FROM photos WHERE filepath = '$(sql_escape "$file")' ORDER BY id DESC LIMIT 1;" 2>/dev/null)"
 
-    if [ -z "$photo_id" ]; then
-        log "Nepodařilo se vložit DB záznam: $file"
-        return 1
+        if [ -z "$photo_id" ]; then
+            log "Nepodařilo se vložit DB záznam: $file"
+            return 1
+        fi
+
+        insert_photo_log "$photo_id" "$user_id" "upload"
+        is_new_file=1
     fi
 
-    insert_photo_log "$photo_id" "$user_id" "upload"
-    is_new_file=1
-fi
+    update_photo_exif_problem "$photo_id" "$exif_problem" "$exif_problem_note"
+    update_photo_processing "$photo_id"
 
-update_photo_processing "$photo_id"
-
-# Zápis metadat jen při prvním zpracování nového souboru
-if [ "$is_new_file" -eq 1 ]; then
-    write_press_metadata "$file" "$author_name"
-fi
+    # Zápis metadat jen při prvním zpracování nového souboru
+    if [ "$is_new_file" -eq 1 ] && [ "$skip_metadata_write" -ne 1 ]; then
+        write_press_metadata "$file" "$author_name"
+    fi
 
     local base_no_ext="${filename%.*}"
     local preview_dir="$PREVIEW_ROOT/$ftp_user"

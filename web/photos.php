@@ -15,6 +15,8 @@ if (!has_permission('photos.view')) {
 
 $ftpUser = isset($_GET['ftp_user']) ? trim((string)$_GET['ftp_user']) : '';
 $status  = isset($_GET['status']) ? trim((string)$_GET['status']) : '';
+$currentEvent = photos_get_current_event();
+$currentEventId = !empty($currentEvent['id']) ? (int)$currentEvent['id'] : 0;
 
 $downloadJobId = max(0, (int)($_GET['download_job'] ?? 0));
 $downloadTotal = max(0, (int)($_GET['download_total'] ?? 0));
@@ -24,13 +26,14 @@ $perPage = 24;
 $offset = ($page - 1) * $perPage;
 
 $filters = [
+    'event_id' => $currentEventId,
     'ftp_user' => $ftpUser,
     'status'   => $status,
 ];
 
 $total = photos_count($filters);
 $photos = photos_list($filters, $perPage, $offset);
-$photographers = photos_get_photographers();
+$photographers = photos_get_photographers($filters);
 
 $totalPages = max(1, (int)ceil($total / $perPage));
 
@@ -52,6 +55,15 @@ require_once __DIR__ . '/inc/header.php';
 
 <section class="panel">
 <h1>Fotografie</h1>
+<?php if (!empty($currentEvent)): ?>
+    <p class="table-subtext">
+        Aktuální event:
+        <strong><?= h((string)$currentEvent['title']) ?></strong>
+        <?php if (!empty($currentEvent['is_temporary'])): ?>
+            <span class="badge badge-info">temporary</span>
+        <?php endif; ?>
+    </p>
+<?php endif; ?>
 
 <form method="get" class="filters">
 

@@ -3,16 +3,45 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/db.php';
 
-function photos_get_photographers(): array
+function photos_get_current_event(): ?array
 {
     $sql = "
-        SELECT DISTINCT ftp_user
-        FROM photos
-        WHERE ftp_user IS NOT NULL
-        ORDER BY ftp_user
+        SELECT *
+        FROM events
+        WHERE status = 'active'
+        ORDER BY is_temporary ASC, id DESC
+        LIMIT 1
     ";
 
-    return db()->query($sql)->fetchAll();
+    $row = db()->query($sql)->fetch(PDO::FETCH_ASSOC);
+    return $row ?: null;
+}
+
+function photos_get_photographers(array $filters = []): array
+{
+    [$where, $params] = photos_build_where($filters);
+
+    $sql = "
+        SELECT DISTINCT p.ftp_user
+        FROM photos p
+        $where
+        AND p.ftp_user IS NOT NULL
+        ORDER BY p.ftp_user
+    ";
+
+    if ($where === '') {
+        $sql = "
+            SELECT DISTINCT p.ftp_user
+            FROM photos p
+            WHERE p.ftp_user IS NOT NULL
+            ORDER BY p.ftp_user
+        ";
+        return db()->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    $stmt = db()->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
 function photos_count(array $filters): int
@@ -46,14 +75,18 @@ function photos_list(array $filters, int $limit, int $offset): array
     $stmt = db()->prepare($sql);
 
     foreach ($params as $k => $v) {
-        $stmt->bindValue($k, $v);
+        if (is_int($v)) {
+            $stmt->bindValue($k, $v, PDO::PARAM_INT);
+        } else {
+            $stmt->bindValue($k, $v);
+        }
     }
 
     $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
     $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
 
     $stmt->execute();
-    return $stmt->fetchAll();
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
 function photos_feed(array $filters, int $limit, int $offset): array
@@ -65,6 +98,11 @@ function photos_build_where(array $filters): array
 {
     $where = [];
     $params = [];
+
+    if (!empty($filters['event_id'])) {
+        $where[] = 'p.event_id = :event_id';
+        $params[':event_id'] = (int)$filters['event_id'];
+    }
 
     if (!empty($filters['ftp_user'])) {
         $where[] = 'p.ftp_user = :ftp_user';
@@ -104,6 +142,6 @@ function photos_get_by_id(int $id): ?array
     $stmt = db()->prepare($sql);
     $stmt->execute([':id' => $id]);
 
-    $row = $stmt->fetch();
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
     return $row ?: null;
 }

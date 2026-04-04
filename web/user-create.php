@@ -24,6 +24,8 @@ $values = [
     'ftp_password' => '',
     'homedir'      => '',
     'role_id'      => '',
+    'mobile'       => '',
+    'exif_author'  => '',
 ];
 
 $errors = [];
@@ -37,6 +39,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $values['ftp_password'] = (string)($_POST['ftp_password'] ?? '');
     $values['homedir']      = trim((string)($_POST['homedir'] ?? ''));
     $values['role_id']      = (string)($_POST['role_id'] ?? '');
+    $values['mobile']       = trim((string)($_POST['mobile'] ?? ''));
+    $values['exif_author']  = trim((string)($_POST['exif_author'] ?? ''));
 
     if ($values['jmeno'] === '') {
         $errors[] = 'Vyplň jméno.';
@@ -91,6 +95,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'ftp_password' => $values['ftp_password'],
             'homedir'      => $values['homedir'],
             'role_id'      => $roleId,
+            'mobile'       => $values['mobile'],
+            'exif_author'  => $values['exif_author'],
         ]);
 
         header('Location: /users.php');
@@ -140,12 +146,12 @@ require_once __DIR__ . '/inc/header.php';
                         <button type="button" class="password-toggle" data-target="password" aria-label="Zobrazit nebo skrýt heslo">👁</button>
                     </div>
                 </div>
-                
+
                 <div>
                     <label for="ftp_user">FTP login</label>
                     <input type="text" name="ftp_user" id="ftp_user" value="<?= h($values['ftp_user']) ?>" required>
                 </div>
-                
+
                 <div>
                     <label for="ftp_password">FTP heslo</label>
                     <div class="password-wrap">
@@ -170,6 +176,32 @@ require_once __DIR__ . '/inc/header.php';
                             </option>
                         <?php endforeach; ?>
                     </select>
+                </div>
+
+                <div class="form-grid-span-2">
+                    <label for="mobile">Mobilní číslo</label>
+                    <input
+                        type="text"
+                        name="mobile"
+                        id="mobile"
+                        value="<?= h(users_format_mobile($values['mobile'])) ?>"
+                        placeholder="+420 123 456 789"
+                        inputmode="tel"
+                        autocomplete="tel"
+                    >
+                </div>
+
+                <div class="form-grid-span-2">
+                    <label for="exif_author">
+                        EXIF - pole author
+                        <span class="help-tip" title="Vyplňte autora přesně v tom tvaru, jak ho mají nastavené fotky ve vašem foťáku.">?</span>
+                    </label>
+                    <input
+                        type="text"
+                        name="exif_author"
+                        id="exif_author"
+                        value="<?= h($values['exif_author']) ?>"
+                    >
                 </div>
             </div>
 

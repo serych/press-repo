@@ -130,8 +130,11 @@ $status  = isset($_GET['status']) ? trim((string)($_GET['status'] ?? '')) : '';
 $page = max(1, (int)($_GET['page'] ?? 1));
 $perPage = 24;
 $offset = ($page - 1) * $perPage;
+$currentEvent = photos_get_current_event();
+$currentEventId = !empty($currentEvent['id']) ? (int)$currentEvent['id'] : 0;
 
 $filters = [
+    'event_id' => $currentEventId,
     'ftp_user' => $ftpUser,
     'status'   => $status,
 ];

@@ -40,6 +40,10 @@ $user = current_user();
                     <a href="/users.php">Uživatelé</a>
                 <?php endif; ?>
 
+                <?php if (has_permission('users.manage') || has_permission('photos.select')): ?>
+                    <a href="/events.php">Eventy</a>
+                <?php endif; ?>
+
                 <a href="/logout.php">Odhlásit</a>
             </nav>
         <?php endif; ?>

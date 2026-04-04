@@ -33,6 +33,7 @@ function users_list(): array
                 u.user,
                 u.ftp_user,
                 u.homedir,
+                u.exif_author,
                 u.is_active,
                 u.last_login_at,
                 r.id   AS role_id,
@@ -53,6 +54,7 @@ function users_list(): array
             u.user,
             u.ftp_user,
             u.homedir,
+            u.exif_author,
             u.is_active,
             u.last_login_at,
             r.id   AS role_id,
@@ -80,6 +82,8 @@ function users_get(int $id): ?array
                 u.id,
                 u.jmeno,
                 u.prijmeni,
+                u.mobile,
+                u.exif_author,
                 u.user,
                 u.pass_hash,
                 u.ftp_user,
@@ -102,6 +106,8 @@ function users_get(int $id): ?array
                 u.id,
                 u.jmeno,
                 u.prijmeni,
+                u.mobile,
+                u.exif_author,
                 u.user,
                 u.pass_hash,
                 u.ftp_user,
@@ -230,6 +236,8 @@ function users_create(array $data): int
         (
             jmeno,
             prijmeni,
+            mobile,
+            exif_author,
             user,
             pass_hash,
             ftp_user,
@@ -242,6 +250,8 @@ function users_create(array $data): int
         (
             :jmeno,
             :prijmeni,
+            :mobile,
+            :exif_author,
             :user,
             :pass_hash,
             :ftp_user,
@@ -255,6 +265,8 @@ function users_create(array $data): int
     $stmt->execute([
         ':jmeno'         => $data['jmeno'],
         ':prijmeni'      => $data['prijmeni'],
+        ':mobile'        => users_normalize_mobile($data['mobile'] ?? ''),
+        ':exif_author'   => users_normalize_exif_author($data['exif_author'] ?? ''),
         ':user'          => $data['user'],
         ':pass_hash'     => password_hash($data['password'], PASSWORD_BCRYPT),
         ':ftp_user'      => $data['ftp_user'],
@@ -262,9 +274,11 @@ function users_create(array $data): int
         ':homedir'       => $data['homedir'],
         ':role_id'       => $data['role_id'],
     ]);
+
     users_ensure_ftp_directory($data['homedir']);
     return (int)$pdo->lastInsertId();
 }
+
 function users_update(int $id, array $data): void
 {
     $pdo = db();
@@ -272,6 +286,8 @@ function users_update(int $id, array $data): void
     $fields = [
         'jmeno = :jmeno',
         'prijmeni = :prijmeni',
+        'mobile = :mobile',
+        'exif_author = :exif_author',
         'user = :user',
         'ftp_user = :ftp_user',
         'homedir = :homedir',
@@ -279,13 +295,15 @@ function users_update(int $id, array $data): void
     ];
 
     $params = [
-        ':id'       => $id,
-        ':jmeno'    => $data['jmeno'],
-        ':prijmeni' => $data['prijmeni'],
-        ':user'     => $data['user'],
-        ':ftp_user' => $data['ftp_user'],
-        ':homedir'  => $data['homedir'],
-        ':role_id'  => $data['role_id'],
+        ':id'          => $id,
+        ':jmeno'       => $data['jmeno'],
+        ':prijmeni'    => $data['prijmeni'],
+        ':mobile'      => users_normalize_mobile($data['mobile'] ?? ''),
+        ':exif_author' => users_normalize_exif_author($data['exif_author'] ?? ''),
+        ':user'        => $data['user'],
+        ':ftp_user'    => $data['ftp_user'],
+        ':homedir'     => $data['homedir'],
+        ':role_id'     => $data['role_id'],
     ];
 
     if (!empty($data['password'])) {
@@ -321,6 +339,7 @@ function users_delete(int $id): void
     ");
     $stmt->execute([$id]);
 }
+
 function users_ensure_ftp_directory(string $homedir): void
 {
     $homedir = trim($homedir);
@@ -346,4 +365,51 @@ function users_ensure_ftp_directory(string $homedir): void
         @chown($homedir, 'www-data');
         @chgrp($homedir, 'www-data');
     }
+}
+
+function users_normalize_mobile(?string $value): ?string
+{
+    $value = trim((string)$value);
+
+    if ($value === '') {
+        return null;
+    }
+
+    $value = preg_replace('~(?!^\+)[^0-9]|[^\+0-9]~', '', $value);
+
+    if (preg_match('~^\d{9}$~', $value)) {
+        $value = '+420' . $value;
+    }
+
+    if (preg_match('~^420\d{9}$~', $value)) {
+        $value = '+' . $value;
+    }
+
+    return $value;
+}
+
+function users_format_mobile(?string $value): string
+{
+    $value = trim((string)$value);
+
+    if ($value === '') {
+        return '';
+    }
+
+    $normalized = users_normalize_mobile($value);
+    if ($normalized === null) {
+        return '';
+    }
+
+    if (preg_match('~^\+420(\d{3})(\d{3})(\d{3})$~', $normalized, $m)) {
+        return '+420 ' . $m[1] . ' ' . $m[2] . ' ' . $m[3];
+    }
+
+    return $normalized;
+}
+
+function users_normalize_exif_author(?string $value): ?string
+{
+    $value = trim((string)$value);
+    return $value === '' ? null : $value;
 }

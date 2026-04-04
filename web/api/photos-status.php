@@ -26,7 +26,7 @@ function is_supported_upload_file(string $file): bool
     $ext = get_extension($file);
 
     return in_array($ext, [
-        'cr2','cr3','nef','nrw','arw','sr2','srf','raf','rw2','orf','dng','pef','iiq','3fr','jpg','jpeg'
+        'cr2', 'cr3', 'nef', 'nrw', 'arw', 'sr2', 'srf', 'raf', 'rw2', 'orf', 'dng', 'pef', 'iiq', '3fr', 'jpg', 'jpeg'
     ], true);
 }
 
@@ -48,20 +48,48 @@ function should_ignore_upload_file(string $file): bool
     return false;
 }
 
-function count_uploading_files_for_user(PDO $pdo, string $ftpUser): int
+function get_current_active_event_id(PDO $pdo): int
 {
-    $userRoot = FTP_ROOT . '/' . $ftpUser;
+    $stmt = $pdo->query("
+        SELECT id
+        FROM events
+        WHERE status = 'active'
+        ORDER BY is_temporary ASC, id DESC
+        LIMIT 1
+    ");
 
-    if (!is_dir($userRoot)) {
-        return 0;
+    $value = $stmt->fetchColumn();
+
+    return $value !== false ? (int)$value : 0;
+}
+
+function count_uploading_files(PDO $pdo, string $ftpUser, int $activeEventId, string $scope): int
+{
+    if ($scope === 'mine') {
+        $roots = [FTP_ROOT . '/' . $ftpUser];
+    } else {
+        $roots = [FTP_ROOT];
     }
 
-    $stmt = $pdo->prepare("
+    $sql = "
         SELECT filepath
         FROM photos
-        WHERE ftp_user = ?
-    ");
-    $stmt->execute([$ftpUser]);
+        WHERE 1 = 1
+    ";
+    $params = [];
+
+    if ($scope === 'mine') {
+        $sql .= " AND ftp_user = ?";
+        $params[] = $ftpUser;
+    }
+
+    if ($activeEventId > 0) {
+        $sql .= " AND event_id = ?";
+        $params[] = $activeEventId;
+    }
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
 
     $knownFiles = [];
     foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $path) {
@@ -71,38 +99,44 @@ function count_uploading_files_for_user(PDO $pdo, string $ftpUser): int
     $now = time();
     $count = 0;
 
-    $iterator = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($userRoot, FilesystemIterator::SKIP_DOTS)
-    );
-
-    foreach ($iterator as $fileInfo) {
-        if (!$fileInfo->isFile()) {
+    foreach ($roots as $root) {
+        if (!is_dir($root)) {
             continue;
         }
 
-        $path = $fileInfo->getPathname();
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS)
+        );
 
-        if (should_ignore_upload_file($path)) {
-            continue;
+        foreach ($iterator as $fileInfo) {
+            if (!$fileInfo->isFile()) {
+                continue;
+            }
+
+            $path = $fileInfo->getPathname();
+
+            if (should_ignore_upload_file($path)) {
+                continue;
+            }
+
+            if (!is_supported_upload_file($path)) {
+                continue;
+            }
+
+            if (isset($knownFiles[$path])) {
+                continue;
+            }
+
+            if ($fileInfo->getSize() <= 0) {
+                continue;
+            }
+
+            if (($now - $fileInfo->getMTime()) > UPLOADING_RECENT_SECONDS) {
+                continue;
+            }
+
+            $count++;
         }
-
-        if (!is_supported_upload_file($path)) {
-            continue;
-        }
-
-        if (isset($knownFiles[$path])) {
-            continue;
-        }
-
-        if ($fileInfo->getSize() <= 0) {
-            continue;
-        }
-
-        if (($now - $fileInfo->getMTime()) > UPLOADING_RECENT_SECONDS) {
-            continue;
-        }
-
-        $count++;
     }
 
     return $count;
@@ -140,7 +174,14 @@ if ($ftpUser === '') {
     exit('U uživatele chybí FTP účet.');
 }
 
-$stmt = $pdo->prepare("
+$scope = (string)($_GET['scope'] ?? 'mine');
+if (!in_array($scope, ['mine', 'all'], true)) {
+    $scope = 'mine';
+}
+
+$activeEventId = get_current_active_event_id($pdo);
+
+$sql = "
     SELECT
         p.id,
         p.filename,
@@ -148,29 +189,57 @@ $stmt = $pdo->prepare("
         p.status,
         p.uploaded_at,
         p.locked_by_user_id,
+        p.ftp_user,
         lu.user AS locked_by_user,
         lu.jmeno AS locked_jmeno,
         lu.prijmeni AS locked_prijmeni
     FROM photos p
     LEFT JOIN users lu ON lu.id = p.locked_by_user_id
-    WHERE p.ftp_user = ?
-      AND p.status <> 'deleted'
+    WHERE p.status <> 'deleted'
+";
+$params = [];
+
+if ($scope === 'mine') {
+    $sql .= " AND p.ftp_user = ?";
+    $params[] = $ftpUser;
+}
+
+if ($activeEventId > 0) {
+    $sql .= " AND p.event_id = ?";
+    $params[] = $activeEventId;
+}
+
+$sql .= "
     ORDER BY p.uploaded_at DESC, p.id DESC
     LIMIT 200
-");
-$stmt->execute([$ftpUser]);
+";
+
+$stmt = $pdo->prepare($sql);
+$stmt->execute($params);
 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-$stmt = $pdo->prepare("
+$sql = "
     SELECT COUNT(*)
     FROM photos
-    WHERE ftp_user = ?
-      AND status = 'processing'
-");
-$stmt->execute([$ftpUser]);
+    WHERE status = 'processing'
+";
+$params = [];
+
+if ($scope === 'mine') {
+    $sql .= " AND ftp_user = ?";
+    $params[] = $ftpUser;
+}
+
+if ($activeEventId > 0) {
+    $sql .= " AND event_id = ?";
+    $params[] = $activeEventId;
+}
+
+$stmt = $pdo->prepare($sql);
+$stmt->execute($params);
 $processingCount = (int)$stmt->fetchColumn();
 
-$uploadingCount = count_uploading_files_for_user($pdo, $ftpUser);
+$uploadingCount = count_uploading_files($pdo, $ftpUser, $activeEventId, $scope);
 
 $data = [];
 
@@ -220,6 +289,7 @@ foreach ($rows as $row) {
     $data[] = [
         'id' => (int)$row['id'],
         'filename' => (string)$row['filename'],
+        'ftp_user' => (string)$row['ftp_user'],
         'preview_url' => !empty($row['preview_filepath'])
             ? '/preview.php?id=' . (int)$row['id']
             : '',
@@ -236,7 +306,9 @@ header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 
 echo json_encode([
     'ok' => true,
+    'scope' => $scope,
     'ftp_user' => $ftpUser,
+    'active_event_id' => $activeEventId > 0 ? $activeEventId : null,
     'uploading_count' => $uploadingCount,
     'processing_count' => $processingCount,
     'items' => $data,

@@ -43,6 +43,8 @@ $values = [
     'ftp_password' => '',
     'homedir'      => (string)$targetUser['homedir'],
     'role_id'      => (string)$targetUser['role_id'],
+    'mobile'       => (string)($targetUser['mobile'] ?? ''),
+    'exif_author'  => (string)($targetUser['exif_author'] ?? ''),
 ];
 
 $errors = [];
@@ -56,6 +58,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $values['ftp_password'] = (string)($_POST['ftp_password'] ?? '');
     $values['homedir']      = trim((string)($_POST['homedir'] ?? ''));
     $values['role_id']      = (string)($_POST['role_id'] ?? '');
+    $values['mobile']       = trim((string)($_POST['mobile'] ?? ''));
+    $values['exif_author']  = trim((string)($_POST['exif_author'] ?? ''));
 
     if ($values['jmeno'] === '') {
         $errors[] = 'Vyplň jméno.';
@@ -116,6 +120,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'ftp_password' => $values['ftp_password'],
             'homedir'      => $values['homedir'],
             'role_id'      => $roleId,
+            'mobile'       => $values['mobile'],
+            'exif_author'  => $values['exif_author'],
         ]);
 
         header('Location: /users.php');
@@ -199,6 +205,32 @@ require_once __DIR__ . '/inc/header.php';
                             </option>
                         <?php endforeach; ?>
                     </select>
+                </div>
+
+                <div class="form-grid-span-2">
+                    <label for="mobile">Mobilní číslo</label>
+                    <input
+                        type="text"
+                        name="mobile"
+                        id="mobile"
+                        value="<?= h(users_format_mobile($values['mobile'])) ?>"
+                        placeholder="+420 123 456 789"
+                        inputmode="tel"
+                        autocomplete="tel"
+                    >
+                </div>
+
+                <div class="form-grid-span-2">
+                    <label for="exif_author">
+                        EXIF - pole author
+                        <span class="help-tip" title="Vyplňte autora přesně v tom tvaru, jak ho mají nastavené fotky ve vašem foťáku.">?</span>
+                    </label>
+                    <input
+                        type="text"
+                        name="exif_author"
+                        id="exif_author"
+                        value="<?= h($values['exif_author']) ?>"
+                    >
                 </div>
             </div>
 

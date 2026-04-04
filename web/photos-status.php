@@ -44,7 +44,22 @@ if ($ftpUser === '') {
     exit('U uživatele chybí FTP účet.');
 }
 
-$stmt = $pdo->prepare("
+$scope = (string)($_GET['scope'] ?? 'mine');
+if (!in_array($scope, ['mine', 'all'], true)) {
+    $scope = 'mine';
+}
+
+$stmt = $pdo->query("
+    SELECT id
+    FROM events
+    WHERE status = 'active'
+    ORDER BY is_temporary ASC, id DESC
+    LIMIT 1
+");
+$activeEventId = $stmt->fetchColumn();
+$activeEventId = $activeEventId !== false ? (int)$activeEventId : 0;
+
+$sql = "
     SELECT
         p.id,
         p.filename,
@@ -54,15 +69,32 @@ $stmt = $pdo->prepare("
         p.locked_by_user_id,
         lu.user AS locked_by_user,
         lu.jmeno AS locked_jmeno,
-        lu.prijmeni AS locked_prijmeni
+        lu.prijmeni AS locked_prijmeni,
+        p.ftp_user
     FROM photos p
     LEFT JOIN users lu ON lu.id = p.locked_by_user_id
-    WHERE p.ftp_user = ?
-      AND p.status <> 'deleted'
+    WHERE p.status <> 'deleted'
+";
+
+$params = [];
+
+if ($scope === 'mine') {
+    $sql .= " AND p.ftp_user = ?";
+    $params[] = $ftpUser;
+}
+
+if ($activeEventId > 0) {
+    $sql .= " AND p.event_id = ?";
+    $params[] = $activeEventId;
+}
+
+$sql .= "
     ORDER BY p.uploaded_at DESC, p.id DESC
     LIMIT 200
-");
-$stmt->execute([$ftpUser]);
+";
+
+$stmt = $pdo->prepare($sql);
+$stmt->execute($params);
 $photos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 require_once __DIR__ . '/inc/header.php';
@@ -70,9 +102,19 @@ require_once __DIR__ . '/inc/header.php';
 
 <section class="panel panel-status">
     <div class="status-head">
-        <h1>Moje fotky</h1>
+        <h1>Stav fotek</h1>
+
         <div class="status-subhead">
-            Fotograf: <?= h($ftpUser) ?>
+            <?php if ($scope === 'mine'): ?>
+                Fotograf: <?= h($ftpUser) ?>
+            <?php else: ?>
+                Zobrazení: všechny fotografie
+            <?php endif; ?>
+        </div>
+
+        <div class="filters status-scope-switch">
+            <a href="?scope=mine" class="button <?= $scope === 'mine' ? '' : 'button-muted' ?>">Moje</a>
+            <a href="?scope=all" class="button <?= $scope === 'all' ? '' : 'button-muted' ?>">Všechny</a>
         </div>
 
         <div class="ingest-status" id="ingest-status" style="display:none">
@@ -89,11 +131,11 @@ require_once __DIR__ . '/inc/header.php';
     </div>
 
     <?php if (empty($photos)): ?>
-        <p id="status-empty">Nemáte zatím žádné fotografie.</p>
+        <p id="status-empty">Nejsou zde zatím žádné fotografie.</p>
         <div class="status-photo-list" id="status-photo-list" style="display:none;"></div>
     <?php else: ?>
 
-        <p id="status-empty" style="display:none;">Nemáte zatím žádné fotografie.</p>
+        <p id="status-empty" style="display:none;">Nejsou zde zatím žádné fotografie.</p>
 
         <div class="status-photo-list" id="status-photo-list">
 
@@ -157,6 +199,12 @@ require_once __DIR__ . '/inc/header.php';
                             <?= h((string)$photo['filename']) ?>
                         </div>
 
+                        <?php if ($scope === 'all'): ?>
+                            <div class="status-photo-author" data-role="ftp-user">
+                                <?= h((string)$photo['ftp_user']) ?>
+                            </div>
+                        <?php endif; ?>
+
                         <div class="status-photo-state">
                             <span class="status <?= h($statusClass) ?>" data-role="status-badge">
                                 <?php if ($statusClass === 'status-processing'): ?>
@@ -195,6 +243,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const uploadingCountEl = document.getElementById('uploading-count');
     const processingCountEl = document.getElementById('processing-count');
     const uploadingDotsEl = document.getElementById('uploading-dots');
+    const scope = <?= json_encode($scope, JSON_UNESCAPED_UNICODE) ?>;
 
     function escapeHtml(value) {
         return String(value)
@@ -205,33 +254,32 @@ document.addEventListener('DOMContentLoaded', function () {
             .replace(/'/g, '&#039;');
     }
 
-function updateIngestStatus(data) {
-    const uploading = Number(data.uploading_count || 0);
-    const processing = Number(data.processing_count || 0);
+    function updateIngestStatus(data) {
+        const uploading = Number(data.uploading_count || 0);
+        const processing = Number(data.processing_count || 0);
 
-    const container = document.getElementById('ingest-status');
+        const container = document.getElementById('ingest-status');
 
-    if (uploadingCountEl) {
-        uploadingCountEl.textContent = String(uploading);
-    }
+        if (uploadingCountEl) {
+            uploadingCountEl.textContent = String(uploading);
+        }
 
-    if (processingCountEl) {
-        processingCountEl.textContent = String(processing);
-    }
+        if (processingCountEl) {
+            processingCountEl.textContent = String(processing);
+        }
 
-    if (uploadingDotsEl) {
-        uploadingDotsEl.style.visibility = uploading > 0 ? 'visible' : 'hidden';
-    }
+        if (uploadingDotsEl) {
+            uploadingDotsEl.style.visibility = uploading > 0 ? 'visible' : 'hidden';
+        }
 
-    // zobraz jen pokud se něco děje
-    if (container) {
-        if (uploading > 0 || processing > 0) {
-            container.style.display = 'flex';
-        } else {
-            container.style.display = 'none';
+        if (container) {
+            if (uploading > 0 || processing > 0) {
+                container.style.display = 'flex';
+            } else {
+                container.style.display = 'none';
+            }
         }
     }
-}
 
     function renderPhotoCard(item) {
         const previewHtml = item.preview_url
@@ -246,6 +294,10 @@ function updateIngestStatus(data) {
             ? '<span class="status-spinner"></span>'
             : '';
 
+        const authorHtml = scope === 'all'
+            ? '<div class="status-photo-author" data-role="ftp-user">' + escapeHtml(item.ftp_user || '') + '</div>'
+            : '';
+
         return '' +
             '<div class="status-photo-card" data-photo-id="' + item.id + '">' +
                 '<div class="status-photo-thumb">' +
@@ -253,6 +305,7 @@ function updateIngestStatus(data) {
                 '</div>' +
                 '<div class="status-photo-meta">' +
                     '<div class="status-photo-file" data-role="filename">' + escapeHtml(item.filename) + '</div>' +
+                    authorHtml +
                     '<div class="status-photo-state">' +
                         '<span class="status ' + escapeHtml(item.status_class) + '" data-role="status-badge">' + spinnerHtml + escapeHtml(item.status_text) + '</span>' +
                         noteHtml +
@@ -291,6 +344,7 @@ function updateIngestStatus(data) {
         const note = card.querySelector('[data-role="status-note"]');
         const time = card.querySelector('[data-role="uploaded-at"]');
         const file = card.querySelector('[data-role="filename"]');
+        const ftpUser = card.querySelector('[data-role="ftp-user"]');
 
         if (badge) {
             const spinnerHtml = item.status_class === 'status-processing'
@@ -318,6 +372,10 @@ function updateIngestStatus(data) {
         if (file) {
             file.textContent = item.filename;
         }
+
+        if (ftpUser && scope === 'all') {
+            ftpUser.textContent = item.ftp_user || '';
+        }
     }
 
     async function refreshStatuses() {
@@ -326,7 +384,7 @@ function updateIngestStatus(data) {
         }
 
         try {
-            const response = await fetch('/api/photos-status.php', {
+            const response = await fetch('/api/photos-status.php?scope=' + encodeURIComponent(scope), {
                 cache: 'no-store'
             });
 
@@ -343,6 +401,9 @@ function updateIngestStatus(data) {
             updateIngestStatus(data);
 
             if (data.items.length === 0) {
+                if (list) {
+                    list.innerHTML = '';
+                }
                 ensureListVisibility(false);
                 return;
             }
