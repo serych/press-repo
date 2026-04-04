@@ -9,7 +9,7 @@ require_once __DIR__ . '/inc/users.php';
 
 require_login();
 
-if (!has_permission('users.manage') && !has_permission('photos.select')) {
+if (!has_permission('users.manage')) {
     http_response_code(403);
     exit('Přístup odepřen.');
 }

@@ -9,13 +9,12 @@ require_once __DIR__ . '/inc/users.php';
 
 require_login();
 
-require_login();
-
 if (!has_permission('users.manage') && !has_permission('photos.select')) {
     http_response_code(403);
     exit('Přístup odepřen.');
 }
 
+$canManageEvents = has_permission('users.manage');
 $events = events_list();
 
 require_once __DIR__ . '/inc/header.php';
@@ -24,7 +23,10 @@ require_once __DIR__ . '/inc/header.php';
 <section class="panel">
     <div class="page-head">
         <h1>Eventy</h1>
-        <a href="/event-create.php" class="button">Nový event</a>
+
+        <?php if ($canManageEvents): ?>
+            <a href="/event-create.php" class="button">Nový event</a>
+        <?php endif; ?>
     </div>
 
     <?php if (empty($events)): ?>
@@ -44,7 +46,9 @@ require_once __DIR__ . '/inc/header.php';
                         <th>Redaktoři</th>
                         <th>Upload</th>
                         <th>Staženo</th>
-                        <th>Akce</th>
+                        <?php if ($canManageEvents): ?>
+                            <th>Akce</th>
+                        <?php endif; ?>
                     </tr>
                 </thead>
                 <tbody>
@@ -121,11 +125,13 @@ require_once __DIR__ . '/inc/header.php';
                             <td><?= (int)$summary['uploaded_total'] ?></td>
                             <td><?= (int)$summary['downloaded_total'] ?></td>
 
-                            <td>
-                                <div class="table-actions">
-                                    <a class="table-action" href="/event-edit.php?id=<?= (int)$event['id'] ?>">Upravit</a>
-                                </div>
-                            </td>
+                            <?php if ($canManageEvents): ?>
+                                <td>
+                                    <div class="table-actions">
+                                        <a class="table-action" href="/event-edit.php?id=<?= (int)$event['id'] ?>">Upravit</a>
+                                    </div>
+                                </td>
+                            <?php endif; ?>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>

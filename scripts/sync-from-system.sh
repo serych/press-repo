@@ -54,9 +54,4 @@ echo "Hotovo."
 echo "Pozn.: /var/www/press/web/config/config.php se z bezpečnostních důvodů nekopíruje."
 
 
-echo
-echo "Doporučený další postup:"
-echo "  cd $REPO_ROOT"
-echo "  git status"
-echo "  git add ."
-echo "  git commit -m 'Synchronizace konfigurace ze serveru'"
+git status
