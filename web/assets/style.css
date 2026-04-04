@@ -1514,3 +1514,144 @@ h1 {
     color: var(--accent);
     border-color: var(--accent);
 }
+.public-dashboard {
+    background: #0b0b0b;
+    color: #ddd;
+}
+
+.public-wrap {
+    max-width: 900px;
+    margin: 40px auto;
+    padding: 0 20px;
+}
+
+.public-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.public-header img {
+    height: 42px;
+}
+
+.public-title {
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.public-subtitle {
+    color: var(--text-muted);
+}
+
+.event-meta {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px 20px;
+    margin: 16px 0;
+}
+
+.event-link {
+    margin-top: 14px;
+}
+
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+}
+
+.summary-box {
+    background: #111;
+    border: 1px solid var(--border);
+    padding: 14px;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.summary-label {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.summary-value {
+    font-size: 24px;
+    font-weight: 600;
+    margin-top: 4px;
+}
+
+.login-public-link {
+    margin-top: 18px;
+    text-align: center;
+}
+
+.login-public-link a {
+    color: var(--accent);
+    text-decoration: none;
+}
+.login-hero-inner {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+}
+
+.login-ongoing-event {
+    margin-top: auto;
+    padding-top: 28px;
+}
+
+.login-ongoing-event-link {
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 22px;
+    font-weight: 600;
+    line-height: 1.25;
+}
+
+.login-ongoing-event-link:hover {
+    color: var(--accent-hover);
+    text-decoration: underline;
+}
+
+.top-nav-public {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+}
+
+.top-nav-public a {
+    margin-left: 20px;
+    color: #ddd;
+    text-decoration: none;
+}
+
+.top-nav-public a:hover {
+    color: var(--accent);
+}
+
+.dashboard-grid-public {
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+}
+
+.dashboard-card-summary-public {
+    align-self: start;
+}
+
+@media (max-width: 1000px) {
+    .dashboard-grid-public {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 900px) {
+    .login-ongoing-event {
+        margin-top: 24px;
+        padding-top: 0;
+        text-align: center;
+    }
+
+    .login-ongoing-event-link {
+        font-size: 20px;
+    }
+}
