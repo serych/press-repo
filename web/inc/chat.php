@@ -13,6 +13,7 @@ function chat_event_exists(int $eventId): bool
 function chat_message_create(int $eventId, int $userId, string $message): int
 {
     $message = trim($message);
+
     if ($message === '') {
         throw new RuntimeException('Prázdná zpráva.');
     }
@@ -60,6 +61,7 @@ function chat_messages_list(int $eventId, int $limit = 50, int $afterId = 0): ar
             'event_id' => $eventId,
             'after_id' => $afterId,
         ]);
+
         return $stmt->fetchAll() ?: [];
     }
 
@@ -80,16 +82,22 @@ function chat_messages_list(int $eventId, int $limit = 50, int $afterId = 0): ar
             WHERE m.event_id = :event_id
             ORDER BY m.id DESC
             LIMIT ' . $limit . '
-        ) x
+        ) t
         ORDER BY id ASC
     ');
-    $stmt->execute(['event_id' => $eventId]);
+    $stmt->execute([
+        'event_id' => $eventId,
+    ]);
 
     return $stmt->fetchAll() ?: [];
 }
 
 function chat_mark_read(int $eventId, int $userId, int $lastMessageId): void
 {
+    if ($eventId <= 0 || $userId <= 0 || $lastMessageId <= 0) {
+        return;
+    }
+
     $stmt = db()->prepare('
         INSERT INTO event_chat_reads (event_id, user_id, last_read_message_id)
         VALUES (:event_id, :user_id, :last_read_message_id)
@@ -106,18 +114,22 @@ function chat_mark_read(int $eventId, int $userId, int $lastMessageId): void
 
 function chat_unread_count_for_event(int $eventId, int $userId): int
 {
+    if ($eventId <= 0 || $userId <= 0) {
+        return 0;
+    }
+
     $stmt = db()->prepare('
-        SELECT COALESCE(r.last_read_message_id, 0)
-        FROM events e
-        LEFT JOIN event_chat_reads r
-            ON r.event_id = e.id AND r.user_id = :user_id
-        WHERE e.id = :event_id
+        SELECT last_read_message_id
+        FROM event_chat_reads
+        WHERE event_id = :event_id
+          AND user_id = :user_id
         LIMIT 1
     ');
     $stmt->execute([
         'event_id' => $eventId,
         'user_id' => $userId,
     ]);
+
     $lastReadId = (int)($stmt->fetchColumn() ?: 0);
 
     $stmt = db()->prepare('
@@ -138,33 +150,40 @@ function chat_unread_count_for_event(int $eventId, int $userId): int
 
 function chat_unread_summary_for_user(int $userId): array
 {
-    $stmt = db()->prepare('
-        SELECT
-            e.id AS event_id,
-            e.title,
-            COUNT(m.id) AS unread_count
-        FROM events e
-        INNER JOIN event_chat_messages m
-            ON m.event_id = e.id
-        LEFT JOIN event_chat_reads r
-            ON r.event_id = e.id AND r.user_id = :user_id
-        WHERE m.id > COALESCE(r.last_read_message_id, 0)
-          AND m.user_id <> :user_id
-        GROUP BY e.id, e.title
-        HAVING unread_count > 0
-        ORDER BY unread_count DESC, e.id DESC
-    ');
-    $stmt->execute(['user_id' => $userId]);
+    if ($userId <= 0) {
+        return [
+            'total' => 0,
+            'events' => [],
+        ];
+    }
 
-    $rows = $stmt->fetchAll() ?: [];
+    $eventsStmt = db()->prepare('
+        SELECT id, title
+        FROM events
+        ORDER BY id DESC
+    ');
+    $eventsStmt->execute();
+
+    $events = $eventsStmt->fetchAll() ?: [];
+    $resultEvents = [];
     $total = 0;
 
-    foreach ($rows as $row) {
-        $total += (int)$row['unread_count'];
+    foreach ($events as $event) {
+        $eventId = (int)$event['id'];
+        $count = chat_unread_count_for_event($eventId, $userId);
+
+        if ($count > 0) {
+            $resultEvents[] = [
+                'event_id' => $eventId,
+                'title' => (string)$event['title'],
+                'unread_count' => $count,
+            ];
+            $total += $count;
+        }
     }
 
     return [
         'total' => $total,
-        'events' => $rows,
+        'events' => $resultEvents,
     ];
 }

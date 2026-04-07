@@ -6,6 +6,7 @@ require_once __DIR__ . '/../inc/auth.php';
 require_once __DIR__ . '/../inc/chat.php';
 
 require_login();
+
 header('Content-Type: application/json; charset=utf-8');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -14,12 +15,13 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-$eventId = max(1, (int)($_POST['event_id'] ?? 0));
+$user = current_user();
+$userId = (int)($user['id'] ?? 0);
+$eventId = max(0, (int)($_POST['event_id'] ?? 0));
 $lastId = max(0, (int)($_POST['last_id'] ?? 0));
-$userId = (int)(current_user()['id'] ?? 0);
 
 if ($eventId > 0 && $lastId > 0) {
     chat_mark_read($eventId, $userId, $lastId);
 }
 
-echo json_encode(['ok' => true]);
+echo json_encode(['ok' => true], JSON_UNESCAPED_UNICODE);

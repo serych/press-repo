@@ -38,6 +38,13 @@ $styleVersion = is_file($styleFile) ? (string)filemtime($styleFile) : '1';
                 <img src="/assets/logo-cs.svg" alt="PRESS centrum Člověk a Víra" class="brand-logo">
                 <span class="brand-text">PRESScentrum ČaV</span>
             </a>
+
+            <?php if ($user): ?>
+                <a href="<?= h($chatUrl) ?>" class="header-chat-indicator" aria-label="Otevřít chat">
+                    <span class="header-chat-icon" aria-hidden="true">💬</span>
+                    <span class="header-chat-badge" id="chat-unread-badge" hidden>0</span>
+                </a>
+            <?php endif; ?>
         </div>
 
         <?php if ($user): ?>
@@ -50,13 +57,8 @@ $styleVersion = is_file($styleFile) ? (string)filemtime($styleFile) : '1';
             <nav class="top-nav" id="top-nav">
                 <a href="/dashboard.php">Dashboard</a>
                 <a href="/photos.php">Fotografie</a>
-                <a href="/photos-status.php">Moje fotky</a>
-
-                <a href="<?= h($chatUrl) ?>" class="nav-chat-link">
-                    <span class="nav-chat-label">Chat</span>
-                    <span class="chat-badge" id="chat-unread-badge" aria-live="polite" hidden>0</span>
-                </a>
-
+                <a href="/photos-status.php">Foto přehled</a>
+                
                 <?php if (has_permission('users.manage')): ?>
                     <a href="/users.php">Uživatelé</a>
                 <?php endif; ?>

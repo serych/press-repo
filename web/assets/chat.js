@@ -209,6 +209,13 @@
             loading = false;
         }
 
+        inputEl.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                formEl.requestSubmit();
+            }
+        });
+
         formEl.addEventListener('submit', async function (e) {
             e.preventDefault();
 
