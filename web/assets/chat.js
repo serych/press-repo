@@ -19,6 +19,10 @@
         }
 
         const eventId = Number(root.dataset.chatEventId || 0);
+        const historyMode = String(root.dataset.chatHistory || '0') === '1';
+        const isMobile = window.matchMedia('(max-width: 900px)').matches;
+        const compactMobile = isMobile && !historyMode;
+
         const listEl = document.getElementById('event-chat-messages');
         const formEl = document.getElementById('event-chat-form');
         const inputEl = document.getElementById('event-chat-input');
@@ -29,9 +33,10 @@
 
         let lastId = 0;
         let initialized = false;
+        let loading = false;
         let audioUnlocked = false;
         let audioContext = null;
-        let loading = false;
+        let allMessages = [];
 
         function refreshBadgeIfAvailable() {
             if (typeof window.refreshChatBadge === 'function') {
@@ -99,18 +104,23 @@
             }
         }
 
-        function appendMessage(item) {
-            const div = document.createElement('div');
-            div.className = 'event-chat-message' + (item.is_mine ? ' is-mine' : '');
+        function renderMessages() {
+            let items = allMessages;
 
-            div.innerHTML =
-                '<div class="event-chat-meta">' +
-                    '<strong>' + escapeHtml(item.author_name || item.user || 'uživatel') + '</strong>' +
-                    '<span>' + escapeHtml(formatTime(item.created_at)) + '</span>' +
-                '</div>' +
-                '<div class="event-chat-text">' + escapeHtml(item.message) + '</div>';
+            if (compactMobile) {
+                items = allMessages.slice(-6);
+            }
 
-            listEl.appendChild(div);
+            listEl.innerHTML = items.map(function (item) {
+                return '' +
+                    '<div class="event-chat-message' + (item.is_mine ? ' is-mine' : '') + '">' +
+                        '<div class="event-chat-meta">' +
+                            '<strong>' + escapeHtml(item.author_name || item.user || 'uživatel') + '</strong>' +
+                            '<span>' + escapeHtml(formatTime(item.created_at)) + '</span>' +
+                        '</div>' +
+                        '<div class="event-chat-text">' + escapeHtml(item.message) + '</div>' +
+                    '</div>';
+            }).join('');
         }
 
         function scrollToBottom() {
@@ -140,6 +150,82 @@
             }
         }
 
+        async function loadInitialMessages() {
+            const url = new URL('/api/chat-list.php', window.location.origin);
+            url.searchParams.set('event_id', String(eventId));
+
+            const response = await fetch(url.toString(), {
+                cache: 'no-store'
+            });
+
+            if (!response.ok) {
+                return;
+            }
+
+            const data = await response.json();
+
+            if (!data.ok || !Array.isArray(data.items)) {
+                return;
+            }
+
+            allMessages = data.items.slice();
+            lastId = Number(data.last_id || 0);
+
+            renderMessages();
+            scrollToBottom();
+            await markRead();
+            initialized = true;
+        }
+
+        async function loadNewMessages() {
+            if (lastId <= 0) {
+                return;
+            }
+
+            const url = new URL('/api/chat-list.php', window.location.origin);
+            url.searchParams.set('event_id', String(eventId));
+            url.searchParams.set('after_id', String(lastId));
+
+            const response = await fetch(url.toString(), {
+                cache: 'no-store'
+            });
+
+            if (!response.ok) {
+                return;
+            }
+
+            const data = await response.json();
+
+            if (!data.ok || !Array.isArray(data.items)) {
+                return;
+            }
+
+            if (data.items.length === 0) {
+                return;
+            }
+
+            let gotForeignNew = false;
+
+            data.items.forEach(function (item) {
+                allMessages.push(item);
+                lastId = Math.max(lastId, Number(item.id || 0));
+
+                if (!item.is_mine) {
+                    gotForeignNew = true;
+                }
+            });
+
+            renderMessages();
+            scrollToBottom();
+
+            if (gotForeignNew) {
+                beepMessage();
+                vibrateMessage();
+            }
+
+            await markRead();
+        }
+
         async function loadMessages() {
             if (loading) {
                 return;
@@ -152,56 +238,11 @@
             loading = true;
 
             try {
-                const url = new URL('/api/chat-list.php', window.location.origin);
-                url.searchParams.set('event_id', String(eventId));
-
-                if (lastId > 0) {
-                    url.searchParams.set('after_id', String(lastId));
-                }
-
-                const response = await fetch(url.toString(), {
-                    cache: 'no-store'
-                });
-
-                if (!response.ok) {
-                    loading = false;
-                    return;
-                }
-
-                const data = await response.json();
-
-                if (!data.ok || !Array.isArray(data.items)) {
-                    loading = false;
-                    return;
-                }
-
-                let gotForeignNew = false;
-
-                data.items.forEach(function (item) {
-                    appendMessage(item);
-                    lastId = Math.max(lastId, Number(item.id || 0));
-
-                    if (initialized && !item.is_mine) {
-                        gotForeignNew = true;
-                    }
-                });
-
                 if (!initialized) {
-                    scrollToBottom();
-                } else if (data.items.length > 0) {
-                    scrollToBottom();
+                    await loadInitialMessages();
+                } else {
+                    await loadNewMessages();
                 }
-
-                if (gotForeignNew) {
-                    beepMessage();
-                    vibrateMessage();
-                }
-
-                if (data.items.length > 0 || !initialized) {
-                    await markRead();
-                }
-
-                initialized = true;
             } catch (e) {
                 // ticho
             }

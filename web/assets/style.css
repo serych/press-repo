@@ -2542,8 +2542,27 @@ body.modal-open {
         padding: 0 5px;
     }
 }
+.event-chat-toolbar {
+    display: flex;
+    justify-content: flex-start;
+    margin-bottom: 10px;
+}
+
+.event-chat-history-link {
+    text-decoration: none;
+}
+
+.mobile-only {
+    display: none;
+}
+
+@media (max-width: 900px) {
+    .mobile-only {
+        display: flex;
+    }
+}
 body::after {
-    content: "css-v3";
+    content: "css-v4";
     position: fixed;
     right: 6px;
     bottom: 6px;
