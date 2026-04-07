@@ -2561,6 +2561,12 @@ body.modal-open {
         display: flex;
     }
 }
+.form-actions-danger {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+}
+/*
 body::after {
     content: "css-v4";
     position: fixed;
@@ -2575,3 +2581,4 @@ body::after {
     opacity: 0.85;
     pointer-events: none;
 }
+*/

@@ -187,3 +187,20 @@ function chat_unread_summary_for_user(int $userId): array
         'events' => $resultEvents,
     ];
 }
+
+function chat_delete_all_for_event(int $eventId): void
+{
+    if ($eventId <= 0) {
+        return;
+    }
+
+    $stmt = db()->prepare('DELETE FROM event_chat_reads WHERE event_id = :event_id');
+    $stmt->execute([
+        'event_id' => $eventId,
+    ]);
+
+    $stmt = db()->prepare('DELETE FROM event_chat_messages WHERE event_id = :event_id');
+    $stmt->execute([
+        'event_id' => $eventId,
+    ]);
+}

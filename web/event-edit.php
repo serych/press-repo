@@ -6,6 +6,7 @@ require_once __DIR__ . '/inc/auth.php';
 require_once __DIR__ . '/inc/functions.php';
 require_once __DIR__ . '/inc/events.php';
 require_once __DIR__ . '/inc/users.php';
+require_once __DIR__ . '/inc/chat.php';
 
 require_login();
 
@@ -27,6 +28,23 @@ $editorUsers = events_users_for_picker('editor');
 
 $flashMessage = '';
 $flashType = 'info';
+
+if (!empty($_GET['chat_deleted'])) {
+    $flashMessage = 'Chat eventu byl smazán.';
+    $flashType = 'success';
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string)($_POST['action'] ?? '') === 'delete_chat') {
+    if (!has_permission('users.manage') && !has_permission('photos.select')) {
+        http_response_code(403);
+        exit('Přístup odepřen.');
+    }
+
+    chat_delete_all_for_event($id);
+
+    header('Location: /event-edit.php?id=' . $id . '&chat_deleted=1');
+    exit;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cleanup_action'])) {
     $cleanupAction = trim((string)($_POST['cleanup_action'] ?? ''));
@@ -74,7 +92,7 @@ $selectedRunnerUserIds = events_participants_get_runner_user_ids($id);
 
 $errors = [];
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['cleanup_action'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['cleanup_action']) && (string)($_POST['action'] ?? '') !== 'delete_chat') {
     $values['title']           = trim((string)($_POST['title'] ?? ''));
     $values['slug']            = trim((string)($_POST['slug'] ?? ''));
     $values['description']     = trim((string)($_POST['description'] ?? ''));
@@ -231,6 +249,15 @@ require_once __DIR__ . '/inc/header.php';
                 <input type="hidden" name="id" value="<?= (int)$id ?>">
                 <input type="hidden" name="cleanup_action" value="archive_event">
                 <button type="submit" class="btn-danger">Archivovat po eventu</button>
+            </form>
+
+            <form method="post" class="js-confirm-form"
+                  data-confirm-title="Smazat chat?"
+                  data-confirm-message="Opravdu nenávratně smazat chat?"
+                  data-confirm-submit="Ano, smazat chat">
+                <input type="hidden" name="id" value="<?= (int)$id ?>">
+                <input type="hidden" name="action" value="delete_chat">
+                <button type="submit" class="btn-danger">Smazat chat</button>
             </form>
         </div>
     </div>
