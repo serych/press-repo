@@ -408,6 +408,8 @@ function events_participants_save(int $eventId, array $photographerIds, array $e
 
 function events_stats_summary(int $eventId): array
 {
+    $event = events_get($eventId);
+
     $stmt = db()->prepare("
         SELECT
             COUNT(*) AS uploaded_total,
@@ -419,9 +421,19 @@ function events_stats_summary(int $eventId): array
 
     $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
+    $uploadedTotal = (int)($row['uploaded_total'] ?? 0);
+    $downloadedTotal = (int)($row['downloaded_total'] ?? 0);
+
+    if ($uploadedTotal === 0 && $event && !empty($event['archived_at'])) {
+        return [
+            'uploaded_total'   => (int)($event['archived_uploaded_total'] ?? 0),
+            'downloaded_total' => (int)($event['archived_downloaded_total'] ?? 0),
+        ];
+    }
+
     return [
-        'uploaded_total'   => (int)($row['uploaded_total'] ?? 0),
-        'downloaded_total' => (int)($row['downloaded_total'] ?? 0),
+        'uploaded_total'   => $uploadedTotal,
+        'downloaded_total' => $downloadedTotal,
     ];
 }
 
@@ -538,4 +550,194 @@ function events_participants_by_role(int $eventId, string $roleInEvent): array
     $stmt->execute([$eventId, $roleInEvent]);
 
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+function events_get_cleanup_files(int $eventId): array
+{
+    $stmt = db()->prepare("
+        SELECT id, filepath, preview_filepath
+        FROM photos
+        WHERE event_id = ?
+    ");
+    $stmt->execute([$eventId]);
+
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+function events_delete_file_if_exists(?string $path): void
+{
+    if ($path === null || trim($path) === '') {
+        return;
+    }
+
+    if (is_file($path)) {
+        @unlink($path);
+    }
+}
+
+function events_delete_empty_parent_dirs(array $paths): void
+{
+    $dirs = [];
+
+    foreach ($paths as $path) {
+        if ($path === null || trim((string)$path) === '') {
+            continue;
+        }
+
+        $dir = dirname((string)$path);
+        if ($dir !== '' && $dir !== '.' && $dir !== DIRECTORY_SEPARATOR) {
+            $dirs[$dir] = true;
+        }
+    }
+
+    $dirList = array_keys($dirs);
+    usort(
+        $dirList,
+        static fn(string $a, string $b): int => strlen($b) <=> strlen($a)
+    );
+
+    foreach ($dirList as $dir) {
+        if (@is_dir($dir)) {
+            $items = @scandir($dir);
+            if (is_array($items) && count($items) === 2) {
+                @rmdir($dir);
+            }
+        }
+    }
+}
+
+function events_delete_download_jobs_without_items(int $eventId): void
+{
+    $stmt = db()->prepare("
+        DELETE dj
+        FROM download_jobs dj
+        LEFT JOIN download_job_items dji ON dji.job_id = dj.id
+        WHERE dj.user_id IN (
+            SELECT DISTINCT eu.user_id
+            FROM event_users eu
+            WHERE eu.event_id = ?
+        )
+          AND dji.id IS NULL
+    ");
+    $stmt->execute([$eventId]);
+}
+
+function events_cleanup_photos_of_event(int $eventId): array
+{
+    $pdo = db();
+    $files = events_get_cleanup_files($eventId);
+
+    $deletedPhotos = count($files);
+    $deletedFiles = 0;
+    $deletedPreviews = 0;
+    $pathsForDirCleanup = [];
+
+    foreach ($files as $file) {
+        $filepath = (string)($file['filepath'] ?? '');
+        $previewPath = (string)($file['preview_filepath'] ?? '');
+
+        if ($filepath !== '' && is_file($filepath)) {
+            @unlink($filepath);
+            $deletedFiles++;
+        }
+
+        if ($previewPath !== '' && is_file($previewPath)) {
+            @unlink($previewPath);
+            $deletedPreviews++;
+        }
+
+        if ($filepath !== '') {
+            $pathsForDirCleanup[] = $filepath;
+        }
+        if ($previewPath !== '') {
+            $pathsForDirCleanup[] = $previewPath;
+        }
+    }
+
+    $pdo->beginTransaction();
+
+    try {
+        $deletePhotoLogs = $pdo->prepare("
+            DELETE pl
+            FROM photo_log pl
+            INNER JOIN photos p ON p.id = pl.photo_id
+            WHERE p.event_id = ?
+        ");
+        $deletePhotoLogs->execute([$eventId]);
+
+        $deleteDownloadJobItems = $pdo->prepare("
+            DELETE dji
+            FROM download_job_items dji
+            INNER JOIN photos p ON p.id = dji.photo_id
+            WHERE p.event_id = ?
+        ");
+        $deleteDownloadJobItems->execute([$eventId]);
+
+        $deletePhotos = $pdo->prepare("
+            DELETE FROM photos
+            WHERE event_id = ?
+        ");
+        $deletePhotos->execute([$eventId]);
+
+        events_delete_download_jobs_without_items($eventId);
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+
+    events_delete_empty_parent_dirs($pathsForDirCleanup);
+
+    return [
+        'deleted_photos'   => $deletedPhotos,
+        'deleted_files'    => $deletedFiles,
+        'deleted_previews' => $deletedPreviews,
+    ];
+}
+
+function events_cleanup_test_data(int $eventId): array
+{
+    $event = events_get($eventId);
+    if (!$event) {
+        throw new RuntimeException('Event nebyl nalezen.');
+    }
+
+    return events_cleanup_photos_of_event($eventId);
+}
+
+function events_archive(int $eventId): array
+{
+    $event = events_get($eventId);
+    if (!$event) {
+        throw new RuntimeException('Event nebyl nalezen.');
+    }
+
+    $summary = events_stats_summary($eventId);
+    $cleanup = events_cleanup_photos_of_event($eventId);
+
+    $stmt = db()->prepare("
+        UPDATE events
+        SET
+            archived_uploaded_total = :uploaded,
+            archived_downloaded_total = :downloaded,
+            archived_at = NOW(),
+            status = 'finished'
+        WHERE id = :id
+        LIMIT 1
+    ");
+
+    $stmt->execute([
+        ':uploaded'   => (int)$summary['uploaded_total'],
+        ':downloaded' => (int)$summary['downloaded_total'],
+        ':id'         => $eventId,
+    ]);
+
+    return [
+        'archived_uploaded_total'   => (int)$summary['uploaded_total'],
+        'archived_downloaded_total' => (int)$summary['downloaded_total'],
+        'deleted_photos'            => (int)$cleanup['deleted_photos'],
+        'deleted_files'             => (int)$cleanup['deleted_files'],
+        'deleted_previews'          => (int)$cleanup['deleted_previews'],
+    ];
 }

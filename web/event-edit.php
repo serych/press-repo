@@ -25,6 +25,35 @@ if (!$event) {
 $allUsers = events_users_for_picker();
 $editorUsers = events_users_for_picker('editor');
 
+$flashMessage = '';
+$flashType = 'info';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cleanup_action'])) {
+    $cleanupAction = trim((string)($_POST['cleanup_action'] ?? ''));
+
+    try {
+        if ($cleanupAction === 'cleanup_test_data') {
+            $result = events_cleanup_test_data($id);
+            $flashMessage = 'Testovací data byla smazána. Fotky: ' . (int)$result['deleted_photos']
+                . ', soubory: ' . (int)$result['deleted_files']
+                . ', náhledy: ' . (int)$result['deleted_previews'] . '.';
+            $flashType = 'success';
+        } elseif ($cleanupAction === 'archive_event') {
+            $result = events_archive($id);
+            $flashMessage = 'Event byl archivován. Uložený souhrn: nahráno '
+                . (int)$result['archived_uploaded_total'] . ', staženo '
+                . (int)$result['archived_downloaded_total'] . '. Smazané fotky: '
+                . (int)$result['deleted_photos'] . '.';
+            $flashType = 'success';
+        }
+
+        $event = events_get($id);
+    } catch (Throwable $e) {
+        $flashMessage = 'Operaci se nepodařilo dokončit: ' . $e->getMessage();
+        $flashType = 'error';
+    }
+}
+
 $values = [
     'title'           => (string)$event['title'],
     'slug'            => (string)$event['slug'],
@@ -45,7 +74,7 @@ $selectedRunnerUserIds = events_participants_get_runner_user_ids($id);
 
 $errors = [];
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['cleanup_action'])) {
     $values['title']           = trim((string)($_POST['title'] ?? ''));
     $values['slug']            = trim((string)($_POST['slug'] ?? ''));
     $values['description']     = trim((string)($_POST['description'] ?? ''));
@@ -80,6 +109,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!in_array($values['status'], ['planned', 'active', 'finished'], true)) {
         $errors[] = 'Neplatný stav eventu.';
+    }
+
+    if ((string)$event['status'] === 'finished' && $values['status'] !== 'finished') {
+        if (empty($_POST['confirmed_status_change'])) {
+            $errors[] = 'Měníš stav už ukončeného eventu. Potvrď tuto nestandardní operaci.';
+        }
     }
 
     if ($values['status'] === 'active' && empty($event['is_temporary']) && events_other_active_regular_exists($id)) {
@@ -140,7 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $selectedRunnerUserIds
         );
 
-        header('Location: /events.php');
+        header('Location: /event-edit.php?id=' . $id);
         exit;
     }
 }
@@ -154,6 +189,12 @@ require_once __DIR__ . '/inc/header.php';
         <a href="/events.php" class="button">Zpět na eventy</a>
     </div>
 
+    <?php if ($flashMessage !== ''): ?>
+        <div class="<?= $flashType === 'error' ? 'alert-error' : 'alert-success' ?>">
+            <?= h($flashMessage) ?>
+        </div>
+    <?php endif; ?>
+
     <?php if ($errors): ?>
         <div class="alert-error">
             <?php foreach ($errors as $error): ?>
@@ -162,9 +203,42 @@ require_once __DIR__ . '/inc/header.php';
         </div>
     <?php endif; ?>
 
+    <?php $summary = events_stats_summary($id); ?>
+
+    <div class="card" style="margin-bottom: 16px;">
+        <h2 style="margin-top: 0;">Úklid press centra</h2>
+        <div class="table-subtext" style="margin-bottom: 12px;">
+            Aktuální souhrn eventu: nahráno <?= (int)$summary['uploaded_total'] ?>, staženo <?= (int)$summary['downloaded_total'] ?>.
+            <?php if (!empty($event['archived_at'])): ?>
+                Archivováno dne <?= h((string)$event['archived_at']) ?>.
+            <?php endif; ?>
+        </div>
+
+        <div class="form-actions">
+            <form method="post" class="js-confirm-form"
+                  data-confirm-title="Vyčistit testovací data?"
+                  data-confirm-message="Budou odstraněny všechny nahrané testovací fotky, náhledy i databázové záznamy, které k nim patří."
+                  data-confirm-submit="Ano, smazat testovací data">
+                <input type="hidden" name="id" value="<?= (int)$id ?>">
+                <input type="hidden" name="cleanup_action" value="cleanup_test_data">
+                <button type="submit" class="btn-danger">Vyčistit testovací data</button>
+            </form>
+
+            <form method="post" class="js-confirm-form"
+                  data-confirm-title="Archivovat event?"
+                  data-confirm-message="Uloží se finální souhrn, smažou se všechny fotky a náhledy a event bude přepnut do stavu Ukončený."
+                  data-confirm-submit="Ano, archivovat event">
+                <input type="hidden" name="id" value="<?= (int)$id ?>">
+                <input type="hidden" name="cleanup_action" value="archive_event">
+                <button type="submit" class="btn-danger">Archivovat po eventu</button>
+            </form>
+        </div>
+    </div>
+
     <div class="card">
-        <form method="post" class="form event-form" autocomplete="off">
+        <form method="post" class="form event-form" autocomplete="off" id="event-edit-form">
             <input type="hidden" name="id" value="<?= (int)$id ?>">
+            <input type="hidden" name="confirmed_status_change" id="confirmed_status_change" value="0">
 
             <div class="form-grid">
                 <div>
@@ -205,7 +279,7 @@ require_once __DIR__ . '/inc/header.php';
 
                 <div>
                     <label for="status">Stav</label>
-                    <select name="status" id="status" required>
+                    <select name="status" id="status" required data-original-status="<?= h((string)$event['status']) ?>">
                         <option value="planned" <?= $values['status'] === 'planned' ? 'selected' : '' ?>>Plánovaný</option>
                         <option value="active" <?= $values['status'] === 'active' ? 'selected' : '' ?>>Aktivní</option>
                         <option value="finished" <?= $values['status'] === 'finished' ? 'selected' : '' ?>>Ukončený</option>
@@ -224,7 +298,7 @@ require_once __DIR__ . '/inc/header.php';
 
                 <div class="form-grid-span-2">
                     <label for="description">Popis / poznámka</label>
-                    <textarea name="description" id="description" rows="4"><?= h($values['description']) ?></textarea>
+                    <textarea name="description" id="description" rows="3"><?= h($values['description']) ?></textarea>
                 </div>
 
                 <div class="form-grid-span-2">
@@ -292,10 +366,33 @@ require_once __DIR__ . '/inc/header.php';
     </div>
 </section>
 
+<div class="confirm-modal" id="confirm-modal" hidden>
+    <div class="confirm-modal-backdrop" data-confirm-close></div>
+    <div class="confirm-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title">
+        <h3 id="confirm-modal-title">Potvrzení</h3>
+        <div class="confirm-modal-message" id="confirm-modal-message"></div>
+        <div class="confirm-modal-actions">
+            <button type="button" class="button button-muted" id="confirm-cancel-btn">Zrušit</button>
+            <button type="button" class="btn-danger" id="confirm-submit-btn">Pokračovat</button>
+        </div>
+    </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const titleInput = document.getElementById('title');
     const slugInput = document.getElementById('slug');
+    const statusSelect = document.getElementById('status');
+    const form = document.getElementById('event-edit-form');
+    const confirmedStatusChange = document.getElementById('confirmed_status_change');
+
+    const confirmModal = document.getElementById('confirm-modal');
+    const confirmTitle = document.getElementById('confirm-modal-title');
+    const confirmMessage = document.getElementById('confirm-modal-message');
+    const confirmCancelBtn = document.getElementById('confirm-cancel-btn');
+    const confirmSubmitBtn = document.getElementById('confirm-submit-btn');
+
+    let confirmResolve = null;
 
     function slugify(value) {
         return value
@@ -313,6 +410,56 @@ document.addEventListener('DOMContentLoaded', function () {
             .normalize('NFD')
             .replace(/[\u0300-\u036f]/g, '');
     }
+
+    function escapeHtml(value) {
+        return String(value)
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#039;');
+    }
+
+    function showConfirmDialog(title, message, submitLabel) {
+        return new Promise(function (resolve) {
+            confirmResolve = resolve;
+            confirmTitle.textContent = title || 'Potvrzení';
+            confirmMessage.textContent = message || '';
+            confirmSubmitBtn.textContent = submitLabel || 'Pokračovat';
+            confirmModal.hidden = false;
+            document.body.classList.add('modal-open');
+            confirmSubmitBtn.focus();
+        });
+    }
+
+    function closeConfirmDialog(result) {
+        confirmModal.hidden = true;
+        document.body.classList.remove('modal-open');
+        if (confirmResolve) {
+            confirmResolve(result);
+            confirmResolve = null;
+        }
+    }
+
+    confirmCancelBtn.addEventListener('click', function () {
+        closeConfirmDialog(false);
+    });
+
+    confirmSubmitBtn.addEventListener('click', function () {
+        closeConfirmDialog(true);
+    });
+
+    confirmModal.querySelectorAll('[data-confirm-close]').forEach(function (el) {
+        el.addEventListener('click', function () {
+            closeConfirmDialog(false);
+        });
+    });
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && !confirmModal.hidden) {
+            closeConfirmDialog(false);
+        }
+    });
 
     titleInput.addEventListener('input', function () {
         if (slugInput.dataset.autofill === '0') {
@@ -333,14 +480,46 @@ document.addEventListener('DOMContentLoaded', function () {
         slugInput.dataset.autofill = '0';
     }
 
-    function escapeHtml(value) {
-        return String(value)
-            .replaceAll('&', '&amp;')
-            .replaceAll('<', '&lt;')
-            .replaceAll('>', '&gt;')
-            .replaceAll('"', '&quot;')
-            .replaceAll("'", '&#039;');
-    }
+    document.querySelectorAll('.js-confirm-form').forEach(function (confirmForm) {
+        confirmForm.addEventListener('submit', async function (event) {
+            event.preventDefault();
+
+            const ok = await showConfirmDialog(
+                confirmForm.dataset.confirmTitle || 'Potvrzení',
+                confirmForm.dataset.confirmMessage || '',
+                confirmForm.dataset.confirmSubmit || 'Pokračovat'
+            );
+
+            if (ok) {
+                confirmForm.submit();
+            }
+        });
+    });
+
+    form.addEventListener('submit', async function (event) {
+        const originalStatus = statusSelect.dataset.originalStatus || '';
+        const newStatus = statusSelect.value || '';
+
+        if (originalStatus === 'finished' && newStatus !== 'finished') {
+            event.preventDefault();
+
+            const ok = await showConfirmDialog(
+                'Změnit stav ukončeného eventu?',
+                'Tento event je už ukončený. Opravdu chceš změnit jeho stav na jiný? To není standardní situace.',
+                'Ano, změnit stav'
+            );
+
+            if (!ok) {
+                return;
+            }
+
+            confirmedStatusChange.value = '1';
+            form.submit();
+            return;
+        }
+
+        confirmedStatusChange.value = '0';
+    });
 
     function buildLabel(user) {
         const fullName = [user.prijmeni, user.jmeno].filter(Boolean).join(' ').trim()

@@ -81,12 +81,17 @@ if ($currentEvent && !empty($currentEvent['is_public'])) {
                 <div class="dashboard-event-head">
                     <div>
                         <h2 class="dashboard-event-title"><?= h((string)$currentEvent['title']) ?></h2>
-                        <div class="dashboard-event-sub">
-                            <?= h((string)$currentEvent['slug']) ?>
-                            <?php if (!empty($currentEvent['is_temporary'])): ?>
+                        <?php if (!empty($currentEvent['description'])): ?>
+                            <div class="dashboard-event-description">
+                                <?= nl2br(h((string)$currentEvent['description'])) ?>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if (!empty($currentEvent['is_temporary'])): ?>
+                            <div class="dashboard-event-sub">
                                 <span class="badge badge-info">temporary</span>
-                            <?php endif; ?>
-                        </div>
+                            </div>
+                        <?php endif; ?>
                     </div>
 
                     <div>
