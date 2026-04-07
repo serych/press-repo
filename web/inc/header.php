@@ -3,8 +3,24 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/functions.php';
+require_once __DIR__ . '/photos.php';
 
 $user = current_user();
+$currentEvent = null;
+$currentEventId = 0;
+
+if ($user) {
+    $currentEvent = photos_get_current_event();
+    $currentEventId = !empty($currentEvent['id']) ? (int)$currentEvent['id'] : 0;
+}
+
+$chatUrl = '/chat.php';
+if ($currentEventId > 0) {
+    $chatUrl = '/chat.php?event_id=' . $currentEventId;
+}
+
+$styleFile = __DIR__ . '/../assets/style.css';
+$styleVersion = is_file($styleFile) ? (string)filemtime($styleFile) : '1';
 ?>
 <!doctype html>
 <html lang="cs">
@@ -12,7 +28,7 @@ $user = current_user();
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= h(APP_NAME) ?></title>
-    <link rel="stylesheet" href="/assets/style.css">
+    <link rel="stylesheet" href="/assets/style.css?v=<?= h($styleVersion) ?>">
 </head>
 <body>
 <header class="site-header">
@@ -36,6 +52,11 @@ $user = current_user();
                 <a href="/photos.php">Fotografie</a>
                 <a href="/photos-status.php">Moje fotky</a>
 
+                <a href="<?= h($chatUrl) ?>" class="nav-chat-link">
+                    <span class="nav-chat-label">Chat</span>
+                    <span class="chat-badge" id="chat-unread-badge" aria-live="polite" hidden>0</span>
+                </a>
+
                 <?php if (has_permission('users.manage')): ?>
                     <a href="/users.php">Uživatelé</a>
                 <?php endif; ?>
@@ -57,15 +78,54 @@ $user = current_user();
 document.addEventListener('DOMContentLoaded', function () {
     const btn = document.querySelector('.nav-toggle');
     const nav = document.getElementById('top-nav');
+    const chatBadge = document.getElementById('chat-unread-badge');
 
-    if (!btn || !nav) {
-        return;
+    if (btn && nav) {
+        btn.addEventListener('click', function () {
+            const isOpen = nav.classList.toggle('is-open');
+            btn.classList.toggle('is-open', isOpen);
+            btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        });
     }
 
-    btn.addEventListener('click', function () {
-        const isOpen = nav.classList.toggle('is-open');
-        btn.classList.toggle('is-open', isOpen);
-        btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    async function refreshChatBadge() {
+        if (document.visibilityState !== 'visible') {
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/chat-unread-count.php', {
+                cache: 'no-store'
+            });
+
+            if (!response.ok) {
+                return;
+            }
+
+            const data = await response.json();
+            const total = Number(data.total || 0);
+
+            if (chatBadge) {
+                chatBadge.textContent = String(total);
+                chatBadge.hidden = total <= 0;
+            }
+        } catch (e) {
+            // ticho
+        }
+    }
+
+    window.refreshChatBadge = refreshChatBadge;
+
+    refreshChatBadge();
+
+    window.setInterval(function () {
+        refreshChatBadge();
+    }, 10000);
+
+    document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'visible') {
+            refreshChatBadge();
+        }
     });
 });
 </script>

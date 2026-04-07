@@ -54,226 +54,213 @@ require_once __DIR__ . '/inc/header.php';
 ?>
 
 <section class="panel">
-<h1>Fotografie</h1>
-<?php if (!empty($currentEvent)): ?>
-    <p class="table-subtext">
-        Aktuální event:
-        <strong><?= h((string)$currentEvent['title']) ?></strong>
-        <?php if (!empty($currentEvent['is_temporary'])): ?>
-            <span class="badge badge-info">temporary</span>
+    <h1>Fotografie</h1>
+
+    <?php if (!empty($currentEvent)): ?>
+        <p class="table-subtext">
+            Aktuální event:
+            <strong><?= h((string)$currentEvent['title']) ?></strong>
+            <?php if (!empty($currentEvent['is_temporary'])): ?>
+                <span class="badge badge-info">temporary</span>
+            <?php endif; ?>
+        </p>
+    <?php endif; ?>
+
+    <div class="photos-layout">
+        <div class="photos-main">
+            <form method="get" class="filters">
+                <select name="ftp_user">
+                    <option value="">-- fotograf --</option>
+                    <?php foreach ($photographers as $p): ?>
+                        <option value="<?= h((string)$p['ftp_user']) ?>"
+                            <?= $ftpUser === (string)$p['ftp_user'] ? 'selected' : '' ?>>
+                            <?= h((string)$p['ftp_user']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+
+                <select name="status">
+                    <option value="">-- stav --</option>
+                    <?php foreach (['ready', 'locked', 'downloaded', 'error'] as $s): ?>
+                        <option value="<?= h($s) ?>" <?= $status === $s ? 'selected' : '' ?>>
+                            <?= h($s) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+
+                <button type="submit">Filtrovat</button>
+            </form>
+
+            <?php if (!empty($photos) && has_permission('photos.download')): ?>
+                <div class="bulk-toolbar">
+                    <form id="bulk-download-form" method="POST" action="/bulk-download-create.php" style="display:inline;">
+                        <button type="submit">Hromadné stažení zamčených</button>
+                    </form>
+
+                    <span id="bulk-status-text">
+                        <?php if ($downloadJobId > 0 && $downloadTotal > 0): ?>
+                            Připraven download <?= $downloadTotal ?> fotografií.
+                        <?php else: ?>
+                            Moje zamčené na této stránce: <?= $lockedMineCount ?>
+                        <?php endif; ?>
+                    </span>
+
+                    <span class="ingest-status ingest-status-inline" id="ingest-status" style="display:none">
+                        <span class="ingest-pill ingest-uploading">
+                            U:<strong id="uploading-count">0</strong>
+                            <span class="ingest-dots" id="uploading-dots"><span>.</span><span>.</span><span>.</span></span>
+                        </span>
+
+                        <span class="ingest-pill ingest-processing">
+                            P:<strong id="processing-count">0</strong>
+                            <span class="status-spinner"></span>
+                        </span>
+                    </span>
+                </div>
+            <?php endif; ?>
+
+            <?php if (empty($photos)): ?>
+                <p>Žádné fotografie.</p>
+            <?php else: ?>
+                <div class="photo-grid" id="photo-grid">
+                    <?php foreach ($photos as $p): ?>
+                        <?php
+                        $cardClass = 'photo-card';
+
+                        if (($p['status'] ?? '') === 'locked' && !empty($p['locked_by_user_id'])) {
+                            if ((int)$p['locked_by_user_id'] === $currentUserId) {
+                                $cardClass .= ' selected';
+                            } else {
+                                $cardClass .= ' locked';
+                            }
+                        }
+
+                        if (!empty($p['exif_problem'])) {
+                            $cardClass .= ' exif-problem';
+                        }
+                        ?>
+
+                        <div class="<?= h($cardClass) ?>">
+                            <a href="/photo.php?id=<?= (int)$p['id'] ?>" class="photo-card-link">
+                                <div class="thumb">
+                                    <?php if (!empty($p['preview_filepath'])): ?>
+                                        <img src="/preview.php?id=<?= (int)$p['id'] ?>">
+                                    <?php else: ?>
+                                        <div class="no-preview">bez náhledu</div>
+                                    <?php endif; ?>
+                                </div>
+
+                                <div class="meta">
+                                    <div class="file">
+                                        <?= h((string)$p['filename']) ?>
+                                    </div>
+
+                                    <div class="author">
+                                        <?= h((string)$p['ftp_user']) ?>
+                                    </div>
+
+                                    <div class="status-wrapper">
+                                        <?php if ($p['status'] === 'downloaded'): ?>
+                                            <div class="status status-downloaded">
+                                                downloaded
+                                            </div>
+                                        <?php elseif ($p['locked_by_user_id']): ?>
+                                            <?php if ($p['locked_by_user_id'] == $currentUserId): ?>
+                                                <a href="/select.php?id=<?= (int)$p['id'] ?>&action=unlock"
+                                                   class="status status-selected status-clickable"
+                                                   onclick="event.stopPropagation();">
+                                                    ke stažení
+                                                </a>
+                                            <?php else: ?>
+                                                <div class="status-line">
+                                                    <div class="status status-locked">
+                                                        zamknuto
+                                                    </div>
+
+                                                    <?php
+                                                    $lockedByName = trim(
+                                                        ((string)($p['locked_jmeno'] ?? '')) . ' ' .
+                                                        ((string)($p['locked_prijmeni'] ?? ''))
+                                                    );
+                                                    ?>
+
+                                                    <?php if ($lockedByName !== ''): ?>
+                                                        <div class="lock-owner">
+                                                            (<?= h($lockedByName) ?>)
+                                                        </div>
+                                                    <?php elseif (!empty($p['locked_by_user'])): ?>
+                                                        <div class="lock-owner">
+                                                            (<?= h((string)$p['locked_by_user']) ?>)
+                                                        </div>
+                                                    <?php endif; ?>
+                                                </div>
+                                            <?php endif; ?>
+                                        <?php else: ?>
+                                            <?php if (has_permission('photos.select')): ?>
+                                                <a href="/select.php?id=<?= (int)$p['id'] ?>&action=lock"
+                                                   class="status status-ready status-clickable"
+                                                   onclick="event.stopPropagation();">
+                                                    ready
+                                                </a>
+                                            <?php else: ?>
+                                                <div class="status status-ready">
+                                                    ready
+                                                </div>
+                                            <?php endif; ?>
+                                        <?php endif; ?>
+                                    </div>
+
+                                    <?php if (!empty($p['exif_problem'])): ?>
+                                        <div class="photo-warning">
+                                            problém v EXIFu
+                                            <?php if (!empty($p['exif_problem_note'])): ?>
+                                                – <?= h((string)$p['exif_problem_note']) ?>
+                                            <?php endif; ?>
+                                        </div>
+                                    <?php endif; ?>
+
+                                    <div class="time">
+                                        <?= h((string)$p['uploaded_at']) ?>
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+
+            <?php if ($totalPages > 1): ?>
+                <div class="pagination">
+                    <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+                        <a class="<?= $i === $page ? 'active' : '' ?>"
+                           href="?page=<?= $i ?>&ftp_user=<?= urlencode($ftpUser) ?>&status=<?= urlencode($status) ?>">
+                            <?= $i ?>
+                        </a>
+                    <?php endfor; ?>
+                </div>
+            <?php endif; ?>
+        </div>
+
+        <?php if ($currentEventId > 0): ?>
+            <aside
+                class="chat-sidebar is-collapsed"
+                id="chat-sidebar"
+                data-chat-event-id="<?= (int)$currentEventId ?>"
+            >
+                <div class="chat-sidebar-head">
+                    <strong>Chat</strong>
+                    <button type="button" class="chat-sidebar-toggle" id="chat-sidebar-toggle" aria-label="Sbalit nebo rozbalit chat">☰</button>
+                </div>
+
+                <div class="event-chat-messages" id="event-chat-messages"></div>
+
+                <form class="event-chat-form" id="event-chat-form">
+                    <textarea id="event-chat-input" placeholder="Napiš zprávu..." maxlength="2000"></textarea>
+                    <button type="submit">Odeslat</button>
+                </form>
+            </aside>
         <?php endif; ?>
-    </p>
-<?php endif; ?>
-
-<form method="get" class="filters">
-
-<select name="ftp_user">
-<option value="">-- fotograf --</option>
-<?php foreach ($photographers as $p): ?>
-<option value="<?= h((string)$p['ftp_user']) ?>"
-<?= $ftpUser === (string)$p['ftp_user'] ? 'selected' : '' ?>>
-<?= h((string)$p['ftp_user']) ?>
-</option>
-<?php endforeach; ?>
-</select>
-
-<select name="status">
-<option value="">-- stav --</option>
-<?php foreach (['ready','locked','downloaded','error'] as $s): ?>
-<option value="<?= h($s) ?>" <?= $status === $s ? 'selected' : '' ?>>
-<?= h($s) ?>
-</option>
-<?php endforeach; ?>
-</select>
-
-<button type="submit">Filtrovat</button>
-
-</form>
-
-<?php if (!empty($photos) && has_permission('photos.download')): ?>
-
-<div class="bulk-toolbar">
-    <form id="bulk-download-form" method="POST" action="/bulk-download-create.php" style="display:inline;">
-        <button type="submit">Hromadné stažení zamčených</button>
-    </form>
-
-    <span id="bulk-status-text">
-        <?php if ($downloadJobId > 0 && $downloadTotal > 0): ?>
-            Připraven download <?= $downloadTotal ?> fotografií.
-        <?php else: ?>
-            Moje zamčené na této stránce: <?= $lockedMineCount ?>
-        <?php endif; ?>
-    </span>
-
-    <span class="ingest-status ingest-status-inline" id="ingest-status" style="display:none">
-        <span class="ingest-pill ingest-uploading">
-            U:<strong id="uploading-count">0</strong>
-            <span class="ingest-dots" id="uploading-dots"><span>.</span><span>.</span><span>.</span></span>
-        </span>
-
-        <span class="ingest-pill ingest-processing">
-            P:<strong id="processing-count">0</strong>
-            <span class="status-spinner"></span>
-        </span>
-    </span>
-</div>
-
-<?php endif; ?>
-
-<?php if (empty($photos)): ?>
-<p>Žádné fotografie.</p>
-<?php else: ?>
-
-<div class="photo-grid" id="photo-grid">
-
-<?php foreach ($photos as $p): ?>
-
-<?php
-$cardClass = 'photo-card';
-
-if (($p['status'] ?? '') === 'locked' && !empty($p['locked_by_user_id'])) {
-    if ((int)$p['locked_by_user_id'] === $currentUserId) {
-        $cardClass .= ' selected';
-    } else {
-        $cardClass .= ' locked';
-    }
-}
-
-if (!empty($p['exif_problem'])) {
-    $cardClass .= ' exif-problem';
-}
-?>
-
-<div class="<?= h($cardClass) ?>">
-
-<a href="/photo.php?id=<?= (int)$p['id'] ?>" class="photo-card-link">
-
-<div class="thumb">
-<?php if (!empty($p['preview_filepath'])): ?>
-<img src="/preview.php?id=<?= (int)$p['id'] ?>">
-<?php else: ?>
-<div class="no-preview">bez náhledu</div>
-<?php endif; ?>
-</div>
-
-<div class="meta">
-
-<div class="file">
-<?= h((string)$p['filename']) ?>
-</div>
-
-<div class="author">
-<?= h((string)$p['ftp_user']) ?>
-</div>
-
-<div class="status-wrapper">
-
-<?php if ($p['status'] === 'downloaded'): ?>
-
-<div class="status status-downloaded">
-downloaded
-</div>
-
-<?php elseif ($p['locked_by_user_id']): ?>
-
-<?php if ($p['locked_by_user_id'] == $currentUserId): ?>
-
-<a href="/select.php?id=<?= (int)$p['id'] ?>&action=unlock"
-class="status status-selected status-clickable"
-onclick="event.stopPropagation();">
-ke stažení
-</a>
-
-<?php else: ?>
-
-<div class="status-line">
-    <div class="status status-locked">
-        zamknuto
     </div>
-
-    <?php
-    $lockedByName = trim(
-        ((string)($p['locked_jmeno'] ?? '')) . ' ' .
-        ((string)($p['locked_prijmeni'] ?? ''))
-    );
-    ?>
-
-    <?php if ($lockedByName !== ''): ?>
-        <div class="lock-owner">
-            (<?= h($lockedByName) ?>)
-        </div>
-    <?php elseif (!empty($p['locked_by_user'])): ?>
-        <div class="lock-owner">
-            (<?= h((string)$p['locked_by_user']) ?>)
-        </div>
-    <?php endif; ?>
-</div>
-
-<?php endif; ?>
-
-<?php else: ?>
-
-<?php if (has_permission('photos.select')): ?>
-
-<a href="/select.php?id=<?= (int)$p['id'] ?>&action=lock"
-class="status status-ready status-clickable"
-onclick="event.stopPropagation();">
-ready
-</a>
-
-<?php else: ?>
-
-<div class="status status-ready">
-ready
-</div>
-
-<?php endif; ?>
-
-<?php endif; ?>
-
-</div>
-
-<?php if (!empty($p['exif_problem'])): ?>
-<div class="photo-warning">
-    problém v EXIFu
-    <?php if (!empty($p['exif_problem_note'])): ?>
-        – <?= h((string)$p['exif_problem_note']) ?>
-    <?php endif; ?>
-</div>
-<?php endif; ?>
-
-<div class="time">
-<?= h((string)$p['uploaded_at']) ?>
-</div>
-
-</div>
-</a>
-
-</div>
-
-<?php endforeach; ?>
-
-</div>
-
-<?php endif; ?>
-
-<?php if ($totalPages > 1): ?>
-
-<div class="pagination">
-
-<?php for ($i = 1; $i <= $totalPages; $i++): ?>
-
-<a class="<?= $i === $page ? 'active' : '' ?>"
-href="?page=<?= $i ?>&ftp_user=<?= urlencode($ftpUser) ?>&status=<?= urlencode($status) ?>">
-<?= $i ?>
-</a>
-
-<?php endfor; ?>
-
-</div>
-
-<?php endif; ?>
-
 </section>
 
 <script>
@@ -647,7 +634,34 @@ document.addEventListener('DOMContentLoaded', function () {
         refreshPhotoFeed();
         startAutoRefresh();
     }
+
+    const sidebar = document.getElementById('chat-sidebar');
+    const toggle = document.getElementById('chat-sidebar-toggle');
+
+    if (sidebar && toggle) {
+        const storageKey = 'press_chat_sidebar_collapsed';
+        const saved = localStorage.getItem(storageKey);
+
+        if (saved === '0') {
+            sidebar.classList.remove('is-collapsed');
+        } else {
+            sidebar.classList.add('is-collapsed');
+        }
+
+        toggle.addEventListener('click', function () {
+            const collapsed = sidebar.classList.toggle('is-collapsed');
+            localStorage.setItem(storageKey, collapsed ? '1' : '0');
+        });
+    }
 });
 </script>
+
+<?php
+$chatJsFile = __DIR__ . '/assets/chat.js';
+$chatJsVersion = is_file($chatJsFile) ? (string)filemtime($chatJsFile) : '1';
+?>
+<?php if ($currentEventId > 0): ?>
+<script src="/assets/chat.js?v=<?= h($chatJsVersion) ?>"></script>
+<?php endif; ?>
 
 <?php require_once __DIR__ . '/inc/footer.php'; ?>
