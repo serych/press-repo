@@ -40,9 +40,18 @@ require_once __DIR__ . '/inc/header.php';
 <p><a href="/photos.php" class="back-link">← zpět</a></p>
 </div>
 
+<?php if (!empty($photo['exif_problem'])): ?>
+<div class="alert-error">
+    Tato fotografie má problém s EXIFem.
+    <?php if (!empty($photo['exif_problem_note'])): ?>
+        <?= h((string)$photo['exif_problem_note']) ?>
+    <?php endif; ?>
+</div>
+<?php endif; ?>
+
 <div class="photo-detail-grid">
 
-<div class="photo-preview-card">
+<div class="photo-preview-card<?= !empty($photo['exif_problem']) ? ' detail-exif-problem' : '' ?>">
 
 <?php if (!empty($photo['preview_filepath'])): ?>
 <img src="/preview.php?id=<?= (int)$photo['id'] ?>" class="photo-detail-image">
@@ -118,6 +127,29 @@ $lockedByName = trim(
 <th>Velikost</th>
 <td><?= number_format((int)$photo['filesize'], 0, ' ', ' ') ?> B</td>
 </tr>
+
+<tr>
+<th>EXIF author</th>
+<td class="<?= !empty($photo['exif_problem']) ? 'detail-problem-value' : '' ?>">
+    <?= h((string)($photo['exif_author'] ?? '—')) ?>
+</td>
+</tr>
+
+<tr>
+<th>EXIF copyright</th>
+<td class="<?= !empty($photo['exif_problem']) ? 'detail-problem-value' : '' ?>">
+    <?= h((string)($photo['exif_copyright'] ?? '—')) ?>
+</td>
+</tr>
+
+<?php if (!empty($photo['exif_problem'])): ?>
+<tr>
+<th>EXIF problém</th>
+<td class="detail-problem-value">
+    <?= h((string)($photo['exif_problem_note'] ?? 'Ano')) ?>
+</td>
+</tr>
+<?php endif; ?>
 
 <tr>
 <th>Originál</th>

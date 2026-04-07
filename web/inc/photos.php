@@ -143,5 +143,76 @@ function photos_get_by_id(int $id): ?array
     $stmt->execute([':id' => $id]);
 
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    return $row ?: null;
+    if (!$row) {
+        return null;
+    }
+
+    $row['exif_author'] = '';
+    $row['exif_copyright'] = '';
+
+    $filepath = (string)($row['filepath'] ?? '');
+    if ($filepath !== '' && is_file($filepath)) {
+        $exif = photos_read_exif_summary($filepath);
+        $row['exif_author'] = $exif['author'];
+        $row['exif_copyright'] = $exif['copyright'];
+    }
+
+    return $row;
+}
+
+function photos_read_exif_summary(string $filepath): array
+{
+    if (!is_file($filepath)) {
+        return [
+            'author' => '',
+            'copyright' => '',
+        ];
+    }
+
+    $escaped = escapeshellarg($filepath);
+    $cmd = "exiftool -s3 -Artist -Author -Creator -XMP-dc:Creator -IPTC:By-line -Copyright -XMP-dc:Rights -IPTC:CopyrightNotice $escaped 2>/dev/null";
+
+    $output = shell_exec($cmd);
+    if (!is_string($output) || trim($output) === '') {
+        return [
+            'author' => '',
+            'copyright' => '',
+        ];
+    }
+
+    $lines = preg_split('~\R~u', trim($output)) ?: [];
+
+    $author = '';
+    $copyright = '';
+
+    if (isset($lines[0])) {
+        $author = trim((string)$lines[0]);
+    }
+    if ($author === '' && isset($lines[1])) {
+        $author = trim((string)$lines[1]);
+    }
+    if ($author === '' && isset($lines[2])) {
+        $author = trim((string)$lines[2]);
+    }
+    if ($author === '' && isset($lines[3])) {
+        $author = trim((string)$lines[3]);
+    }
+    if ($author === '' && isset($lines[4])) {
+        $author = trim((string)$lines[4]);
+    }
+
+    if (isset($lines[5])) {
+        $copyright = trim((string)$lines[5]);
+    }
+    if ($copyright === '' && isset($lines[6])) {
+        $copyright = trim((string)$lines[6]);
+    }
+    if ($copyright === '' && isset($lines[7])) {
+        $copyright = trim((string)$lines[7]);
+    }
+
+    return [
+        'author' => $author,
+        'copyright' => $copyright,
+    ];
 }

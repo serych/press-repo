@@ -1,0 +1,53 @@
+../web/:
+total 184
+lrwxrwxrwx 1 www-data www-data    26 Mar 30 15:51 adminer -> /usr/share/adminer/adminer
+drwxr-xr-x 2 root     root      4096 Apr  3 00:08 api
+drwxr-xr-x 2 www-data www-data  4096 Mar 31 22:02 assets
+-rw-r--r-- 1 root     root      1659 Mar 31 13:44 bulk-download-create.php
+drwxr-xr-x 2 www-data www-data  4096 Mar 30 21:40 config
+-rw-r--r-- 1 root     root     11886 Apr  4 14:44 dashboard.php
+-rw-r--r-- 1 root     root      3586 Mar 31 12:40 download-item.php
+-rw-r--r-- 1 root     root      1926 Mar 31 09:32 download.php
+-rw-r--r-- 1 root     root      1257 Mar 31 12:09 download-queue.php
+-rw-r--r-- 1 root     root     13675 Apr  4 16:36 event-create.php
+-rw-r--r-- 1 root     root     15098 Apr  4 16:31 event-edit.php
+-rw-r--r-- 1 root     root      5898 Apr  4 16:43 events.php
+drwxr-xr-x 2 www-data www-data  4096 Apr  3 20:21 inc
+-rw-r--r-- 1 root     root       268 Mar 31 21:02 index.php
+-rw-r--r-- 1 root     root      2433 Apr  4 16:19 login.php
+-rw-r--r-- 1 root     root       201 Mar 30 21:40 logout.php
+-rw-r--r-- 1 root     root      7617 Apr  4 16:20 ongoing-event.php
+-rw-r--r-- 1 root     root      3553 Mar 31 20:52 photo.php
+-rw-r--r-- 1 root     root     17479 Apr  3 22:10 photos.php
+-rw-r--r-- 1 root     root     14300 Apr  4 14:12 photos-status.php
+-rw-r--r-- 1 root     root       742 Mar 30 22:25 preview.php
+-rw-r--r-- 1 root     root      1927 Mar 31 08:22 select.php
+-rw-r--r-- 1 root     root     10120 Apr  4 14:59 user-create.php
+-rw-r--r-- 1 root     root      3070 Mar 31 19:51 user-delete.php
+-rw-r--r-- 1 root     root     11328 Apr  4 15:00 user-edit.php
+-rw-r--r-- 1 root     root      2832 Mar 31 20:00 users.php
+
+../web/api:
+total 20
+-rw-r--r-- 1 root root  842 Mar 31 12:09 download-job-status.php
+-rw-r--r-- 1 root root 5461 Apr  3 22:12 photos-feed.php
+-rw-r--r-- 1 root root 7277 Apr  4 14:12 photos-status.php
+
+../web/assets:
+total 32
+-rw-r--r-- 1 root root  3549 Mar 31 22:01 logo-cs.svg
+-rw-r--r-- 1 root root 26937 Apr  4 16:20 style.css
+
+../web/config:
+total 0
+
+../web/inc:
+total 56
+-rw-r--r-- 1 root root  4127 Mar 30 21:40 auth.php
+-rw-r--r-- 1 root root   566 Mar 30 21:40 db.php
+-rw-r--r-- 1 root root 13991 Apr  4 14:21 events.php
+-rw-r--r-- 1 root root    57 Mar 30 21:40 footer.php
+-rw-r--r-- 1 root root  1358 Apr  1 08:24 functions.php
+-rw-r--r-- 1 root root  2185 Apr  3 20:38 header.php
+-rw-r--r-- 1 root root  3469 Apr  3 22:07 photos.php
+-rw-r--r-- 1 root root 10384 Apr  4 14:59 users.php

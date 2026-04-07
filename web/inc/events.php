@@ -238,7 +238,7 @@ function events_delete(int $id): void
     $stmt->execute([$id]);
 }
 
-function events_users_for_picker(): array
+function events_users_for_picker(?string $roleInEvent = null): array
 {
     $sql = "
         SELECT
@@ -252,20 +252,23 @@ function events_users_for_picker(): array
             r.name AS role_name
         FROM users u
         INNER JOIN roles r ON r.id = u.role_id
+        WHERE u.is_active = 1
         ORDER BY
-            CASE r.code
-                WHEN 'photographer' THEN 1
-                WHEN 'press_operator' THEN 2
-                WHEN 'admin' THEN 3
-                WHEN 'superadmin' THEN 4
-                ELSE 5
-            END,
             u.prijmeni,
             u.jmeno,
             u.user
     ";
 
-    return db()->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+    $users = db()->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+
+    if ($roleInEvent === 'editor') {
+        $users = array_values(array_filter(
+            $users,
+            static fn(array $user): bool => (string)($user['role_code'] ?? '') !== 'photographer'
+        ));
+    }
+
+    return $users;
 }
 
 function events_participants_get(int $eventId): array
@@ -308,7 +311,7 @@ function events_participants_get_ids_by_role(int $eventId, string $roleInEvent):
     return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
 }
 
-function events_participants_get_runner_user_id(int $eventId): int
+function events_participants_get_runner_user_ids(int $eventId): array
 {
     $stmt = db()->prepare("
         SELECT user_id
@@ -317,26 +320,52 @@ function events_participants_get_runner_user_id(int $eventId): int
           AND role_in_event = 'photographer'
           AND runner = 1
         ORDER BY user_id
-        LIMIT 1
     ");
     $stmt->execute([$eventId]);
 
-    $value = $stmt->fetchColumn();
-
-    return $value !== false ? (int)$value : 0;
+    return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
 }
 
-function events_participants_save(int $eventId, array $photographerIds, array $editorIds, ?int $runnerUserId = null): void
+function events_filter_editor_ids(array $userIds): array
+{
+    $userIds = array_values(array_unique(array_map('intval', $userIds)));
+    $userIds = array_values(array_filter($userIds, static fn(int $id): bool => $id > 0));
+
+    if ($userIds === []) {
+        return [];
+    }
+
+    $placeholders = implode(',', array_fill(0, count($userIds), '?'));
+
+    $stmt = db()->prepare("
+        SELECT u.id
+        FROM users u
+        INNER JOIN roles r ON r.id = u.role_id
+        WHERE u.id IN ($placeholders)
+          AND u.is_active = 1
+          AND r.code <> 'photographer'
+    ");
+    $stmt->execute($userIds);
+
+    return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+}
+
+function events_participants_save(int $eventId, array $photographerIds, array $editorIds, array $runnerUserIds = []): void
 {
     $pdo = db();
 
     $photographerIds = array_values(array_unique(array_map('intval', $photographerIds)));
-    $editorIds = array_values(array_unique(array_map('intval', $editorIds)));
-    $runnerUserId = $runnerUserId !== null ? (int)$runnerUserId : 0;
+    $photographerIds = array_values(array_filter($photographerIds, static fn(int $id): bool => $id > 0));
 
-    if ($runnerUserId > 0 && !in_array($runnerUserId, $photographerIds, true)) {
-        $runnerUserId = 0;
-    }
+    $editorIds = events_filter_editor_ids($editorIds);
+
+    $runnerUserIds = array_values(array_unique(array_map('intval', $runnerUserIds)));
+    $runnerUserIds = array_values(array_filter(
+        $runnerUserIds,
+        static fn(int $id): bool => $id > 0 && in_array($id, $photographerIds, true)
+    ));
+
+    $runnerLookup = array_fill_keys($runnerUserIds, true);
 
     $pdo->beginTransaction();
 
@@ -353,20 +382,21 @@ function events_participants_save(int $eventId, array $photographerIds, array $e
         ");
 
         foreach ($photographerIds as $userId) {
-            if ($userId > 0) {
-                $insert->execute([
-                    $eventId,
-                    $userId,
-                    'photographer',
-                    $runnerUserId > 0 && $runnerUserId === $userId ? 1 : 0,
-                ]);
-            }
+            $insert->execute([
+                $eventId,
+                $userId,
+                'photographer',
+                isset($runnerLookup[$userId]) ? 1 : 0,
+            ]);
         }
 
         foreach ($editorIds as $userId) {
-            if ($userId > 0) {
-                $insert->execute([$eventId, $userId, 'editor', 0]);
-            }
+            $insert->execute([
+                $eventId,
+                $userId,
+                'editor',
+                0,
+            ]);
         }
 
         $pdo->commit();

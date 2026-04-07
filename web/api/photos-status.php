@@ -189,6 +189,7 @@ $sql = "
         p.status,
         p.uploaded_at,
         p.locked_by_user_id,
+        p.exif_problem,
         p.ftp_user,
         lu.user AS locked_by_user,
         lu.jmeno AS locked_jmeno,
@@ -297,6 +298,7 @@ foreach ($rows as $row) {
         'status_text' => $statusText,
         'status_class' => $statusClass,
         'status_note' => $statusNote,
+        'exif_problem' => !empty($row['exif_problem']),
         'uploaded_at' => (string)$row['uploaded_at'],
     ];
 }

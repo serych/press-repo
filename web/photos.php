@@ -138,6 +138,10 @@ if (($p['status'] ?? '') === 'locked' && !empty($p['locked_by_user_id'])) {
         $cardClass .= ' locked';
     }
 }
+
+if (!empty($p['exif_problem'])) {
+    $cardClass .= ' exif-problem';
+}
 ?>
 
 <div class="<?= h($cardClass) ?>">
@@ -228,6 +232,15 @@ ready
 <?php endif; ?>
 
 </div>
+
+<?php if (!empty($p['exif_problem'])): ?>
+<div class="photo-warning">
+    problém v EXIFu
+    <?php if (!empty($p['exif_problem_note'])): ?>
+        – <?= h((string)$p['exif_problem_note']) ?>
+    <?php endif; ?>
+</div>
+<?php endif; ?>
 
 <div class="time">
 <?= h((string)$p['uploaded_at']) ?>
@@ -330,6 +343,10 @@ function renderPhotoCard(item, currentUserId, canSelect) {
         }
     }
 
+    if (item.exif_problem) {
+        cardClass += ' exif-problem';
+    }
+
     let thumbHtml = '';
     if (item.preview_exists) {
         thumbHtml = '<img src="/preview.php?id=' + item.id + '" loading="lazy">';
@@ -348,7 +365,7 @@ function renderPhotoCard(item, currentUserId, canSelect) {
             statusHtml =
                 '<a href="/select.php?id=' + item.id + '&action=unlock" class="status status-selected status-clickable" onclick="event.stopPropagation();">ke stažení</a>';
         } else {
-            const lockedByName = (item.locked_jmeno + ' ' + item.locked_prijmeni).trim();
+            const lockedByName = ((item.locked_jmeno || '') + ' ' + (item.locked_prijmeni || '')).trim();
             let ownerHtml = '';
 
             if (lockedByName !== '') {
@@ -372,6 +389,13 @@ function renderPhotoCard(item, currentUserId, canSelect) {
         }
     }
 
+    let warningHtml = '';
+    if (item.exif_problem) {
+        warningHtml = '<div class="photo-warning">problém v EXIFu' +
+            (item.exif_problem_note ? ' – ' + escapeHtml(item.exif_problem_note) : '') +
+            '</div>';
+    }
+
     return '' +
         '<div class="' + cardClass + '">' +
             '<a href="/photo.php?id=' + item.id + '" class="photo-card-link">' +
@@ -382,6 +406,7 @@ function renderPhotoCard(item, currentUserId, canSelect) {
                     '<div class="file">' + escapeHtml(item.filename) + '</div>' +
                     '<div class="author">' + escapeHtml(item.ftp_user) + '</div>' +
                     '<div class="status-wrapper">' + statusHtml + '</div>' +
+                    warningHtml +
                     '<div class="time">' + escapeHtml(item.uploaded_at) + '</div>' +
                 '</div>' +
             '</a>' +
@@ -399,76 +424,75 @@ document.addEventListener('DOMContentLoaded', function () {
     const uploadingCountEl = document.getElementById('uploading-count');
     const processingCountEl = document.getElementById('processing-count');
     const uploadingDotsEl = document.getElementById('uploading-dots');
+
     ['click', 'keydown', 'touchstart'].forEach(function (eventName) {
-    document.addEventListener(eventName, unlockAudio, { once: true });
-});
+        document.addEventListener(eventName, unlockAudio, { once: true });
+    });
 
     let lastSignature = '';
     let knownIds = new Set();
-let audioUnlocked = false;
-let audioContext = null;
+    let audioUnlocked = false;
+    let audioContext = null;
 
-function unlockAudio() {
-    if (audioUnlocked) {
-        return;
-    }
-
-    try {
-        const Ctx = window.AudioContext || window.webkitAudioContext;
-        if (!Ctx) {
+    function unlockAudio() {
+        if (audioUnlocked) {
             return;
         }
 
-        audioContext = new Ctx();
+        try {
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            if (!Ctx) {
+                return;
+            }
 
-        if (audioContext.state === 'suspended') {
-            audioContext.resume();
+            audioContext = new Ctx();
+
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+
+            audioUnlocked = true;
+        } catch (e) {
+            // ticho
+        }
+    }
+
+    function beepNewPhoto() {
+        if (!audioUnlocked || !audioContext) {
+            return;
         }
 
-        audioUnlocked = true;
-    } catch (e) {
-        // ticho
+        try {
+            const now = audioContext.currentTime;
+
+            const osc1 = audioContext.createOscillator();
+            const osc2 = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+
+            osc1.type = 'sine';
+            osc1.frequency.value = 880;
+
+            osc2.type = 'sine';
+            osc2.frequency.value = 1320;
+
+            gain.gain.setValueAtTime(0.0001, now);
+            gain.gain.exponentialRampToValueAtTime(0.18, now + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
+
+            osc1.connect(gain);
+            osc2.connect(gain);
+            gain.connect(audioContext.destination);
+
+            osc1.start(now);
+            osc2.start(now);
+
+            osc1.stop(now + 0.45);
+            osc2.stop(now + 0.45);
+
+        } catch (e) {
+            // ticho
+        }
     }
-}
-
-function beepNewPhoto() {
-    if (!audioUnlocked || !audioContext) {
-        return;
-    }
-
-    try {
-        const now = audioContext.currentTime;
-
-        const osc1 = audioContext.createOscillator();
-        const osc2 = audioContext.createOscillator();
-        const gain = audioContext.createGain();
-
-        // příjemnější "notifikace"
-        osc1.type = 'sine';
-        osc1.frequency.value = 880;
-
-        osc2.type = 'sine';
-        osc2.frequency.value = 1320;
-
-        // hlasitější a delší
-        gain.gain.setValueAtTime(0.0001, now);
-        gain.gain.exponentialRampToValueAtTime(0.18, now + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
-
-        osc1.connect(gain);
-        osc2.connect(gain);
-        gain.connect(audioContext.destination);
-
-        osc1.start(now);
-        osc2.start(now);
-
-        osc1.stop(now + 0.45);
-        osc2.stop(now + 0.45);
-
-    } catch (e) {
-        // ticho
-    }
-}
 
     if (jobId > 0 && total > 0) {
         const ok = window.confirm('Bude se stahovat ' + total + ' fotografií. Pokračovat?');
@@ -484,25 +508,25 @@ function beepNewPhoto() {
     }
 
     function updateIngestStatus(data) {
-    const uploading = Number(data.uploading_count || 0);
-    const processing = Number(data.processing_count || 0);
+        const uploading = Number(data.uploading_count || 0);
+        const processing = Number(data.processing_count || 0);
 
-    if (uploadingCountEl) {
-        uploadingCountEl.textContent = String(uploading);
-    }
+        if (uploadingCountEl) {
+            uploadingCountEl.textContent = String(uploading);
+        }
 
-    if (processingCountEl) {
-        processingCountEl.textContent = String(processing);
-    }
+        if (processingCountEl) {
+            processingCountEl.textContent = String(processing);
+        }
 
-    if (uploadingDotsEl) {
-        uploadingDotsEl.style.visibility = uploading > 0 ? 'visible' : 'hidden';
-    }
+        if (uploadingDotsEl) {
+            uploadingDotsEl.style.visibility = uploading > 0 ? 'visible' : 'hidden';
+        }
 
-    if (ingestStatus) {
-        ingestStatus.style.display = (uploading > 0 || processing > 0) ? 'inline-flex' : 'none';
+        if (ingestStatus) {
+            ingestStatus.style.display = (uploading > 0 || processing > 0) ? 'inline-flex' : 'none';
+        }
     }
-}
 
     async function refreshPhotoFeed() {
         const url = new URL('/api/photos-feed.php', window.location.origin);
@@ -526,33 +550,37 @@ function beepNewPhoto() {
             if (!data || !Array.isArray(data.items)) {
                 return;
             }
+
             const newIds = new Set(data.items.map(function (item) {
                 return Number(item.id);
             }));
-            
+
             if (knownIds.size > 0) {
                 let hasNewPhoto = false;
-            
+
                 newIds.forEach(function (id) {
                     if (!knownIds.has(id)) {
                         hasNewPhoto = true;
                     }
                 });
-            
+
                 if (hasNewPhoto) {
                     beepNewPhoto();
                 }
             }
-            
+
             knownIds = newIds;
-            
+
             updateIngestStatus(data);
+
             const signature = JSON.stringify(data.items.map(function (item) {
                 return [
                     item.id,
                     item.status,
                     item.preview_exists ? 1 : 0,
-                    item.locked_by_user_id || 0
+                    item.locked_by_user_id || 0,
+                    item.exif_problem ? 1 : 0,
+                    item.exif_problem_note || ''
                 ];
             }));
 

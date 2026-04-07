@@ -22,7 +22,8 @@ if (!$event) {
     exit('Event nebyl nalezen.');
 }
 
-$users = events_users_for_picker();
+$allUsers = events_users_for_picker();
+$editorUsers = events_users_for_picker('editor');
 
 $values = [
     'title'           => (string)$event['title'],
@@ -40,7 +41,7 @@ $values = [
 
 $selectedPhotographers = events_participants_get_ids_by_role($id, 'photographer');
 $selectedEditors = events_participants_get_ids_by_role($id, 'editor');
-$selectedRunnerUserId = events_participants_get_runner_user_id($id);
+$selectedRunnerUserIds = events_participants_get_runner_user_ids($id);
 
 $errors = [];
 
@@ -59,7 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $selectedPhotographers = array_values(array_unique(array_map('intval', $_POST['photographers'] ?? [])));
     $selectedEditors = array_values(array_unique(array_map('intval', $_POST['editors'] ?? [])));
-    $selectedRunnerUserId = max(0, (int)($_POST['runner_user_id'] ?? 0));
+    $selectedRunnerUserIds = array_values(array_unique(array_map('intval', $_POST['runners'] ?? [])));
 
     if ($values['title'] === '') {
         $errors[] = 'Vyplň název eventu.';
@@ -104,8 +105,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'Neplatný vedoucí eventu.';
     }
 
-    if ($selectedRunnerUserId > 0 && !in_array($selectedRunnerUserId, $selectedPhotographers, true)) {
+    $invalidRunnerIds = array_values(array_filter(
+        $selectedRunnerUserIds,
+        static fn(int $userId): bool => !in_array($userId, $selectedPhotographers, true)
+    ));
+
+    if ($invalidRunnerIds !== []) {
         $errors[] = 'Runner musí být vybraný i mezi fotografy.';
+    }
+
+    if (events_filter_editor_ids($selectedEditors) !== $selectedEditors) {
+        $errors[] = 'Redaktorem se nesmí stát fotograf.';
     }
 
     if (!$errors) {
@@ -123,7 +133,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'is_temporary'    => !empty($event['is_temporary']) ? 1 : 0,
         ]);
 
-        events_participants_save($id, $selectedPhotographers, $selectedEditors, $selectedRunnerUserId > 0 ? $selectedRunnerUserId : null);
+        events_participants_save(
+            $id,
+            $selectedPhotographers,
+            $selectedEditors,
+            $selectedRunnerUserIds
+        );
 
         header('Location: /events.php');
         exit;
@@ -176,10 +191,8 @@ require_once __DIR__ . '/inc/header.php';
                     <label for="leader_user_id">Vedoucí eventu</label>
                     <select name="leader_user_id" id="leader_user_id">
                         <option value="">-- bez vedoucího --</option>
-                        <?php foreach ($users as $u): ?>
-                            <?php
-                            $fullName = trim((string)$u['jmeno'] . ' ' . (string)$u['prijmeni']);
-                            ?>
+                        <?php foreach ($allUsers as $u): ?>
+                            <?php $fullName = trim((string)$u['jmeno'] . ' ' . (string)$u['prijmeni']); ?>
                             <option value="<?= (int)$u['id'] ?>" <?= (string)$u['id'] === $values['leader_user_id'] ? 'selected' : '' ?>>
                                 <?= h($fullName !== '' ? $fullName : (string)$u['user']) ?>
                                 <?php if (!empty($u['mobile'])): ?>
@@ -230,60 +243,45 @@ require_once __DIR__ . '/inc/header.php';
                 <?php endif; ?>
             </div>
 
-            <div class="participant-pickers">
-                <div class="card participant-card">
-                    <h2>Fotografové</h2>
+            <?php
+            $pickerAllUsersJson = json_encode($allUsers, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $pickerEditorUsersJson = json_encode($editorUsers, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $selectedPhotographersJson = json_encode($selectedPhotographers);
+            $selectedEditorsJson = json_encode($selectedEditors);
+            $selectedRunnerUserIdsJson = json_encode($selectedRunnerUserIds);
+            ?>
 
-                    <div class="participant-list">
-                        <?php foreach ($users as $u): ?>
-                            <?php
-                            $fullName = trim((string)$u['jmeno'] . ' ' . (string)$u['prijmeni']);
-                            $userId = (int)$u['id'];
-                            $checked = in_array($userId, $selectedPhotographers, true);
-                            $isRunner = $selectedRunnerUserId === $userId;
-                            ?>
-                            <label class="participant-item participant-item-runner">
-                                <span class="participant-main">
-                                    <input type="checkbox" name="photographers[]" value="<?= $userId ?>" <?= $checked ? 'checked' : '' ?>>
-                                    <span>
-                                        <strong><?= h($fullName !== '' ? $fullName : (string)$u['user']) ?></strong>
-                                        <small>
-                                            <?= h((string)$u['role_name']) ?>
-                                            <?php if (!empty($u['mobile'])): ?> · <?= h(users_format_mobile((string)$u['mobile'])) ?><?php endif; ?>
-                                        </small>
-                                    </span>
-                                </span>
-
-                                <span class="participant-runner-pick">
-                                    <input type="radio" name="runner_user_id" value="<?= $userId ?>" <?= $isRunner ? 'checked' : '' ?>>
-                                    <span>runner</span>
-                                </span>
-                            </label>
-                        <?php endforeach; ?>
-                    </div>
+            <div class="participant-pickers participant-pickers-enhanced">
+                <div class="card participant-card participant-card-full">
+                    <h2>Redaktoři</h2>
+                    <div
+                        id="editor-picker"
+                        class="participant-picker participant-picker-table"
+                        data-users='<?= h((string)$pickerEditorUsersJson) ?>'
+                        data-selected='<?= h((string)$selectedEditorsJson) ?>'
+                        data-hidden-name="editors[]"
+                        data-placeholder="Začni psát příjmení, jméno nebo login…"
+                        data-empty-text="Zatím není vybraný žádný redaktor."
+                        data-mode="editor"
+                        data-add-label="Přidání:"
+                    ></div>
                 </div>
 
-                <div class="card participant-card">
-                    <h2>Redaktoři</h2>
-
-                    <div class="participant-list">
-                        <?php foreach ($users as $u): ?>
-                            <?php
-                            $fullName = trim((string)$u['jmeno'] . ' ' . (string)$u['prijmeni']);
-                            $checked = in_array((int)$u['id'], $selectedEditors, true);
-                            ?>
-                            <label class="participant-item">
-                                <input type="checkbox" name="editors[]" value="<?= (int)$u['id'] ?>" <?= $checked ? 'checked' : '' ?>>
-                                <span>
-                                    <strong><?= h($fullName !== '' ? $fullName : (string)$u['user']) ?></strong>
-                                    <small>
-                                        <?= h((string)$u['role_name']) ?>
-                                        <?php if (!empty($u['mobile'])): ?> · <?= h(users_format_mobile((string)$u['mobile'])) ?><?php endif; ?>
-                                    </small>
-                                </span>
-                            </label>
-                        <?php endforeach; ?>
-                    </div>
+                <div class="card participant-card participant-card-full">
+                    <h2>Fotografové / runneři</h2>
+                    <div
+                        id="photographer-picker"
+                        class="participant-picker participant-picker-table"
+                        data-users='<?= h((string)$pickerAllUsersJson) ?>'
+                        data-selected='<?= h((string)$selectedPhotographersJson) ?>'
+                        data-runners='<?= h((string)$selectedRunnerUserIdsJson) ?>'
+                        data-hidden-name="photographers[]"
+                        data-runner-name="runners[]"
+                        data-placeholder="Začni psát příjmení, jméno nebo login…"
+                        data-empty-text="Zatím není vybraný žádný fotograf."
+                        data-mode="photographer"
+                        data-add-label="Přidání:"
+                    ></div>
                 </div>
             </div>
 
@@ -308,6 +306,14 @@ document.addEventListener('DOMContentLoaded', function () {
             .replace(/^-+|-+$/g, '');
     }
 
+    function normalizeText(value) {
+        return (value || '')
+            .toString()
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '');
+    }
+
     titleInput.addEventListener('input', function () {
         if (slugInput.dataset.autofill === '0') {
             return;
@@ -327,26 +333,248 @@ document.addEventListener('DOMContentLoaded', function () {
         slugInput.dataset.autofill = '0';
     }
 
-    document.querySelectorAll('.participant-item-runner').forEach(function (item) {
-        const photographerCheckbox = item.querySelector('input[type="checkbox"][name="photographers[]"]');
-        const runnerRadio = item.querySelector('input[type="radio"][name="runner_user_id"]');
+    function escapeHtml(value) {
+        return String(value)
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#039;');
+    }
 
-        if (!photographerCheckbox || !runnerRadio) {
-            return;
+    function buildLabel(user) {
+        const fullName = [user.prijmeni, user.jmeno].filter(Boolean).join(' ').trim()
+            || [user.jmeno, user.prijmeni].filter(Boolean).join(' ').trim()
+            || user.user;
+
+        const roleText = user.role_name ? `(${user.role_name})` : '';
+        const phoneText = user.mobile || '';
+
+        return { fullName, roleText, phoneText };
+    }
+
+    function initParticipantPicker(root) {
+        const users = JSON.parse(root.dataset.users || '[]');
+        const selected = new Set(JSON.parse(root.dataset.selected || '[]').map(Number));
+        const runners = new Set(JSON.parse(root.dataset.runners || '[]').map(Number));
+        const hiddenName = root.dataset.hiddenName;
+        const runnerName = root.dataset.runnerName || '';
+        const placeholder = root.dataset.placeholder || 'Hledat…';
+        const emptyText = root.dataset.emptyText || 'Nic nevybráno.';
+        const mode = root.dataset.mode || 'default';
+        const addLabel = root.dataset.addLabel || 'Přidání:';
+
+        const userMap = new Map(users.map(user => [Number(user.id), user]));
+
+        root.innerHTML = `
+            <div class="participant-picker-add-row">
+                <label class="participant-add-label">${escapeHtml(addLabel)}</label>
+                <div class="participant-picker-search">
+                    <input type="text" class="participant-search-input" placeholder="${escapeHtml(placeholder)}" autocomplete="off">
+                    <div class="participant-suggest-list" hidden></div>
+                </div>
+            </div>
+            <div class="participant-table-wrap">
+                <table class="participant-table">
+                    <thead>
+                        <tr>
+                            <th>Jméno</th>
+                            <th>Telefon</th>
+                            ${mode === 'photographer' ? '<th class="participant-col-runner">Runner</th>' : ''}
+                            <th class="participant-col-action">Akce</th>
+                        </tr>
+                    </thead>
+                    <tbody class="participant-selected-body"></tbody>
+                </table>
+                <div class="participant-empty" hidden></div>
+            </div>
+        `;
+
+        const input = root.querySelector('.participant-search-input');
+        const suggestList = root.querySelector('.participant-suggest-list');
+        const selectedBody = root.querySelector('.participant-selected-body');
+        const emptyBox = root.querySelector('.participant-empty');
+
+        function createHidden(name, value) {
+            const hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = name;
+            hidden.value = String(value);
+            return hidden;
         }
 
-        photographerCheckbox.addEventListener('change', function () {
-            if (!photographerCheckbox.checked && runnerRadio.checked) {
-                runnerRadio.checked = false;
+        function renderSelected() {
+            selectedBody.innerHTML = '';
+
+            const ids = Array.from(selected).sort((a, b) => {
+                const ua = userMap.get(a);
+                const ub = userMap.get(b);
+                const sa = normalizeText((ua?.prijmeni || '') + ' ' + (ua?.jmeno || '') + ' ' + (ua?.user || ''));
+                const sb = normalizeText((ub?.prijmeni || '') + ' ' + (ub?.jmeno || '') + ' ' + (ub?.user || ''));
+                return sa.localeCompare(sb, 'cs');
+            });
+
+            if (!ids.length) {
+                emptyBox.hidden = false;
+                emptyBox.textContent = emptyText;
+                return;
+            }
+
+            emptyBox.hidden = true;
+            emptyBox.textContent = '';
+
+            ids.forEach(function (id, index) {
+                const user = userMap.get(id);
+                if (!user) {
+                    return;
+                }
+
+                const label = buildLabel(user);
+
+                const row = document.createElement('tr');
+                row.className = 'participant-table-row';
+                row.dataset.index = String(index % 2);
+
+                const nameCell = document.createElement('td');
+                nameCell.className = 'participant-name-cell';
+
+                const nameWrap = document.createElement('div');
+                nameWrap.className = 'participant-name-wrap';
+
+                const strong = document.createElement('strong');
+                strong.textContent = label.fullName;
+
+                const small = document.createElement('small');
+                small.textContent = label.roleText;
+
+                nameWrap.appendChild(strong);
+                if (label.roleText !== '') {
+                    nameWrap.appendChild(small);
+                }
+
+                nameCell.appendChild(nameWrap);
+                nameCell.appendChild(createHidden(hiddenName, id));
+
+                const phoneCell = document.createElement('td');
+                phoneCell.className = 'participant-phone-cell';
+                phoneCell.textContent = label.phoneText || '—';
+
+                row.appendChild(nameCell);
+                row.appendChild(phoneCell);
+
+                if (mode === 'photographer') {
+                    const runnerCell = document.createElement('td');
+                    runnerCell.className = 'participant-runner-cell';
+
+                    const runnerCheckbox = document.createElement('input');
+                    runnerCheckbox.type = 'checkbox';
+                    runnerCheckbox.checked = runners.has(id);
+                    runnerCheckbox.addEventListener('change', function () {
+                        if (runnerCheckbox.checked) {
+                            runners.add(id);
+                        } else {
+                            runners.delete(id);
+                        }
+                        renderSelected();
+                    });
+
+                    runnerCell.appendChild(runnerCheckbox);
+
+                    if (runners.has(id)) {
+                        runnerCell.appendChild(createHidden(runnerName, id));
+                    }
+
+                    row.appendChild(runnerCell);
+                }
+
+                const actionCell = document.createElement('td');
+                actionCell.className = 'participant-action-cell';
+
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'participant-remove-btn participant-remove-btn-small';
+                removeBtn.textContent = 'Odebrat';
+                removeBtn.addEventListener('click', function () {
+                    selected.delete(id);
+                    runners.delete(id);
+                    renderSelected();
+                    renderSuggestions();
+                    input.focus();
+                });
+
+                actionCell.appendChild(removeBtn);
+                row.appendChild(actionCell);
+
+                selectedBody.appendChild(row);
+            });
+        }
+
+        function renderSuggestions() {
+            const term = normalizeText(input.value.trim());
+
+            const results = users.filter(function (user) {
+                if (selected.has(Number(user.id))) {
+                    return false;
+                }
+
+                if (term === '') {
+                    return false;
+                }
+
+                const haystack = normalizeText([
+                    user.prijmeni,
+                    user.jmeno,
+                    user.user,
+                    user.mobile,
+                    user.role_name
+                ].filter(Boolean).join(' '));
+
+                return haystack.includes(term);
+            }).slice(0, 8);
+
+            suggestList.innerHTML = '';
+
+            if (!results.length) {
+                suggestList.hidden = true;
+                return;
+            }
+
+            results.forEach(function (user) {
+                const label = buildLabel(user);
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'participant-suggest-item';
+                button.innerHTML = `
+                    <strong>${escapeHtml(label.fullName)}</strong>
+                    <small>${escapeHtml([label.roleText, label.phoneText].filter(Boolean).join(' · '))}</small>
+                `;
+                button.addEventListener('click', function () {
+                    selected.add(Number(user.id));
+                    input.value = '';
+                    renderSelected();
+                    renderSuggestions();
+                    input.focus();
+                });
+
+                suggestList.appendChild(button);
+            });
+
+            suggestList.hidden = false;
+        }
+
+        input.addEventListener('input', renderSuggestions);
+        input.addEventListener('focus', renderSuggestions);
+
+        document.addEventListener('click', function (event) {
+            if (!root.contains(event.target)) {
+                suggestList.hidden = true;
             }
         });
 
-        runnerRadio.addEventListener('change', function () {
-            if (runnerRadio.checked) {
-                photographerCheckbox.checked = true;
-            }
-        });
-    });
+        renderSelected();
+    }
+
+    document.querySelectorAll('.participant-picker').forEach(initParticipantPicker);
 });
 </script>
 

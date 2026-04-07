@@ -67,6 +67,7 @@ $sql = "
         p.status,
         p.uploaded_at,
         p.locked_by_user_id,
+        p.exif_problem,
         lu.user AS locked_by_user,
         lu.jmeno AS locked_jmeno,
         lu.prijmeni AS locked_prijmeni,
@@ -183,9 +184,14 @@ require_once __DIR__ . '/inc/header.php';
                         $statusClass = 'status-error';
                         break;
                 }
+
+                $cardClass = 'status-photo-card';
+                if (!empty($photo['exif_problem'])) {
+                    $cardClass .= ' exif-problem';
+                }
                 ?>
 
-                <div class="status-photo-card" data-photo-id="<?= (int)$photo['id'] ?>">
+                <div class="<?= h($cardClass) ?>" data-photo-id="<?= (int)$photo['id'] ?>">
                     <div class="status-photo-thumb">
                         <?php if (!empty($photo['preview_filepath'])): ?>
                             <img src="/preview.php?id=<?= (int)$photo['id'] ?>" alt="<?= h((string)$photo['filename']) ?>">
@@ -298,8 +304,10 @@ document.addEventListener('DOMContentLoaded', function () {
             ? '<div class="status-photo-author" data-role="ftp-user">' + escapeHtml(item.ftp_user || '') + '</div>'
             : '';
 
+        const cardClass = 'status-photo-card' + (item.exif_problem ? ' exif-problem' : '');
+
         return '' +
-            '<div class="status-photo-card" data-photo-id="' + item.id + '">' +
+            '<div class="' + cardClass + '" data-photo-id="' + item.id + '">' +
                 '<div class="status-photo-thumb">' +
                     previewHtml +
                 '</div>' +
@@ -345,6 +353,8 @@ document.addEventListener('DOMContentLoaded', function () {
         const time = card.querySelector('[data-role="uploaded-at"]');
         const file = card.querySelector('[data-role="filename"]');
         const ftpUser = card.querySelector('[data-role="ftp-user"]');
+
+        card.classList.toggle('exif-problem', !!item.exif_problem);
 
         if (badge) {
             const spinnerHtml = item.status_class === 'status-processing'

@@ -27,7 +27,7 @@ function is_supported_upload_file(string $file): bool
     $ext = get_extension($file);
 
     return in_array($ext, [
-        'cr2','cr3','nef','nrw','arw','sr2','srf','raf','rw2','orf','dng','pef','iiq','3fr','jpg','jpeg'
+        'cr2', 'cr3', 'nef', 'nrw', 'arw', 'sr2', 'srf', 'raf', 'rw2', 'orf', 'dng', 'pef', 'iiq', '3fr', 'jpg', 'jpeg'
     ], true);
 }
 
@@ -200,6 +200,8 @@ echo json_encode([
             'locked_by_user' => (string)($p['locked_by_user'] ?? ''),
             'locked_jmeno' => (string)($p['locked_jmeno'] ?? ''),
             'locked_prijmeni' => (string)($p['locked_prijmeni'] ?? ''),
+            'exif_problem' => !empty($p['exif_problem']),
+            'exif_problem_note' => (string)($p['exif_problem_note'] ?? ''),
         ];
     }, $photos),
 ], JSON_UNESCAPED_UNICODE);

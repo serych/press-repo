@@ -9,7 +9,7 @@ function start_session_if_needed(): void
     if (session_status() === PHP_SESSION_NONE) {
         session_name(SESSION_NAME);
         session_set_cookie_params([
-            'lifetime' => 0,
+            'lifetime' => 60 * 60 * 24, // 1 den
             'path' => '/',
             'domain' => '',
             'secure' => !empty($_SERVER['HTTPS']),
