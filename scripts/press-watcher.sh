@@ -165,6 +165,30 @@ normalize_author() {
     printf '%s\n' "$value"
 }
 
+normalize_path() {
+    local path="$1"
+
+    if command -v realpath >/dev/null 2>&1; then
+        realpath -m -- "$path" 2>/dev/null && return 0
+    fi
+
+    if command -v readlink >/dev/null 2>&1; then
+        readlink -f -- "$path" 2>/dev/null && return 0
+    fi
+
+    printf '%s\n' "$path"
+}
+
+same_path() {
+    local a
+    local b
+
+    a="$(normalize_path "$1")"
+    b="$(normalize_path "$2")"
+
+    [[ "$a" == "$b" ]]
+}
+
 get_user_id() {
     local ftp_user="$1"
     mysql --batch --skip-column-names -e "
@@ -385,7 +409,7 @@ move_file_to_ftp_user_dir() {
     local dst
     dst="$(get_unique_destination_path "$target_dir" "$filename")"
 
-    if [ "$src" = "$dst" ]; then
+    if [ "$src" = "$dst" ] || same_path "$src" "$dst"; then
         echo "$src"
         return 0
     fi
@@ -837,25 +861,39 @@ process_file() {
                 IFS=$'\t' read -r matched_user_id matched_ftp_user matched_author_name <<< "$match_row"
 
                 if [ -n "$matched_ftp_user" ]; then
-                    local original_file="$file"
                     local original_ftp_user="$ftp_user"
 
-                    local moved_file
-                    moved_file="$(move_file_to_ftp_user_dir "$file" "$matched_ftp_user")"
-                    if [ $? -ne 0 ] || [ -z "$moved_file" ] || [ ! -f "$moved_file" ]; then
-                        log "ERROR: Runner match nalezen, ale přesun selhal: $file -> $matched_ftp_user"
-                        return 1
+                    if [ "$matched_ftp_user" = "$ftp_user" ]; then
+                        log "Runner match: EXIF author '$runner_exif_author_raw' patří aktuálnímu ftp_user '$ftp_user', přesun se neprovádí"
+                        user_id="$matched_user_id"
+                        author_name="$matched_author_name"
+                    else
+                        local target_candidate="$FTP_ROOT/$matched_ftp_user/$filename"
+
+                        if same_path "$file" "$target_candidate"; then
+                            log "Runner match: zdroj a cíl jsou stejná cesta, přesun se neprovádí: $file"
+                            ftp_user="$matched_ftp_user"
+                            user_id="$matched_user_id"
+                            author_name="$matched_author_name"
+                        else
+                            local moved_file
+                            moved_file="$(move_file_to_ftp_user_dir "$file" "$matched_ftp_user")"
+                            if [ $? -ne 0 ] || [ -z "$moved_file" ] || [ ! -f "$moved_file" ]; then
+                                log "ERROR: Runner match nalezen, ale přesun selhal: $file -> $matched_ftp_user"
+                                return 1
+                            fi
+
+                            file="$moved_file"
+                            filename="$(basename "$file")"
+                            ftp_user="$matched_ftp_user"
+                            user_id="$matched_user_id"
+                            author_name="$matched_author_name"
+
+                            rel_path="${file#$FTP_ROOT/}"
+
+                            log "Runner match: EXIF author '$runner_exif_author_raw' přiřazen k ftp_user '$ftp_user' (původně '$original_ftp_user')"
+                        fi
                     fi
-
-                    file="$moved_file"
-                    filename="$(basename "$file")"
-                    ftp_user="$matched_ftp_user"
-                    user_id="$matched_user_id"
-                    author_name="$matched_author_name"
-
-                    rel_path="${file#$FTP_ROOT/}"
-
-                    log "Runner match: EXIF author '$runner_exif_author_raw' přiřazen k ftp_user '$ftp_user' (původně '$original_ftp_user')"
                 else
                     exif_problem=1
                     exif_problem_note="Runner upload: EXIF author '$runner_exif_author_raw' neodpovídá žádnému fotografovi eventu"
