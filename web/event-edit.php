@@ -7,12 +7,68 @@ require_once __DIR__ . '/inc/functions.php';
 require_once __DIR__ . '/inc/events.php';
 require_once __DIR__ . '/inc/users.php';
 require_once __DIR__ . '/inc/chat.php';
+require_once __DIR__ . '/inc/db.php';
 
 require_login();
 
 if (!has_permission('users.manage')) {
     http_response_code(403);
     exit('Přístup odepřen.');
+}
+
+function event_get_ftp_homedirs_for_cleanup(int $eventId): array
+{
+    $stmt = db()->prepare("
+        SELECT DISTINCT
+            u.homedir
+        FROM photos p
+        INNER JOIN users u ON u.ftp_user = p.ftp_user
+        WHERE p.event_id = :event_id
+          AND u.homedir IS NOT NULL
+          AND u.homedir <> ''
+        ORDER BY u.homedir ASC
+    ");
+    $stmt->execute([
+        'event_id' => $eventId,
+    ]);
+
+    $dirs = [];
+    foreach ($stmt->fetchAll() as $row) {
+        $dir = trim((string)($row['homedir'] ?? ''));
+        if ($dir !== '') {
+            $dirs[] = $dir;
+        }
+    }
+
+    return array_values(array_unique($dirs));
+}
+
+function event_restore_ftp_homedirs(array $dirs): array
+{
+    $restored = [];
+    $failed = [];
+
+    foreach ($dirs as $dir) {
+        $dir = trim((string)$dir);
+        if ($dir === '') {
+            continue;
+        }
+
+        if (is_dir($dir)) {
+            continue;
+        }
+
+        if (@mkdir($dir, 0775, true) || is_dir($dir)) {
+            $restored[] = $dir;
+        } else {
+            $failed[] = $dir;
+        }
+    }
+
+    return [
+        'restored' => $restored,
+        'failed' => $failed,
+    ];
 }
 
 $id = max(1, (int)($_GET['id'] ?? $_POST['id'] ?? 0));
@@ -51,11 +107,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cleanup_action'])) {
 
     try {
         if ($cleanupAction === 'cleanup_test_data') {
+            $ftpHomedirs = event_get_ftp_homedirs_for_cleanup($id);
+
             $result = events_cleanup_test_data($id);
+            $restoreResult = event_restore_ftp_homedirs($ftpHomedirs);
+
             $flashMessage = 'Testovací data byla smazána. Fotky: ' . (int)$result['deleted_photos']
                 . ', soubory: ' . (int)$result['deleted_files']
                 . ', náhledy: ' . (int)$result['deleted_previews'] . '.';
-            $flashType = 'success';
+
+            if (!empty($restoreResult['restored'])) {
+                $flashMessage .= ' FTP adresáře obnoveny: ' . count($restoreResult['restored']) . '.';
+            }
+
+            if (!empty($restoreResult['failed'])) {
+                $flashMessage .= ' Nepodařilo se obnovit některé FTP adresáře (' . count($restoreResult['failed']) . ').';
+                $flashType = 'error';
+            } else {
+                $flashType = 'success';
+            }
         } elseif ($cleanupAction === 'archive_event') {
             $result = events_archive($id);
             $flashMessage = 'Event byl archivován. Uložený souhrn: nahráno '
@@ -167,7 +237,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['cleanup_action']) &&
         $errors[] = 'Runner musí být vybraný i mezi fotografy.';
     }
 
-    if (events_filter_editor_ids($selectedEditors) !== $selectedEditors) {
+    $allowedEditorIds = events_filter_editor_ids($selectedEditors);
+    
+    $invalidEditorIds = array_values(array_diff($selectedEditors, $allowedEditorIds));
+    
+    if ($invalidEditorIds !== []) {
         $errors[] = 'Redaktorem se nesmí stát fotograf.';
     }
 
