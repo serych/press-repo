@@ -68,6 +68,7 @@ $sql = "
         p.uploaded_at,
         p.locked_by_user_id,
         p.exif_problem,
+        p.event_photographer_allowed,
         lu.user AS locked_by_user,
         lu.jmeno AS locked_jmeno,
         lu.prijmeni AS locked_prijmeni,
@@ -152,42 +153,51 @@ require_once __DIR__ . '/inc/header.php';
                 $statusClass = 'status-ready';
                 $statusNote = '';
 
-                switch ((string)$photo['status']) {
-                    case 'downloaded':
-                        $statusText = 'staženo';
-                        $statusClass = 'status-downloaded';
-                        break;
+                if ((int)($photo['event_photographer_allowed'] ?? 1) !== 1) {
+                    $statusText = 'mimo event';
+                    $statusClass = 'status-unassigned';
+                    $statusNote = 'fotograf není přiřazen';
+                } else {
+                    switch ((string)$photo['status']) {
+                        case 'downloaded':
+                            $statusText = 'staženo';
+                            $statusClass = 'status-downloaded';
+                            break;
 
-                    case 'locked':
-                        $statusText = 'zamknuto';
-                        $statusClass = 'status-locked';
+                        case 'locked':
+                            $statusText = 'zamknuto';
+                            $statusClass = 'status-locked';
 
-                        if ($lockedByName !== '') {
-                            $statusNote = $lockedByName;
-                        } elseif (!empty($photo['locked_by_user'])) {
-                            $statusNote = (string)$photo['locked_by_user'];
-                        }
-                        break;
+                            if ($lockedByName !== '') {
+                                $statusNote = $lockedByName;
+                            } elseif (!empty($photo['locked_by_user'])) {
+                                $statusNote = (string)$photo['locked_by_user'];
+                            }
+                            break;
 
-                    case 'processing':
-                        $statusText = 'zpracování';
-                        $statusClass = 'status-processing';
-                        break;
+                        case 'processing':
+                            $statusText = 'zpracování';
+                            $statusClass = 'status-processing';
+                            break;
 
-                    case 'uploaded':
-                        $statusText = 'nahráno';
-                        $statusClass = 'status-uploaded';
-                        break;
+                        case 'uploaded':
+                            $statusText = 'nahráno';
+                            $statusClass = 'status-uploaded';
+                            break;
 
-                    case 'error':
-                        $statusText = 'chyba';
-                        $statusClass = 'status-error';
-                        break;
+                        case 'error':
+                            $statusText = 'chyba';
+                            $statusClass = 'status-error';
+                            break;
+                    }
                 }
 
                 $cardClass = 'status-photo-card';
                 if (!empty($photo['exif_problem'])) {
                     $cardClass .= ' exif-problem';
+                }
+                if ((int)($photo['event_photographer_allowed'] ?? 1) !== 1) {
+                    $cardClass .= ' unassigned-event-photo';
                 }
                 ?>
 
@@ -304,7 +314,10 @@ document.addEventListener('DOMContentLoaded', function () {
             ? '<div class="status-photo-author" data-role="ftp-user">' + escapeHtml(item.ftp_user || '') + '</div>'
             : '';
 
-        const cardClass = 'status-photo-card' + (item.exif_problem ? ' exif-problem' : '');
+        let cardClass = 'status-photo-card' + (item.exif_problem ? ' exif-problem' : '');
+        if (item.event_photographer_allowed === false) {
+            cardClass += ' unassigned-event-photo';
+        }
 
         return '' +
             '<div class="' + cardClass + '" data-photo-id="' + item.id + '">' +
@@ -355,6 +368,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const ftpUser = card.querySelector('[data-role="ftp-user"]');
 
         card.classList.toggle('exif-problem', !!item.exif_problem);
+        card.classList.toggle('unassigned-event-photo', item.event_photographer_allowed === false);
 
         if (badge) {
             const spinnerHtml = item.status_class === 'status-processing'

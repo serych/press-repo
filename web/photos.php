@@ -126,6 +126,7 @@ require_once __DIR__ . '/inc/header.php';
                     <?php foreach ($photos as $p): ?>
                         <?php
                         $cardClass = 'photo-card';
+                        $isEventPhotographerAllowed = photos_is_event_photographer_allowed($p);
 
                         if (($p['status'] ?? '') === 'locked' && !empty($p['locked_by_user_id'])) {
                             if ((int)$p['locked_by_user_id'] === $currentUserId) {
@@ -137,6 +138,10 @@ require_once __DIR__ . '/inc/header.php';
 
                         if (!empty($p['exif_problem'])) {
                             $cardClass .= ' exif-problem';
+                        }
+
+                        if (!$isEventPhotographerAllowed) {
+                            $cardClass .= ' unassigned-event-photo';
                         }
                         ?>
 
@@ -160,7 +165,11 @@ require_once __DIR__ . '/inc/header.php';
                                     </div>
 
                                     <div class="status-wrapper">
-                                        <?php if ($p['status'] === 'downloaded'): ?>
+                                        <?php if (!$isEventPhotographerAllowed): ?>
+                                            <div class="status status-unassigned">
+                                                mimo event
+                                            </div>
+                                        <?php elseif ($p['status'] === 'downloaded'): ?>
                                             <div class="status status-downloaded">
                                                 downloaded
                                             </div>
@@ -216,6 +225,12 @@ require_once __DIR__ . '/inc/header.php';
                                             <?php if (!empty($p['exif_problem_note'])): ?>
                                                 – <?= h((string)$p['exif_problem_note']) ?>
                                             <?php endif; ?>
+                                        </div>
+                                    <?php endif; ?>
+
+                                    <?php if (!$isEventPhotographerAllowed): ?>
+                                        <div class="photo-warning photo-warning-unassigned">
+                                            fotograf není přiřazen k eventu
                                         </div>
                                     <?php endif; ?>
 
@@ -321,6 +336,7 @@ function escapeHtml(value) {
 
 function renderPhotoCard(item, currentUserId, canSelect) {
     let cardClass = 'photo-card';
+    const isEventPhotographerAllowed = item.event_photographer_allowed !== false;
 
     if (item.status === 'locked' && item.locked_by_user_id) {
         if (Number(item.locked_by_user_id) === Number(currentUserId)) {
@@ -334,6 +350,10 @@ function renderPhotoCard(item, currentUserId, canSelect) {
         cardClass += ' exif-problem';
     }
 
+    if (!isEventPhotographerAllowed) {
+        cardClass += ' unassigned-event-photo';
+    }
+
     let thumbHtml = '';
     if (item.preview_exists) {
         thumbHtml = '<img src="/preview.php?id=' + item.id + '" loading="lazy">';
@@ -343,7 +363,9 @@ function renderPhotoCard(item, currentUserId, canSelect) {
 
     let statusHtml = '';
 
-    if (item.status === 'downloaded') {
+    if (!isEventPhotographerAllowed) {
+        statusHtml = '<div class="status status-unassigned">mimo event</div>';
+    } else if (item.status === 'downloaded') {
         statusHtml = '<div class="status status-downloaded">downloaded</div>';
     } else if (item.status === 'processing') {
         statusHtml = '<div class="status status-processing">processing</div>';
@@ -381,6 +403,10 @@ function renderPhotoCard(item, currentUserId, canSelect) {
         warningHtml = '<div class="photo-warning">problém v EXIFu' +
             (item.exif_problem_note ? ' – ' + escapeHtml(item.exif_problem_note) : '') +
             '</div>';
+    }
+
+    if (!isEventPhotographerAllowed) {
+        warningHtml += '<div class="photo-warning photo-warning-unassigned">fotograf není přiřazen k eventu</div>';
     }
 
     return '' +

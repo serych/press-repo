@@ -284,6 +284,11 @@ h1 {
     color: #ffffff;
 }
 
+.status-unassigned {
+    background: #3f3f46;
+    color: #e4e4e7;
+}
+
 .status-uploaded {
     background: #374151;
     color: #d1d5db;
@@ -1682,6 +1687,26 @@ h1 {
 .detail-exif-problem {
     border-color: #dc2626;
     box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.35);
+}
+
+.photo-card.unassigned-event-photo,
+.status-photo-card.unassigned-event-photo {
+    opacity: 0.48;
+    filter: grayscale(0.8);
+}
+
+.photo-card.unassigned-event-photo:hover,
+.status-photo-card.unassigned-event-photo:hover {
+    border-color: var(--border);
+}
+
+.photo-warning-unassigned {
+    color: #d4d4d8;
+}
+
+.detail-unassigned-event-photo {
+    opacity: 0.55;
+    filter: grayscale(0.8);
 }
 
 .detail-problem-value {

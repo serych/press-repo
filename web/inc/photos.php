@@ -94,6 +94,12 @@ function photos_feed(array $filters, int $limit, int $offset): array
     return photos_list($filters, $limit, $offset);
 }
 
+function photos_is_event_photographer_allowed(array $photo): bool
+{
+    return !array_key_exists('event_photographer_allowed', $photo)
+        || (int)($photo['event_photographer_allowed'] ?? 1) === 1;
+}
+
 function photos_build_where(array $filters): array
 {
     $where = [];

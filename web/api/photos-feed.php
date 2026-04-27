@@ -202,6 +202,7 @@ echo json_encode([
             'locked_prijmeni' => (string)($p['locked_prijmeni'] ?? ''),
             'exif_problem' => !empty($p['exif_problem']),
             'exif_problem_note' => (string)($p['exif_problem_note'] ?? ''),
+            'event_photographer_allowed' => photos_is_event_photographer_allowed($p),
         ];
     }, $photos),
 ], JSON_UNESCAPED_UNICODE);

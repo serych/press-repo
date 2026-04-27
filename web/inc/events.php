@@ -399,11 +399,37 @@ function events_participants_save(int $eventId, array $photographerIds, array $e
             ]);
         }
 
+        events_refresh_photo_assignment_flags($eventId, $pdo);
+
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
         throw $e;
     }
+}
+
+function events_refresh_photo_assignment_flags(int $eventId, ?PDO $pdo = null): void
+{
+    if ($eventId <= 0) {
+        return;
+    }
+
+    $pdo = $pdo ?? db();
+
+    $stmt = $pdo->prepare("
+        UPDATE photos p
+        LEFT JOIN event_users eu
+            ON eu.event_id = p.event_id
+           AND eu.user_id = p.user_id
+           AND eu.role_in_event = 'photographer'
+        SET
+            p.event_photographer_allowed = IF(eu.user_id IS NULL, 0, 1),
+            p.status = IF(eu.user_id IS NULL AND p.status = 'locked', 'ready', p.status),
+            p.locked_by_user_id = IF(eu.user_id IS NULL, NULL, p.locked_by_user_id),
+            p.locked_at = IF(eu.user_id IS NULL, NULL, p.locked_at)
+        WHERE p.event_id = ?
+    ");
+    $stmt->execute([$eventId]);
 }
 
 function events_stats_summary(int $eventId): array

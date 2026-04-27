@@ -190,6 +190,7 @@ $sql = "
         p.uploaded_at,
         p.locked_by_user_id,
         p.exif_problem,
+        p.event_photographer_allowed,
         p.ftp_user,
         lu.user AS locked_by_user,
         lu.jmeno AS locked_jmeno,
@@ -254,37 +255,43 @@ foreach ($rows as $row) {
     $statusClass = 'status-ready';
     $statusNote = '';
 
-    switch ((string)$row['status']) {
-        case 'downloaded':
-            $statusText = 'staženo';
-            $statusClass = 'status-downloaded';
-            break;
+    if ((int)($row['event_photographer_allowed'] ?? 1) !== 1) {
+        $statusText = 'mimo event';
+        $statusClass = 'status-unassigned';
+        $statusNote = 'fotograf není přiřazen';
+    } else {
+        switch ((string)$row['status']) {
+            case 'downloaded':
+                $statusText = 'staženo';
+                $statusClass = 'status-downloaded';
+                break;
 
-        case 'locked':
-            $statusText = 'zamknuto';
-            $statusClass = 'status-locked';
+            case 'locked':
+                $statusText = 'zamknuto';
+                $statusClass = 'status-locked';
 
-            if ($lockedByName !== '') {
-                $statusNote = $lockedByName;
-            } elseif (!empty($row['locked_by_user'])) {
-                $statusNote = (string)$row['locked_by_user'];
-            }
-            break;
+                if ($lockedByName !== '') {
+                    $statusNote = $lockedByName;
+                } elseif (!empty($row['locked_by_user'])) {
+                    $statusNote = (string)$row['locked_by_user'];
+                }
+                break;
 
-        case 'processing':
-            $statusText = 'zpracování';
-            $statusClass = 'status-processing';
-            break;
+            case 'processing':
+                $statusText = 'zpracování';
+                $statusClass = 'status-processing';
+                break;
 
-        case 'uploaded':
-            $statusText = 'nahráno';
-            $statusClass = 'status-uploaded';
-            break;
+            case 'uploaded':
+                $statusText = 'nahráno';
+                $statusClass = 'status-uploaded';
+                break;
 
-        case 'error':
-            $statusText = 'chyba';
-            $statusClass = 'status-error';
-            break;
+            case 'error':
+                $statusText = 'chyba';
+                $statusClass = 'status-error';
+                break;
+        }
     }
 
     $data[] = [
@@ -299,6 +306,7 @@ foreach ($rows as $row) {
         'status_class' => $statusClass,
         'status_note' => $statusNote,
         'exif_problem' => !empty($row['exif_problem']),
+        'event_photographer_allowed' => (int)($row['event_photographer_allowed'] ?? 1) === 1,
         'uploaded_at' => (string)$row['uploaded_at'],
     ];
 }

@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS photos (
     preview_filepath VARCHAR(500) NULL,
     ftp_user VARCHAR(100) NOT NULL,
     user_id INT UNSIGNED NULL,
+    event_photographer_allowed TINYINT(1) NOT NULL DEFAULT 1,
     filesize BIGINT UNSIGNED NULL,
     filetype VARCHAR(20) NULL,
     width INT NULL,

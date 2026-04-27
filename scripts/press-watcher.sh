@@ -286,6 +286,27 @@ is_runner_for_event() {
     [ "$result" = "1" ]
 }
 
+is_photographer_for_event() {
+    local user_id="$1"
+    local event_id="$2"
+    local result
+
+    if [ -z "$user_id" ] || [ "$user_id" = "NULL" ] || [ -z "$event_id" ] || [ "$event_id" = "NULL" ]; then
+        return 1
+    fi
+
+    result="$(mysql --batch --skip-column-names -e "
+        SELECT 1
+        FROM event_users
+        WHERE event_id = ${event_id}
+          AND user_id = ${user_id}
+          AND role_in_event = 'photographer'
+        LIMIT 1;
+    " 2>/dev/null)"
+
+    [ "$result" = "1" ]
+}
+
 read_exif_author() {
     local file="$1"
     local value=""
@@ -443,6 +464,7 @@ insert_photo_row() {
     local filetype="$6"
     local checksum="$7"
     local event_id="$8"
+    local event_photographer_allowed="$9"
 
     mysql -e "
         INSERT INTO photos (
@@ -450,6 +472,7 @@ insert_photo_row() {
             filepath,
             ftp_user,
             user_id,
+            event_photographer_allowed,
             filesize,
             filetype,
             status,
@@ -461,6 +484,7 @@ insert_photo_row() {
             '$(sql_escape "$filepath")',
             '$(sql_escape "$ftp_user")',
             ${user_id:-NULL},
+            ${event_photographer_allowed:-1},
             ${filesize:-NULL},
             '$(sql_escape "$filetype")',
             'uploaded',
@@ -909,6 +933,12 @@ process_file() {
         fi
     fi
 
+    local event_photographer_allowed=1
+    if [ "$event_id" != "NULL" ] && ! is_photographer_for_event "$user_id" "$event_id"; then
+        event_photographer_allowed=0
+        log "Fotka mimo soupisku eventu: $file | ftp_user='$ftp_user' | user_id='$user_id' | event_id='$event_id'"
+    fi
+
     local existing_id
     existing_id="$(get_existing_photo_id "$file")"
 
@@ -918,7 +948,7 @@ process_file() {
     if [ -n "$existing_id" ]; then
         photo_id="$existing_id"
     else
-        insert_photo_row "$filename" "$file" "$ftp_user" "$user_id" "$filesize" "$filetype" "$checksum" "$event_id"
+        insert_photo_row "$filename" "$file" "$ftp_user" "$user_id" "$filesize" "$filetype" "$checksum" "$event_id" "$event_photographer_allowed"
         photo_id="$(mysql --batch --skip-column-names -e "SELECT id FROM photos WHERE filepath = '$(sql_escape "$file")' ORDER BY id DESC LIMIT 1;" 2>/dev/null)"
 
         if [ -z "$photo_id" ]; then

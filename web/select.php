@@ -26,7 +26,7 @@ $user = current_user();
 /* načti fotku */
 
 $sql = "
-SELECT id, locked_by_user_id
+SELECT id, locked_by_user_id, event_photographer_allowed
 FROM photos
 WHERE id = :id
 LIMIT 1
@@ -39,6 +39,11 @@ $photo = $stmt->fetch();
 if (!$photo) {
     http_response_code(404);
     exit;
+}
+
+if ((int)($photo['event_photographer_allowed'] ?? 1) !== 1) {
+    http_response_code(403);
+    exit('Fotografie není od fotografa přiřazeného k eventu.');
 }
 
 /* LOCK */

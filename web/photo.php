@@ -29,6 +29,7 @@ if (!$photo) {
 
 $currentUser = current_user();
 $currentUserId = (int)$currentUser['id'];
+$isEventPhotographerAllowed = photos_is_event_photographer_allowed($photo);
 
 require_once __DIR__ . '/inc/header.php';
 ?>
@@ -49,9 +50,15 @@ require_once __DIR__ . '/inc/header.php';
 </div>
 <?php endif; ?>
 
+<?php if (!$isEventPhotographerAllowed): ?>
+<div class="alert-error">
+    Tato fotografie je od uživatele, který není přiřazený jako fotograf aktuálního eventu.
+</div>
+<?php endif; ?>
+
 <div class="photo-detail-grid">
 
-<div class="photo-preview-card<?= !empty($photo['exif_problem']) ? ' detail-exif-problem' : '' ?>">
+<div class="photo-preview-card<?= !empty($photo['exif_problem']) ? ' detail-exif-problem' : '' ?><?= !$isEventPhotographerAllowed ? ' detail-unassigned-event-photo' : '' ?>">
 
 <?php if (!empty($photo['preview_filepath'])): ?>
 <img src="/preview.php?id=<?= (int)$photo['id'] ?>" class="photo-detail-image">
@@ -81,7 +88,10 @@ require_once __DIR__ . '/inc/header.php';
 <th>Stav</th>
 <td>
 
-<?php if ($photo['status'] === 'downloaded'): ?>
+<?php if (!$isEventPhotographerAllowed): ?>
+<span class="status status-unassigned">mimo event</span>
+
+<?php elseif ($photo['status'] === 'downloaded'): ?>
 <span class="status status-downloaded">downloaded</span>
 
 <?php elseif (!empty($photo['locked_by_user_id'])): ?>
@@ -162,7 +172,13 @@ $lockedByName = trim(
 
 <div class="photo-actions">
 
-<?php if ((int)($photo['locked_by_user_id'] ?? 0) === $currentUserId): ?>
+<?php if (!$isEventPhotographerAllowed): ?>
+
+<div class="btn btn-disabled">
+Fotografie není aktivní pro tento event
+</div>
+
+<?php elseif ((int)($photo['locked_by_user_id'] ?? 0) === $currentUserId): ?>
 
 <a href="/download.php?id=<?= (int)$photo['id'] ?>"
 class="btn btn-download">
@@ -185,7 +201,13 @@ Nejprve zamkněte fotografii
 
 <div class="photo-actions">
 
-<?php if (!empty($photo['locked_by_user_id'])): ?>
+<?php if (!$isEventPhotographerAllowed): ?>
+
+<div class="btn btn-disabled">
+Fotografa je potřeba nejdřív přiřadit k eventu
+</div>
+
+<?php elseif (!empty($photo['locked_by_user_id'])): ?>
 
 <?php if ((int)$photo['locked_by_user_id'] === $currentUserId): ?>
 

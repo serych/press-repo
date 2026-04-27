@@ -33,6 +33,7 @@ $stmt = $pdo->prepare("
         p.filepath,
         p.status AS photo_status,
         p.locked_by_user_id,
+        p.event_photographer_allowed,
         j.user_id AS job_user_id
     FROM download_job_items i
     INNER JOIN download_jobs j ON j.id = i.job_id
@@ -54,6 +55,11 @@ if (!$row) {
 if ((int)$row['locked_by_user_id'] !== $userId) {
     http_response_code(403);
     exit('Fotografie není zamčena tímto uživatelem.');
+}
+
+if ((int)($row['event_photographer_allowed'] ?? 1) !== 1) {
+    http_response_code(403);
+    exit('Fotografie není aktivní pro tento event.');
 }
 
 if ($row['photo_status'] !== 'locked') {
@@ -99,6 +105,7 @@ try {
         WHERE id = ?
           AND status = 'locked'
           AND locked_by_user_id = ?
+          AND event_photographer_allowed = 1
     ")->execute([
         (int)$row['photo_id'],
         $userId

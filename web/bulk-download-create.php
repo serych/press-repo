@@ -20,6 +20,7 @@ $stmt = $pdo->prepare("
     FROM photos
     WHERE status = 'locked'
       AND locked_by_user_id = ?
+      AND event_photographer_allowed = 1
     ORDER BY uploaded_at ASC, id ASC
 ");
 $stmt->execute([$userId]);

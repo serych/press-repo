@@ -25,7 +25,8 @@ SELECT
     id,
     filename,
     filepath,
-    locked_by_user_id
+    locked_by_user_id,
+    event_photographer_allowed
 FROM photos
 WHERE id = :id
 LIMIT 1
@@ -36,6 +37,16 @@ $stmt->execute(['id'=>$id]);
 $photo = $stmt->fetch();
 $user = current_user();
 
+if (!$photo) {
+    http_response_code(404);
+    exit;
+}
+
+if ((int)($photo['event_photographer_allowed'] ?? 1) !== 1) {
+    http_response_code(403);
+    exit('Fotografie není aktivní pro tento event.');
+}
+
 /* musí být locked a náležet uživateli */
 
 if (!$photo['locked_by_user_id']
@@ -43,11 +54,6 @@ if (!$photo['locked_by_user_id']
 
     http_response_code(403);
     exit('Fotografie není zamčena pro tohoto uživatele.');
-}
-
-if (!$photo) {
-    http_response_code(404);
-    exit;
 }
 
 $file = $photo['filepath'];
