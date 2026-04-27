@@ -104,7 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (events_filter_editor_ids($selectedEditors) !== $selectedEditors) {
-        $errors[] = 'Redaktorem se nesmí stát fotograf.';
+        $errors[] = 'Fotoeditorem se nesmí stát fotograf.';
     }
 
     if (!$errors) {
@@ -232,7 +232,7 @@ require_once __DIR__ . '/inc/header.php';
 
             <div class="participant-pickers participant-pickers-enhanced">
                 <div class="card participant-card participant-card-full">
-                    <h2>Redaktoři</h2>
+                    <h2>Fotoeditoři</h2>
                     <div
                         id="editor-picker"
                         class="participant-picker participant-picker-table"
@@ -240,7 +240,7 @@ require_once __DIR__ . '/inc/header.php';
                         data-selected='<?= h((string)$selectedEditorsJson) ?>'
                         data-hidden-name="editors[]"
                         data-placeholder="Začni psát příjmení, jméno nebo login…"
-                        data-empty-text="Zatím není vybraný žádný redaktor."
+                        data-empty-text="Zatím není vybraný žádný fotoeditor."
                         data-mode="editor"
                         data-add-label="Přidání:"
                     ></div>

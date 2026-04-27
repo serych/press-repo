@@ -176,7 +176,7 @@ if ($currentEvent && !empty($currentEvent['is_public'])) {
 
                     <div class="stat-box">
                         <div class="stat-value"><?= (int)($participantCounts['editors_count'] ?? 0) ?></div>
-                        <div class="stat-label">Redaktoři</div>
+                        <div class="stat-label">Fotoeditoři</div>
                     </div>
 
                     <div class="stat-box">

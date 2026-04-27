@@ -43,7 +43,7 @@ require_once __DIR__ . '/inc/header.php';
                         <th>Vedoucí</th>
                         <th>Začátek</th>
                         <th>Fotografové</th>
-                        <th>Redaktoři</th>
+                        <th>Fotoeditoři</th>
                         <th>Upload</th>
                         <th>Staženo</th>
                         <?php if ($canManageEvents): ?>

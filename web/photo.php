@@ -219,7 +219,7 @@ Odemknout
 <?php else: ?>
 
 <div class="btn btn-disabled">
-Zamčeno jiným redaktorem
+Zamčeno jiným fotoeditorem
 </div>
 
 <?php endif; ?>

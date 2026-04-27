@@ -146,7 +146,7 @@ INSERT INTO roles (code, name, description, is_system, priority)
 VALUES
     ('superadmin', 'Hlavní admin', 'Veškerá práva včetně práva editovat všechny uživatele.', 1, 1),
     ('admin', 'Admin', 'Veškerá běžná administrátorská práva, ale nesmí upravovat hlavního admina.', 1, 10),
-    ('press_operator', 'Redaktor', 'Práce s fotografiemi, bez user managementu.', 1, 20),
+    ('press_operator', 'Fotoeditor', 'Práce s fotografiemi, bez user managementu.', 1, 20),
     ('photographer', 'Fotograf', 'Nahrávání fotografií a pasivní přístup do webového rozhraní.', 1, 30),
     ('journalist', 'Žurnalista', 'Uživatel hotových fotografií, připravený pro budoucí čtecí přístup.', 1, 40)
 ON DUPLICATE KEY UPDATE

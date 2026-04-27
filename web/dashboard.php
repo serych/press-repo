@@ -207,7 +207,7 @@ require_once __DIR__ . '/inc/header.php';
 
                     <div class="stat-box">
                         <div class="stat-value"><?= (int)($participantCounts['editors_count'] ?? 0) ?></div>
-                        <div class="stat-label">Redaktoři</div>
+                        <div class="stat-label">Fotoeditoři</div>
                     </div>
 
                     <div class="stat-box">
@@ -223,10 +223,10 @@ require_once __DIR__ . '/inc/header.php';
             </div>
 
             <div class="card dashboard-card dashboard-card-people">
-                <h2>Redaktoři</h2>
+                <h2>Fotoeditoři</h2>
 
                 <?php if (empty($editors)): ?>
-                    <p>Pro tento event nejsou přiřazeni žádní redaktoři.</p>
+                    <p>Pro tento event nejsou přiřazeni žádní fotoeditoři.</p>
                 <?php else: ?>
                     <div class="table-wrap">
                         <table class="list-table dashboard-table dashboard-table-editors">
