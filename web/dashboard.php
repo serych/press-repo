@@ -9,15 +9,15 @@ require_once __DIR__ . '/inc/users.php';
 
 require_login();
 
-$currentEvent = events_get_current_dashboard_event();
+$dashboardEvent = events_get_current_dashboard_event();
 
 $summary = null;
 $participantCounts = null;
 $photographers = [];
 $editors = [];
 
-if ($currentEvent) {
-    $eventId = (int)$currentEvent['id'];
+if ($dashboardEvent) {
+    $eventId = (int)$dashboardEvent['id'];
 
     $summary = events_stats_summary($eventId);
     $participantCounts = events_stats_counts_of_participants($eventId);
@@ -33,25 +33,25 @@ require_once __DIR__ . '/inc/header.php';
         <h1>Dashboard</h1>
     </div>
 
-    <?php if (!$currentEvent): ?>
+    <?php if (!$dashboardEvent): ?>
         <div class="card">
             <p>Momentálně není k dispozici žádný aktivní event.</p>
         </div>
     <?php else: ?>
         <?php
         $leaderName = trim(
-            ((string)($currentEvent['leader_jmeno'] ?? '')) . ' ' .
-            ((string)($currentEvent['leader_prijmeni'] ?? ''))
+            ((string)($dashboardEvent['leader_jmeno'] ?? '')) . ' ' .
+            ((string)($dashboardEvent['leader_prijmeni'] ?? ''))
         );
 
-        $statusLabel = match ((string)$currentEvent['status']) {
+        $statusLabel = match ((string)$dashboardEvent['status']) {
             'active'   => 'Aktivní',
             'planned'  => 'Plánovaný',
             'finished' => 'Ukončený',
-            default    => (string)$currentEvent['status'],
+            default    => (string)$dashboardEvent['status'],
         };
 
-        $statusClass = match ((string)$currentEvent['status']) {
+        $statusClass = match ((string)$dashboardEvent['status']) {
             'active'   => 'badge-success',
             'planned'  => 'badge-warning',
             'finished' => 'badge-muted',
@@ -63,10 +63,10 @@ require_once __DIR__ . '/inc/header.php';
             <div class="card dashboard-card dashboard-card-main">
                 <div class="dashboard-event-head">
                     <div>
-                        <h2 class="dashboard-event-title"><?= h((string)$currentEvent['title']) ?></h2>
+                        <h2 class="dashboard-event-title"><?= h((string)$dashboardEvent['title']) ?></h2>
                         <div class="dashboard-event-sub">
-                            <?= h((string)$currentEvent['slug']) ?>
-                            <?php if (!empty($currentEvent['is_temporary'])): ?>
+                            <?= h((string)$dashboardEvent['slug']) ?>
+                            <?php if (!empty($dashboardEvent['is_temporary'])): ?>
                                 <span class="badge badge-info">temporary</span>
                             <?php endif; ?>
                         </div>
@@ -85,9 +85,9 @@ require_once __DIR__ . '/inc/header.php';
                         <div class="dashboard-value">
                             <?= h($leaderName !== '' ? $leaderName : '—') ?>
                         </div>
-                        <?php if (!empty($currentEvent['leader_mobile'])): ?>
+                        <?php if (!empty($dashboardEvent['leader_mobile'])): ?>
                             <div class="dashboard-subvalue">
-                                <?= h(users_format_mobile((string)$currentEvent['leader_mobile'])) ?>
+                                <?= h(users_format_mobile((string)$dashboardEvent['leader_mobile'])) ?>
                             </div>
                         <?php endif; ?>
                     </div>
@@ -95,21 +95,21 @@ require_once __DIR__ . '/inc/header.php';
                     <div>
                         <div class="dashboard-label">Začátek</div>
                         <div class="dashboard-value">
-                            <?= !empty($currentEvent['starts_at']) ? h((string)$currentEvent['starts_at']) : '—' ?>
+                            <?= !empty($dashboardEvent['starts_at']) ? h((string)$dashboardEvent['starts_at']) : '—' ?>
                         </div>
                     </div>
 
                     <div>
                         <div class="dashboard-label">Konec</div>
                         <div class="dashboard-value">
-                            <?= !empty($currentEvent['ends_at']) ? h((string)$currentEvent['ends_at']) : '—' ?>
+                            <?= !empty($dashboardEvent['ends_at']) ? h((string)$dashboardEvent['ends_at']) : '—' ?>
                         </div>
                     </div>
 
                     <div>
                         <div class="dashboard-label">Veřejný dashboard</div>
                         <div class="dashboard-value">
-                            <?= !empty($currentEvent['is_public']) ? 'Ano' : 'Ne' ?>
+                            <?= !empty($dashboardEvent['is_public']) ? 'Ano' : 'Ne' ?>
                         </div>
                     </div>
                 </div>
@@ -118,9 +118,9 @@ require_once __DIR__ . '/inc/header.php';
                     <div>
                         <div class="dashboard-label">Galerie Člověk a Víra</div>
                         <div class="dashboard-value">
-                            <?php if (!empty($currentEvent['cav_gallery_url'])): ?>
-                                <a href="<?= h((string)$currentEvent['cav_gallery_url']) ?>" target="_blank" rel="noopener noreferrer">
-                                    <?= h((string)$currentEvent['cav_gallery_url']) ?>
+                            <?php if (!empty($dashboardEvent['cav_gallery_url'])): ?>
+                                <a href="<?= h((string)$dashboardEvent['cav_gallery_url']) ?>" target="_blank" rel="noopener noreferrer">
+                                    <?= h((string)$dashboardEvent['cav_gallery_url']) ?>
                                 </a>
                             <?php else: ?>
                                 —
@@ -131,9 +131,9 @@ require_once __DIR__ . '/inc/header.php';
                     <div>
                         <div class="dashboard-label">Cloudový disk</div>
                         <div class="dashboard-value">
-                            <?php if (!empty($currentEvent['cloud_url'])): ?>
-                                <a href="<?= h((string)$currentEvent['cloud_url']) ?>" target="_blank" rel="noopener noreferrer">
-                                    <?= h((string)$currentEvent['cloud_url']) ?>
+                            <?php if (!empty($dashboardEvent['cloud_url'])): ?>
+                                <a href="<?= h((string)$dashboardEvent['cloud_url']) ?>" target="_blank" rel="noopener noreferrer">
+                                    <?= h((string)$dashboardEvent['cloud_url']) ?>
                                 </a>
                             <?php else: ?>
                                 —
