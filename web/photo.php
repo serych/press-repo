@@ -134,6 +134,11 @@ $lockedByName = trim(
 </tr>
 
 <tr>
+<th>Pořízeno</th>
+<td><?= !empty($photo['captured_at']) ? h((string)$photo['captured_at']) : '—' ?></td>
+</tr>
+
+<tr>
 <th>Velikost</th>
 <td><?= number_format((int)$photo['filesize'], 0, ' ', ' ') ?> B</td>
 </tr>

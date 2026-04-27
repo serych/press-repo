@@ -71,7 +71,7 @@ Cíl sprintu: rozšířit presscentrum z jednosměrného vstupu fotek na komplet
    - Přidat `captured_at`, `downloaded_by_user_id`, tabulky `published_photos` a `published_photo_log`, nová oprávnění.
    - Migrovat DB a doplnit `schema.sql`.
 
-2. Čas pořízení u originálů
+2. Čas pořízení u originálů - hotovo
    - Upravit watcher, aby ukládal `captured_at`.
    - Doplnit backfill skript pro existující fotky.
    - Zobrazit čas pořízení v detailu fotky.

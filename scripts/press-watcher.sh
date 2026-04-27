@@ -145,6 +145,16 @@ sql_escape() {
     echo "$1" | sed "s/'/''/g"
 }
 
+sql_nullable_string() {
+    local value="$1"
+
+    if [ -n "$value" ]; then
+        printf "'%s'" "$(sql_escape "$value")"
+    else
+        printf "NULL"
+    fi
+}
+
 normalize_spaces() {
     printf '%s' "$1" | tr '\r\n\t' '   ' | sed -E 's/[[:space:]]+/ /g; s/^ +//; s/ +$//'
 }
@@ -333,6 +343,32 @@ read_exif_author() {
     echo ""
 }
 
+read_exif_captured_at() {
+    local file="$1"
+    local value=""
+
+    local tags=(
+        "DateTimeOriginal"
+        "CreateDate"
+        "SubSecDateTimeOriginal"
+        "DateCreated"
+        "MediaCreateDate"
+    )
+
+    local tag
+    for tag in "${tags[@]}"; do
+        value="$(exiftool -s3 -d '%Y-%m-%d %H:%M:%S' "-$tag" "$file" 2>> "$LOG_FILE" | head -n 1)"
+        value="$(normalize_spaces "$value")"
+
+        if [[ "$value" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}[[:space:]][0-9]{2}:[0-9]{2}:[0-9]{2}$ ]]; then
+            echo "$value"
+            return
+        fi
+    done
+
+    echo ""
+}
+
 find_matching_photographer_for_event_by_exif_author() {
     local event_id="$1"
     local exif_author_raw="$2"
@@ -465,6 +501,7 @@ insert_photo_row() {
     local checksum="$7"
     local event_id="$8"
     local event_photographer_allowed="$9"
+    local captured_at="${10:-}"
 
     mysql -e "
         INSERT INTO photos (
@@ -473,6 +510,7 @@ insert_photo_row() {
             ftp_user,
             user_id,
             event_photographer_allowed,
+            captured_at,
             filesize,
             filetype,
             status,
@@ -485,6 +523,7 @@ insert_photo_row() {
             '$(sql_escape "$ftp_user")',
             ${user_id:-NULL},
             ${event_photographer_allowed:-1},
+            $(sql_nullable_string "$captured_at"),
             ${filesize:-NULL},
             '$(sql_escape "$filetype")',
             'uploaded',
@@ -492,6 +531,21 @@ insert_photo_row() {
             ${event_id:-NULL},
             NOW()
         );
+    " 2>/dev/null
+}
+
+update_photo_captured_at() {
+    local photo_id="$1"
+    local captured_at="$2"
+
+    if [ -z "$captured_at" ]; then
+        return 0
+    fi
+
+    mysql -e "
+        UPDATE photos
+        SET captured_at = COALESCE(captured_at, '$(sql_escape "$captured_at")')
+        WHERE id = ${photo_id};
     " 2>/dev/null
 }
 
@@ -849,6 +903,12 @@ process_file() {
     local checksum
     checksum="$(sha256sum "$file" 2>/dev/null | awk '{print $1}')"
 
+    local captured_at
+    captured_at="$(read_exif_captured_at "$file")"
+    if [ -z "$captured_at" ]; then
+        log "WARNING: Nepodařilo se načíst čas pořízení z EXIFu: $file"
+    fi
+
     local event_id
     event_id="$(get_current_event_id)"
     [ -z "$event_id" ] && event_id="NULL"
@@ -947,8 +1007,9 @@ process_file() {
 
     if [ -n "$existing_id" ]; then
         photo_id="$existing_id"
+        update_photo_captured_at "$photo_id" "$captured_at"
     else
-        insert_photo_row "$filename" "$file" "$ftp_user" "$user_id" "$filesize" "$filetype" "$checksum" "$event_id" "$event_photographer_allowed"
+        insert_photo_row "$filename" "$file" "$ftp_user" "$user_id" "$filesize" "$filetype" "$checksum" "$event_id" "$event_photographer_allowed" "$captured_at"
         photo_id="$(mysql --batch --skip-column-names -e "SELECT id FROM photos WHERE filepath = '$(sql_escape "$file")' ORDER BY id DESC LIMIT 1;" 2>/dev/null)"
 
         if [ -z "$photo_id" ]; then

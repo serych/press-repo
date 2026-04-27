@@ -35,6 +35,7 @@ copy_if_exists "$CONFIG_DIR/press-watcher.service" /etc/systemd/system/press-wat
 echo "[3/7] Kopíruji skripty..."
 install -m 0755 "$SCRIPTS_DIR/press-watcher.sh" /usr/local/bin/press-watcher.sh
 install -m 0755 "$SCRIPTS_DIR/press-backfill.sh" /usr/local/bin/press-backfill.sh
+install -m 0755 "$SCRIPTS_DIR/press-backfill-captured-at.sh" /usr/local/bin/press-backfill-captured-at.sh
 
 echo "[4/7] Kopíruji webovou aplikaci..."
 rsync -av --delete \
