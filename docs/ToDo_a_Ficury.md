@@ -67,7 +67,7 @@ Cíl sprintu: rozšířit presscentrum z jednosměrného vstupu fotek na komplet
 
 ### Navržené menší kroky implementace
 
-1. Databázový základ a oprávnění
+1. Databázový základ a oprávnění - hotovo
    - Přidat `captured_at`, `downloaded_by_user_id`, tabulky `published_photos` a `published_photo_log`, nová oprávnění.
    - Migrovat DB a doplnit `schema.sql`.
 
