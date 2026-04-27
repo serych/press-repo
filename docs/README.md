@@ -162,8 +162,9 @@ Definice rolí:
 
 * superadmin
 * admin
-* press_operator
+* press_operator (Redaktor)
 * photographer
+* journalist (Žurnalista)
 
 ---
 

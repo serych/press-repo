@@ -546,6 +546,11 @@ h1 {
     color: #93c5fd;
 }
 
+.role-journalist {
+    border-color: #8b5cf6;
+    color: #c4b5fd;
+}
+
 .role-photographer {
     border-color: #10b981;
     color: #86efac;
