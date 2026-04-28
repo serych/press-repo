@@ -58,7 +58,7 @@ $styleVersion = is_file($styleFile) ? (string)filemtime($styleFile) : '1';
                 <a href="/dashboard.php">Dashboard</a>
                 <a href="/photos.php">Fotografie</a>
                 <?php if (has_permission('published_photos.upload')): ?>
-                    <a href="/published-upload.php">Hotové fotky</a>
+                    <a href="/published-upload.php">Publikace fotek</a>
                 <?php endif; ?>
                 <a href="/photos-status.php">Foto přehled</a>
                 

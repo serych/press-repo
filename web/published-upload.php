@@ -18,6 +18,7 @@ $event = photos_get_current_event();
 $user = current_user();
 $errors = [];
 $uploaded = [];
+$isAjax = strtolower((string)($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest';
 
 function upload_ini_bytes(string $value): int
 {
@@ -104,6 +105,26 @@ if (is_post() && $event) {
     }
 }
 
+if (is_post() && $isAjax) {
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'ok' => $errors === [],
+        'errors' => $errors,
+        'uploaded' => array_map(
+            static fn(array $item): array => [
+                'id' => (int)$item['id'],
+                'filename' => (string)$item['filename'],
+                'paired' => !empty($item['source_photo']),
+                'source_filename' => !empty($item['source_photo'])
+                    ? (string)$item['source_photo']['filename']
+                    : null,
+            ],
+            $uploaded
+        ),
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 require_once __DIR__ . '/inc/header.php';
 ?>
 
@@ -124,8 +145,9 @@ require_once __DIR__ . '/inc/header.php';
         </p>
     <?php endif; ?>
 
+    <div id="upload-messages">
     <?php if ($errors): ?>
-        <div class="alert-error">
+        <div class="alert-error upload-result-box">
             <?php foreach ($errors as $error): ?>
                 <div><?= h($error) ?></div>
             <?php endforeach; ?>
@@ -133,9 +155,9 @@ require_once __DIR__ . '/inc/header.php';
     <?php endif; ?>
 
     <?php if ($uploaded): ?>
-        <div class="alert-success">
+        <div class="upload-result-box">
             <?php foreach ($uploaded as $item): ?>
-                <div>
+                <div class="upload-result <?= !empty($item['source_photo']) ? 'upload-result-paired' : 'upload-result-unpaired' ?>">
                     <?= h((string)$item['filename']) ?>
                     <?php if (!empty($item['source_photo'])): ?>
                         spárováno s <?= h((string)$item['source_photo']['filename']) ?>
@@ -146,18 +168,209 @@ require_once __DIR__ . '/inc/header.php';
             <?php endforeach; ?>
         </div>
     <?php endif; ?>
+    </div>
 
     <div class="card">
-        <form method="post" enctype="multipart/form-data" class="form published-upload-form">
+        <form method="post" enctype="multipart/form-data" class="form published-upload-form" id="published-upload-form">
             <label for="photos">JPG soubory</label>
-            <input type="file" name="photos[]" id="photos" accept=".jpg,.jpeg,image/jpeg" multiple required>
+
+            <label class="upload-dropzone" id="upload-dropzone" for="photos">
+                <span class="upload-dropzone-title">Sem přetáhněte fotky</span>
+                <span class="upload-dropzone-subtitle">nebo klikněte a vyberte JPG soubory</span>
+                <span class="upload-dropzone-files" id="upload-file-summary">Zatím není vybraný žádný soubor</span>
+            </label>
+
+            <input class="upload-file-input" type="file" name="photos[]" id="photos" accept=".jpg,.jpeg,image/jpeg" multiple required>
             <?php if ($effectiveMaxBytes !== PHP_INT_MAX): ?>
                 <p class="table-subtext">Aktuální serverový limit je <?= h(upload_format_bytes($effectiveMaxBytes)) ?> na jeden soubor.</p>
             <?php endif; ?>
+
+            <div class="upload-progress" id="upload-progress" hidden>
+                <div class="upload-progress-head">
+                    <span id="upload-progress-label">Nahrávám...</span>
+                    <strong>
+                        <span id="upload-progress-file-count">0/0</span>
+                        <span id="upload-progress-percent">0 %</span>
+                    </strong>
+                </div>
+                <div class="upload-progress-track">
+                    <div class="upload-progress-bar" id="upload-progress-bar"></div>
+                </div>
+            </div>
 
             <button type="submit">Nahrát hotové fotografie</button>
         </form>
     </div>
 </section>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('published-upload-form');
+    const fileInput = document.getElementById('photos');
+    const dropzone = document.getElementById('upload-dropzone');
+    const fileSummary = document.getElementById('upload-file-summary');
+    const progress = document.getElementById('upload-progress');
+    const progressBar = document.getElementById('upload-progress-bar');
+    const progressFileCount = document.getElementById('upload-progress-file-count');
+    const progressPercent = document.getElementById('upload-progress-percent');
+    const progressLabel = document.getElementById('upload-progress-label');
+    const messages = document.getElementById('upload-messages');
+
+    if (!form || !fileInput || !dropzone || !fileSummary || !progress || !progressBar || !progressFileCount || !progressPercent || !progressLabel || !messages) {
+        return;
+    }
+
+    function escapeHtml(value) {
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function updateFileSummary() {
+        const count = fileInput.files ? fileInput.files.length : 0;
+        if (count === 0) {
+            fileSummary.textContent = 'Zatím není vybraný žádný soubor';
+        } else if (count === 1) {
+            fileSummary.textContent = fileInput.files[0].name;
+        } else {
+            fileSummary.textContent = count + ' souborů vybráno';
+        }
+    }
+
+    function currentFileCounter(percent) {
+        const total = fileInput.files ? fileInput.files.length : 0;
+        if (total === 0) {
+            return '0/0';
+        }
+
+        const current = Math.max(1, Math.min(total, Math.ceil((percent / 100) * total)));
+        return current + '/' + total;
+    }
+
+    function setProgress(percent, label) {
+        const clean = Math.max(0, Math.min(100, Math.round(percent)));
+        progress.hidden = false;
+        progressBar.style.width = clean + '%';
+        progressFileCount.textContent = currentFileCounter(clean);
+        progressPercent.textContent = clean + ' %';
+        progressLabel.textContent = label;
+    }
+
+    function renderResults(data) {
+        let html = '';
+
+        if (Array.isArray(data.errors) && data.errors.length > 0) {
+            html += '<div class="alert-error upload-result-box">';
+            data.errors.forEach(function (error) {
+                html += '<div>' + escapeHtml(error) + '</div>';
+            });
+            html += '</div>';
+        }
+
+        if (Array.isArray(data.uploaded) && data.uploaded.length > 0) {
+            html += '<div class="upload-result-box">';
+            data.uploaded.forEach(function (item) {
+                const cls = item.paired ? 'upload-result-paired' : 'upload-result-unpaired';
+                html += '<div class="upload-result ' + cls + '">';
+                html += escapeHtml(item.filename) + ' ';
+                if (item.paired) {
+                    html += 'spárováno s ' + escapeHtml(item.source_filename || '');
+                } else {
+                    html += 'uloženo bez automatického spárování';
+                }
+                html += '</div>';
+            });
+            html += '</div>';
+        }
+
+        messages.innerHTML = html;
+    }
+
+    fileInput.addEventListener('change', updateFileSummary);
+
+    ['dragenter', 'dragover'].forEach(function (eventName) {
+        dropzone.addEventListener(eventName, function (event) {
+            event.preventDefault();
+            dropzone.classList.add('is-dragover');
+        });
+    });
+
+    ['dragleave', 'drop'].forEach(function (eventName) {
+        dropzone.addEventListener(eventName, function (event) {
+            event.preventDefault();
+            dropzone.classList.remove('is-dragover');
+        });
+    });
+
+    dropzone.addEventListener('drop', function (event) {
+        if (event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length > 0) {
+            fileInput.files = event.dataTransfer.files;
+            updateFileSummary();
+        }
+    });
+
+    form.addEventListener('submit', function (event) {
+        if (!fileInput.files || fileInput.files.length === 0) {
+            return;
+        }
+
+        event.preventDefault();
+
+        const xhr = new XMLHttpRequest();
+        const formData = new FormData(form);
+        const submitButton = form.querySelector('button[type="submit"]');
+
+        messages.innerHTML = '';
+        setProgress(0, 'Připravuji upload...');
+        if (submitButton) {
+            submitButton.disabled = true;
+        }
+
+        xhr.upload.addEventListener('progress', function (event) {
+            if (event.lengthComputable) {
+                setProgress((event.loaded / event.total) * 100, 'Nahrávám...');
+            } else {
+                progress.hidden = false;
+                progressLabel.textContent = 'Nahrávám...';
+                progressFileCount.textContent = currentFileCounter(0);
+            }
+        });
+
+        xhr.addEventListener('load', function () {
+            if (submitButton) {
+                submitButton.disabled = false;
+            }
+
+            setProgress(100, 'Zpracovávám...');
+
+            try {
+                const data = JSON.parse(xhr.responseText || '{}');
+                renderResults(data);
+                progressLabel.textContent = data.ok ? 'Hotovo' : 'Dokončeno s chybou';
+            } catch (e) {
+                messages.innerHTML = '<div class="alert-error upload-result-box">Server vrátil nečitelnou odpověď.</div>';
+                progressLabel.textContent = 'Chyba';
+            }
+        });
+
+        xhr.addEventListener('error', function () {
+            if (submitButton) {
+                submitButton.disabled = false;
+            }
+            messages.innerHTML = '<div class="alert-error upload-result-box">Upload se nepodařilo dokončit.</div>';
+            progressLabel.textContent = 'Chyba';
+        });
+
+        xhr.open('POST', form.action || window.location.href);
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.send(formData);
+    });
+
+    updateFileSummary();
+});
+</script>
 
 <?php require_once __DIR__ . '/inc/footer.php'; ?>
