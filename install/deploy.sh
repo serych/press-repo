@@ -25,7 +25,11 @@ copy_if_exists() {
 echo "[1/6] Vytvářím adresáře..."
 mkdir -p /var/www/press/ftp
 mkdir -p /var/www/press/previews
+mkdir -p /var/www/press/published
 mkdir -p /var/www/press/web
+chown -R www-data:www-data /var/www/press/published
+find /var/www/press/published -type d -exec chmod 0775 {} +
+find /var/www/press/published -type f -exec chmod 0664 {} +
 
 echo "[2/6] Kopíruji konfigurace..."
 copy_if_exists "$CONFIG_DIR/vsftpd.conf" /etc/vsftpd.conf

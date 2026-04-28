@@ -80,9 +80,10 @@ Cíl sprintu: rozšířit presscentrum z jednosměrného vstupu fotek na komplet
    - Upravit download originálu tak, aby uložil první `downloaded_at` a `downloaded_by_user_id`.
    - Ošetřit hromadný download stejně jako jednotlivý.
 
-4. Upload hotových fotek
+4. Upload hotových fotek - rozpracováno
    - Vytvořit stránku/API pro upload hotových fotek fotoeditorem.
-   - Uložit soubor, zapsat DB, vygenerovat náhled, zkusit automatické spárování s originálem.
+   - Uložit JPG soubor do `/var/www/press/published/<event-slug>/`, zapsat DB, zkusit automatické spárování s originálem podle názvu.
+   - Ještě doplnit náhledy, pokud nebudeme jako náhled používat přímo hotový JPG.
 
 5. Galerie hotových fotek pro žurnalisty
    - Zapnout práva `published_photos.view/download` pro roli `journalist`.
