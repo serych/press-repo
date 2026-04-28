@@ -27,12 +27,16 @@ Cíl sprintu: rozšířit presscentrum z jednosměrného vstupu fotek na komplet
 ### Párování hotové fotky s originálem
 
 - Primární pravidlo: hotový soubor může mít upravený název, ale měl by zachovat rozpoznatelný základ originálu.
-- Navržený postup pro první verzi:
-  - při uploadu hotové fotky číst EXIF `DateTimeOriginal` a autora, pokud existují;
-  - z názvu odstranit běžné suffixy typu `_edit`, `_upraveno`, `-final`, exportní číslování apod.;
-  - hledat kandidáty mezi fotkami stejného eventu podle podobného názvu, stejného fotografa a blízkého času pořízení;
-  - pokud je shoda jednoznačná, uložit `source_photo_id`;
-  - pokud není shoda jistá, uložit hotovou fotku bez vazby a nabídnout ruční spárování později.
+- První implementovaná verze:
+  - hotová fotka musí být JPG;
+  - nový název musí obsahovat původní název bez přípony, kontrola je case insensitive;
+  - hledá se jednoznačná shoda mezi fotkami stejného eventu;
+  - pokud je shoda jednoznačná, uloží se `source_photo_id`;
+  - pokud shoda není jistá, fotka se uloží do souborového úložiště i do `published_photos`, ale `source_photo_id` zůstane `NULL`.
+- Později zvážit:
+  - číst EXIF `DateTimeOriginal` přímo z publikované JPG;
+  - využít autora / metadata pro robustnější automatické párování;
+  - ruční párování nespárovaných publikací.
 
 ### Backend a logika
 
@@ -42,26 +46,36 @@ Cíl sprintu: rozšířit presscentrum z jednosměrného vstupu fotek na komplet
   - při prvním stažení uložit `downloaded_at` a `downloaded_by_user_id`.
   - další stažení už nemá přepsat první čas převzetí.
 - Upload hotových fotek:
-  - nová stránka/API pro fotoeditory v rámci eventu.
-  - ukládat do adresáře např. `/var/www/press/published/<event_id>/`.
-  - vygenerovat náhled hotové fotky, ideálně do samostatného stromu preview.
+  - nová stránka/API pro fotoeditory v rámci eventu - hotovo.
+  - ukládat JPG do `/var/www/press/published/<event-slug>/` - hotovo.
+  - eventový podadresář se vytváří až při prvním uploadu do daného eventu.
+  - nespárované publikace se ukládají do DB se `source_photo_id = NULL`.
+  - samostatné náhledy zatím nejsou potřeba / nejsou hotové.
 - Stažení hotových fotek žurnalistou:
   - nová galerie hotových fotek dostupná roli `journalist`.
   - logovat stažení kvůli auditu.
 - Statistiky:
-  - `captured_at -> uploaded_at`: cesta od foťáku/SD karty do presscentra.
-  - `uploaded_at -> downloaded_at`: čekání na převzetí fotoeditorem.
-  - `downloaded_at -> published_at`: práce fotoeditora.
-  - `captured_at -> published_at`: celkový čas od vyfocení po publikaci.
+  - v detailu originální fotky už se zobrazují:
+    - `captured_at -> uploaded_at`: cesta od foťáku/SD karty do presscentra;
+    - `uploaded_at -> downloaded_at`: čekání na převzetí fotoeditorem;
+    - `downloaded_at -> published_at`: práce fotoeditora;
+    - `captured_at -> published_at`: celkový čas od vyfocení po publikaci.
+  - v náhledové galerii se u publikovaných fotek zobrazuje stručně `captured_at -> published_at`.
+  - dashboardové souhrny, mediány a maxima ještě nejsou hotové.
 
 ### UI
 
-- Do detailu originální fotky přidat čas pořízení a čas převzetí fotoeditorem.
+- Do detailu originální fotky přidat čas pořízení a čas převzetí fotoeditorem - hotovo.
+- Do detailu originální fotky přidat detailní rozbor workflow časů - hotovo.
+- Do náhledové galerie originálů přidat u publikovaných fotek rozdíl `publikace - pořízení` - hotovo.
 - Do dashboardu eventu přidat blok „Hotové fotografie“:
   - počet nahraných hotových fotek;
   - medián/maximum celkového času zpracování;
   - poslední nahrané hotové fotky.
-- Přidat stránku pro fotoeditory: upload hotových fotek.
+- Přidat stránku pro fotoeditory: upload hotových fotek - hotovo jako „Publikace fotek“.
+  - drag & drop zóna - hotovo.
+  - progress uploadu včetně procent a odhadovaného počítadla souborů - hotovo.
+  - výsledky uploadu barevně rozlišují spárované a nespárované fotky - hotovo.
 - Přidat stránku pro žurnalisty: přehled a stažení hotových fotek.
 - V administraci eventu ponechat možnost přiřazovat žurnalisty, až bude role aktivně používaná.
 
@@ -80,18 +94,26 @@ Cíl sprintu: rozšířit presscentrum z jednosměrného vstupu fotek na komplet
    - Upravit download originálu tak, aby uložil první `downloaded_at` a `downloaded_by_user_id`.
    - Ošetřit hromadný download stejně jako jednotlivý.
 
-4. Upload hotových fotek - rozpracováno
-   - Vytvořit stránku/API pro upload hotových fotek fotoeditorem.
-   - Uložit JPG soubor do `/var/www/press/published/<event-slug>/`, zapsat DB, zkusit automatické spárování s originálem podle názvu.
-   - Ještě doplnit náhledy, pokud nebudeme jako náhled používat přímo hotový JPG.
+4. Upload hotových fotek - hotovo pro základní workflow
+   - Vytvořena stránka „Publikace fotek“ pro fotoeditory.
+   - Upload podporuje výběr souborů i drag & drop.
+   - Progress ukazuje procenta a odhadované pořadí souboru v dávce.
+   - Serverové limity uploadu navýšeny pro Apache/PHP.
+   - Úložiště je `/var/www/press/published/<event-slug>/`; podadresář vzniká lazy při prvním uploadu.
+   - Upload bere pouze JPG, zapisuje DB a loguje `uploaded`.
+   - Automatické párování podle názvu funguje case insensitive.
+   - Nespárované fotky se ukládají do DB se `source_photo_id = NULL` a v UI jsou označené oranžově.
+   - Samostatné náhledy publikovaných JPG zatím nejsou řešené; pro další galerii lze pravděpodobně použít přímo JPG nebo doplnit menší preview později.
 
 5. Galerie hotových fotek pro žurnalisty
    - Zapnout práva `published_photos.view/download` pro roli `journalist`.
    - Přidat přehled hotových fotek, detail a stažení.
    - Logovat stažení.
 
-6. Statistiky a dashboard
-   - Dopočítat časové metriky po fotkách a souhrnně po eventu.
+6. Statistiky a dashboard - částečně hotovo
+   - Detail originální fotky ukazuje časové metriky po fotce.
+   - Galerie originálů ukazuje u publikovaných fotek stručný čas `publikace - pořízení`.
+   - Ještě dopočítat souhrny po eventu: počet publikovaných fotek, medián/maximum celkového času, poslední publikované fotky.
    - Doplnit dashboard eventu a případně export/report.
 
 7. Ruční párování a korekce
