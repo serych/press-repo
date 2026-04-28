@@ -64,9 +64,23 @@ function photos_list(array $filters, int $limit, int $offset): array
             p.*,
             lu.user AS locked_by_user,
             lu.jmeno AS locked_jmeno,
-            lu.prijmeni AS locked_prijmeni
+            lu.prijmeni AS locked_prijmeni,
+            pps.published_count,
+            pps.first_published_at,
+            pps.last_published_at
         FROM photos p
         LEFT JOIN users lu ON lu.id = p.locked_by_user_id
+        LEFT JOIN (
+            SELECT
+                source_photo_id,
+                COUNT(*) AS published_count,
+                MIN(published_at) AS first_published_at,
+                MAX(published_at) AS last_published_at
+            FROM published_photos
+            WHERE source_photo_id IS NOT NULL
+              AND status = 'ready'
+            GROUP BY source_photo_id
+        ) pps ON pps.source_photo_id = p.id
         $where
         ORDER BY p.id DESC
         LIMIT :limit OFFSET :offset
@@ -137,10 +151,14 @@ function photos_get_by_id(int $id): ?array
             u.user AS web_user,
             lu.user AS locked_by_user,
             lu.jmeno AS locked_jmeno,
-            lu.prijmeni AS locked_prijmeni
+            lu.prijmeni AS locked_prijmeni,
+            du.user AS downloaded_by_user,
+            du.jmeno AS downloaded_jmeno,
+            du.prijmeni AS downloaded_prijmeni
         FROM photos p
         LEFT JOIN users u ON u.id = p.user_id
         LEFT JOIN users lu ON lu.id = p.locked_by_user_id
+        LEFT JOIN users du ON du.id = p.downloaded_by_user_id
         WHERE p.id = :id
         LIMIT 1
     ";
@@ -164,6 +182,89 @@ function photos_get_by_id(int $id): ?array
     }
 
     return $row;
+}
+
+function photos_get_published_for_source(int $sourcePhotoId): array
+{
+    $stmt = db()->prepare("
+        SELECT
+            pp.*,
+            u.user AS uploaded_by_user,
+            u.jmeno AS uploaded_jmeno,
+            u.prijmeni AS uploaded_prijmeni
+        FROM published_photos pp
+        LEFT JOIN users u ON u.id = pp.uploaded_by_user_id
+        WHERE pp.source_photo_id = ?
+          AND pp.status = 'ready'
+        ORDER BY pp.published_at ASC, pp.id ASC
+    ");
+    $stmt->execute([$sourcePhotoId]);
+
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+function photos_datetime_seconds(?string $value): ?int
+{
+    $value = trim((string)$value);
+    if ($value === '') {
+        return null;
+    }
+
+    $timestamp = strtotime($value);
+    return $timestamp !== false ? $timestamp : null;
+}
+
+function photos_duration_seconds(?string $start, ?string $end): ?int
+{
+    $startTime = photos_datetime_seconds($start);
+    $endTime = photos_datetime_seconds($end);
+
+    if ($startTime === null || $endTime === null) {
+        return null;
+    }
+
+    return $endTime - $startTime;
+}
+
+function photos_format_duration(?int $seconds): string
+{
+    if ($seconds === null) {
+        return '—';
+    }
+
+    $prefix = '';
+    if ($seconds < 0) {
+        $prefix = '-';
+        $seconds = abs($seconds);
+    }
+
+    $days = intdiv($seconds, 86400);
+    $seconds %= 86400;
+    $hours = intdiv($seconds, 3600);
+    $seconds %= 3600;
+    $minutes = intdiv($seconds, 60);
+    $seconds %= 60;
+
+    $parts = [];
+    if ($days > 0) {
+        $parts[] = $days . ' d';
+    }
+    if ($hours > 0) {
+        $parts[] = $hours . ' h';
+    }
+    if ($minutes > 0 && count($parts) < 2) {
+        $parts[] = $minutes . ' min';
+    }
+    if (!$parts) {
+        $parts[] = $seconds . ' s';
+    }
+
+    return $prefix . implode(' ', array_slice($parts, 0, 2));
+}
+
+function photos_format_duration_between(?string $start, ?string $end): string
+{
+    return photos_format_duration(photos_duration_seconds($start, $end));
 }
 
 function photos_read_exif_summary(string $filepath): array

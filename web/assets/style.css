@@ -2709,3 +2709,20 @@ body::after {
     background: #3b2a13;
     color: #fcd34d;
 }
+
+.published-time {
+    margin-top: 6px;
+    color: #fcd34d;
+    font-size: 12px;
+    line-height: 1.3;
+}
+
+.detail-muted {
+    color: var(--text-muted);
+    font-size: 13px;
+}
+
+.timing-table td,
+.published-detail-table td {
+    line-height: 1.5;
+}

@@ -195,6 +195,9 @@ echo json_encode([
             'ftp_user' => (string)$p['ftp_user'],
             'status' => (string)$p['status'],
             'uploaded_at' => (string)$p['uploaded_at'],
+            'published_duration_label' => (!empty($p['first_published_at']) && !empty($p['captured_at']))
+                ? photos_format_duration_between((string)$p['captured_at'], (string)$p['first_published_at'])
+                : '',
             'preview_exists' => !empty($p['preview_filepath']),
             'locked_by_user_id' => !empty($p['locked_by_user_id']) ? (int)$p['locked_by_user_id'] : null,
             'locked_by_user' => (string)($p['locked_by_user'] ?? ''),

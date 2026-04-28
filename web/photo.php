@@ -30,6 +30,17 @@ if (!$photo) {
 $currentUser = current_user();
 $currentUserId = (int)$currentUser['id'];
 $isEventPhotographerAllowed = photos_is_event_photographer_allowed($photo);
+$publishedPhotos = photos_get_published_for_source((int)$photo['id']);
+$firstPublishedPhoto = $publishedPhotos[0] ?? null;
+
+$downloadedByName = trim(
+    ((string)($photo['downloaded_jmeno'] ?? '')) . ' ' .
+    ((string)($photo['downloaded_prijmeni'] ?? ''))
+);
+
+if ($downloadedByName === '') {
+    $downloadedByName = (string)($photo['downloaded_by_user'] ?? '');
+}
 
 require_once __DIR__ . '/inc/header.php';
 ?>
@@ -139,6 +150,16 @@ $lockedByName = trim(
 </tr>
 
 <tr>
+<th>Převzato editorem</th>
+<td>
+    <?= !empty($photo['downloaded_at']) ? h((string)$photo['downloaded_at']) : '—' ?>
+    <?php if ($downloadedByName !== ''): ?>
+        <span class="detail-muted">(<?= h($downloadedByName) ?>)</span>
+    <?php endif; ?>
+</td>
+</tr>
+
+<tr>
 <th>Velikost</th>
 <td><?= number_format((int)$photo['filesize'], 0, ' ', ' ') ?> B</td>
 </tr>
@@ -172,6 +193,59 @@ $lockedByName = trim(
 </tr>
 
 </table>
+
+<h2>Časy workflow</h2>
+
+<table class="detail-table timing-table">
+<tr>
+<th>Pořízení → upload originálu</th>
+<td><?= h(photos_format_duration_between($photo['captured_at'] ?? null, $photo['uploaded_at'] ?? null)) ?></td>
+</tr>
+
+<tr>
+<th>Upload originálu → převzetí editorem</th>
+<td><?= h(photos_format_duration_between($photo['uploaded_at'] ?? null, $photo['downloaded_at'] ?? null)) ?></td>
+</tr>
+
+<tr>
+<th>Převzetí editorem → první publikace</th>
+<td><?= h(photos_format_duration_between($photo['downloaded_at'] ?? null, $firstPublishedPhoto['published_at'] ?? null)) ?></td>
+</tr>
+
+<tr>
+<th>Pořízení → první publikace</th>
+<td><?= h(photos_format_duration_between($photo['captured_at'] ?? null, $firstPublishedPhoto['published_at'] ?? null)) ?></td>
+</tr>
+</table>
+
+<?php if ($publishedPhotos): ?>
+<h2>Publikované fotky</h2>
+
+<table class="detail-table published-detail-table">
+<?php foreach ($publishedPhotos as $publishedPhoto): ?>
+<?php
+$uploadedByName = trim(
+    ((string)($publishedPhoto['uploaded_jmeno'] ?? '')) . ' ' .
+    ((string)($publishedPhoto['uploaded_prijmeni'] ?? ''))
+);
+
+if ($uploadedByName === '') {
+    $uploadedByName = (string)($publishedPhoto['uploaded_by_user'] ?? '');
+}
+?>
+<tr>
+<th><?= h((string)$publishedPhoto['filename']) ?></th>
+<td>
+    <div>Publikováno: <?= h((string)$publishedPhoto['published_at']) ?></div>
+    <div>Pořízení → publikace: <?= h(photos_format_duration_between($photo['captured_at'] ?? null, $publishedPhoto['published_at'] ?? null)) ?></div>
+    <?php if ($uploadedByName !== ''): ?>
+        <div>Publikoval: <?= h($uploadedByName) ?></div>
+    <?php endif; ?>
+</td>
+</tr>
+<?php endforeach; ?>
+</table>
+<?php endif; ?>
 
 <?php if (has_permission('photos.download')): ?>
 

@@ -237,6 +237,13 @@ require_once __DIR__ . '/inc/header.php';
                                     <div class="time">
                                         <?= h((string)$p['uploaded_at']) ?>
                                     </div>
+
+                                    <?php if (!empty($p['first_published_at']) && !empty($p['captured_at'])): ?>
+                                        <div class="published-time">
+                                            Publikace od pořízení:
+                                            <?= h(photos_format_duration_between((string)$p['captured_at'], (string)$p['first_published_at'])) ?>
+                                        </div>
+                                    <?php endif; ?>
                                 </div>
                             </a>
                         </div>
@@ -409,6 +416,14 @@ function renderPhotoCard(item, currentUserId, canSelect) {
         warningHtml += '<div class="photo-warning photo-warning-unassigned">fotograf není přiřazen k eventu</div>';
     }
 
+    let publishedTimeHtml = '';
+    if (item.published_duration_label) {
+        publishedTimeHtml =
+            '<div class="published-time">Publikace od pořízení: ' +
+            escapeHtml(item.published_duration_label) +
+            '</div>';
+    }
+
     return '' +
         '<div class="' + cardClass + '">' +
             '<a href="/photo.php?id=' + item.id + '" class="photo-card-link">' +
@@ -421,6 +436,7 @@ function renderPhotoCard(item, currentUserId, canSelect) {
                     '<div class="status-wrapper">' + statusHtml + '</div>' +
                     warningHtml +
                     '<div class="time">' + escapeHtml(item.uploaded_at) + '</div>' +
+                    publishedTimeHtml +
                 '</div>' +
             '</a>' +
         '</div>';
@@ -593,7 +609,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     item.preview_exists ? 1 : 0,
                     item.locked_by_user_id || 0,
                     item.exif_problem ? 1 : 0,
-                    item.exif_problem_note || ''
+                    item.exif_problem_note || '',
+                    item.published_duration_label || ''
                 ];
             }));
 
