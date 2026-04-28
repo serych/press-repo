@@ -101,12 +101,17 @@ try {
         UPDATE photos
         SET status = 'downloaded',
             downloaded = 1,
-            downloaded_at = NOW()
+            downloaded_by_user_id = CASE
+                WHEN downloaded_at IS NULL THEN ?
+                ELSE downloaded_by_user_id
+            END,
+            downloaded_at = COALESCE(downloaded_at, NOW())
         WHERE id = ?
           AND status = 'locked'
           AND locked_by_user_id = ?
           AND event_photographer_allowed = 1
     ")->execute([
+        $userId,
         (int)$row['photo_id'],
         $userId
     ]);

@@ -77,13 +77,20 @@ UPDATE photos
 SET
     status = 'downloaded',
     downloaded = 1,
-    downloaded_at = NOW(),
+    downloaded_by_user_id = CASE
+        WHEN downloaded_at IS NULL THEN :uid
+        ELSE downloaded_by_user_id
+    END,
+    downloaded_at = COALESCE(downloaded_at, NOW()),
     locked_by_user_id = NULL,
     locked_at = NULL
 WHERE id = :id
 ";
 
-db()->prepare($sql)->execute(['id'=>$id]);
+db()->prepare($sql)->execute([
+    'id'=>$id,
+    'uid'=>$user['id'],
+]);
 
 /* log */
 

@@ -76,7 +76,7 @@ Cíl sprintu: rozšířit presscentrum z jednosměrného vstupu fotek na komplet
    - Doplnit backfill skript pro existující fotky.
    - Zobrazit čas pořízení v detailu fotky.
 
-3. Převzetí originálu fotoeditorem
+3. Převzetí originálu fotoeditorem - hotovo
    - Upravit download originálu tak, aby uložil první `downloaded_at` a `downloaded_by_user_id`.
    - Ošetřit hromadný download stejně jako jednotlivý.
 
