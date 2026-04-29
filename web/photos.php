@@ -240,7 +240,7 @@ require_once __DIR__ . '/inc/header.php';
 
                                     <?php if (!empty($p['first_published_at']) && !empty($p['captured_at'])): ?>
                                         <div class="published-time">
-                                            Publikace od pořízení:
+                                            Čas workflow:
                                             <?= h(photos_format_duration_between((string)$p['captured_at'], (string)$p['first_published_at'])) ?>
                                         </div>
                                     <?php endif; ?>
@@ -419,7 +419,7 @@ function renderPhotoCard(item, currentUserId, canSelect) {
     let publishedTimeHtml = '';
     if (item.published_duration_label) {
         publishedTimeHtml =
-            '<div class="published-time">Publikace od pořízení: ' +
+            '<div class="published-time">Čas workflow: ' +
             escapeHtml(item.published_duration_label) +
             '</div>';
     }

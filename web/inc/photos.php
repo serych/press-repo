@@ -238,28 +238,16 @@ function photos_format_duration(?int $seconds): string
         $seconds = abs($seconds);
     }
 
-    $days = intdiv($seconds, 86400);
-    $seconds %= 86400;
     $hours = intdiv($seconds, 3600);
     $seconds %= 3600;
     $minutes = intdiv($seconds, 60);
     $seconds %= 60;
 
-    $parts = [];
-    if ($days > 0) {
-        $parts[] = $days . ' d';
-    }
     if ($hours > 0) {
-        $parts[] = $hours . ' h';
-    }
-    if ($minutes > 0 && count($parts) < 2) {
-        $parts[] = $minutes . ' min';
-    }
-    if (!$parts) {
-        $parts[] = $seconds . ' s';
+        return sprintf('%s%d:%02d:%02d', $prefix, $hours, $minutes, $seconds);
     }
 
-    return $prefix . implode(' ', array_slice($parts, 0, 2));
+    return sprintf('%s%02d:%02d', $prefix, $minutes, $seconds);
 }
 
 function photos_format_duration_between(?string $start, ?string $end): string

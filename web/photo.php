@@ -140,23 +140,28 @@ $lockedByName = trim(
 </tr>
 
 <tr>
+<th>Vyfoceno</th>
+<td><?= !empty($photo['captured_at']) ? h((string)$photo['captured_at']) : '—' ?></td>
+</tr>
+
+<tr>
 <th>Nahráno</th>
 <td><?= h((string)$photo['uploaded_at']) ?></td>
 </tr>
 
 <tr>
-<th>Pořízeno</th>
-<td><?= !empty($photo['captured_at']) ? h((string)$photo['captured_at']) : '—' ?></td>
-</tr>
-
-<tr>
-<th>Převzato editorem</th>
+<th>Staženo</th>
 <td>
     <?= !empty($photo['downloaded_at']) ? h((string)$photo['downloaded_at']) : '—' ?>
     <?php if ($downloadedByName !== ''): ?>
         <span class="detail-muted">(<?= h($downloadedByName) ?>)</span>
     <?php endif; ?>
 </td>
+</tr>
+
+<tr>
+<th>Publikováno</th>
+<td><?= !empty($firstPublishedPhoto['published_at']) ? h((string)$firstPublishedPhoto['published_at']) : '—' ?></td>
 </tr>
 
 <tr>
@@ -198,22 +203,22 @@ $lockedByName = trim(
 
 <table class="detail-table timing-table">
 <tr>
-<th>Pořízení → upload originálu</th>
+<th>Vyfocení -> Nahrátí</th>
 <td><?= h(photos_format_duration_between($photo['captured_at'] ?? null, $photo['uploaded_at'] ?? null)) ?></td>
 </tr>
 
 <tr>
-<th>Upload originálu → převzetí editorem</th>
+<th>Nahrátí -> Stažení</th>
 <td><?= h(photos_format_duration_between($photo['uploaded_at'] ?? null, $photo['downloaded_at'] ?? null)) ?></td>
 </tr>
 
 <tr>
-<th>Převzetí editorem → první publikace</th>
+<th>Stažení -> Publikace</th>
 <td><?= h(photos_format_duration_between($photo['downloaded_at'] ?? null, $firstPublishedPhoto['published_at'] ?? null)) ?></td>
 </tr>
 
 <tr>
-<th>Pořízení → první publikace</th>
+<th>Workflow celkem</th>
 <td><?= h(photos_format_duration_between($photo['captured_at'] ?? null, $firstPublishedPhoto['published_at'] ?? null)) ?></td>
 </tr>
 </table>
@@ -237,7 +242,7 @@ if ($uploadedByName === '') {
 <th><?= h((string)$publishedPhoto['filename']) ?></th>
 <td>
     <div>Publikováno: <?= h((string)$publishedPhoto['published_at']) ?></div>
-    <div>Pořízení → publikace: <?= h(photos_format_duration_between($photo['captured_at'] ?? null, $publishedPhoto['published_at'] ?? null)) ?></div>
+    <div>Workflow celkem: <?= h(photos_format_duration_between($photo['captured_at'] ?? null, $publishedPhoto['published_at'] ?? null)) ?></div>
     <?php if ($uploadedByName !== ''): ?>
         <div>Publikoval: <?= h($uploadedByName) ?></div>
     <?php endif; ?>
