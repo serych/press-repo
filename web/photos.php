@@ -269,17 +269,51 @@ require_once __DIR__ . '/inc/header.php';
                 id="chat-sidebar"
                 data-chat-event-id="<?= (int)$currentEventId ?>"
             >
-                <div class="chat-sidebar-head">
-                    <strong>Chat</strong>
-                    <button type="button" class="chat-sidebar-toggle" id="chat-sidebar-toggle" aria-label="Sbalit nebo rozbalit chat">☰</button>
+                <?php if (has_permission('published_photos.upload')): ?>
+                    <form class="mini-publish" id="mini-publish-form" enctype="multipart/form-data">
+                        <div class="mini-publish-head">
+                            <strong>Publikace fotek</strong>
+                            <a href="/published-upload.php">plná stránka</a>
+                        </div>
+
+                        <label class="mini-publish-dropzone" id="mini-publish-dropzone" for="mini-publish-files">
+                            <span>Sem přetáhněte JPG</span>
+                            <small id="mini-publish-summary">nebo klikněte</small>
+                        </label>
+
+                        <input class="mini-publish-input" type="file" name="photos[]" id="mini-publish-files" accept=".jpg,.jpeg,image/jpeg" multiple>
+
+                        <div class="mini-publish-progress" id="mini-publish-progress" hidden>
+                            <div class="mini-publish-progress-meta">
+                                <span id="mini-publish-label">Nahrávám...</span>
+                                <strong>
+                                    <span id="mini-publish-count">0/0</span>
+                                    <span id="mini-publish-percent">0 %</span>
+                                </strong>
+                            </div>
+                            <div class="mini-publish-track">
+                                <div class="mini-publish-bar" id="mini-publish-bar"></div>
+                            </div>
+                        </div>
+
+                        <button type="submit">Publikovat</button>
+                        <div class="mini-publish-result" id="mini-publish-result"></div>
+                    </form>
+                <?php endif; ?>
+
+                <div class="chat-panel">
+                    <div class="chat-sidebar-head">
+                        <strong>Chat</strong>
+                        <button type="button" class="chat-sidebar-toggle" id="chat-sidebar-toggle" aria-label="Sbalit nebo rozbalit chat">☰</button>
+                    </div>
+
+                    <div class="event-chat-messages" id="event-chat-messages"></div>
+
+                    <form class="event-chat-form" id="event-chat-form">
+                        <textarea id="event-chat-input" placeholder="Napiš zprávu..." maxlength="2000"></textarea>
+                        <button type="submit">Odeslat</button>
+                    </form>
                 </div>
-
-                <div class="event-chat-messages" id="event-chat-messages"></div>
-
-                <form class="event-chat-form" id="event-chat-form">
-                    <textarea id="event-chat-input" placeholder="Napiš zprávu..." maxlength="2000"></textarea>
-                    <button type="submit">Odeslat</button>
-                </form>
             </aside>
         <?php endif; ?>
     </div>
@@ -453,6 +487,16 @@ document.addEventListener('DOMContentLoaded', function () {
     const uploadingCountEl = document.getElementById('uploading-count');
     const processingCountEl = document.getElementById('processing-count');
     const uploadingDotsEl = document.getElementById('uploading-dots');
+    const miniPublishForm = document.getElementById('mini-publish-form');
+    const miniPublishFiles = document.getElementById('mini-publish-files');
+    const miniPublishDropzone = document.getElementById('mini-publish-dropzone');
+    const miniPublishSummary = document.getElementById('mini-publish-summary');
+    const miniPublishProgress = document.getElementById('mini-publish-progress');
+    const miniPublishLabel = document.getElementById('mini-publish-label');
+    const miniPublishCount = document.getElementById('mini-publish-count');
+    const miniPublishPercent = document.getElementById('mini-publish-percent');
+    const miniPublishBar = document.getElementById('mini-publish-bar');
+    const miniPublishResult = document.getElementById('mini-publish-result');
 
     ['click', 'keydown', 'touchstart'].forEach(function (eventName) {
         document.addEventListener(eventName, unlockAudio, { once: true });
@@ -555,6 +599,166 @@ document.addEventListener('DOMContentLoaded', function () {
         if (ingestStatus) {
             ingestStatus.style.display = (uploading > 0 || processing > 0) ? 'inline-flex' : 'none';
         }
+    }
+
+    function miniPublishFileCounter(percent) {
+        const total = miniPublishFiles && miniPublishFiles.files ? miniPublishFiles.files.length : 0;
+        if (total === 0) {
+            return '0/0';
+        }
+
+        const current = Math.max(1, Math.min(total, Math.ceil((percent / 100) * total)));
+        return current + '/' + total;
+    }
+
+    function setMiniPublishProgress(percent, label) {
+        if (!miniPublishProgress || !miniPublishBar || !miniPublishPercent || !miniPublishCount || !miniPublishLabel) {
+            return;
+        }
+
+        const clean = Math.max(0, Math.min(100, Math.round(percent)));
+        miniPublishProgress.hidden = false;
+        miniPublishBar.style.width = clean + '%';
+        miniPublishPercent.textContent = clean + ' %';
+        miniPublishCount.textContent = miniPublishFileCounter(clean);
+        miniPublishLabel.textContent = label;
+    }
+
+    function updateMiniPublishSummary() {
+        if (!miniPublishFiles || !miniPublishSummary) {
+            return;
+        }
+
+        const count = miniPublishFiles.files ? miniPublishFiles.files.length : 0;
+        if (count === 0) {
+            miniPublishSummary.textContent = 'nebo klikněte';
+        } else if (count === 1) {
+            miniPublishSummary.textContent = miniPublishFiles.files[0].name;
+        } else {
+            miniPublishSummary.textContent = count + ' souborů vybráno';
+        }
+    }
+
+    function renderMiniPublishResult(data) {
+        if (!miniPublishResult) {
+            return;
+        }
+
+        let html = '';
+
+        if (Array.isArray(data.errors) && data.errors.length > 0) {
+            data.errors.forEach(function (error) {
+                html += '<div class="mini-publish-message mini-publish-error">' + escapeHtml(error) + '</div>';
+            });
+        }
+
+        if (Array.isArray(data.uploaded) && data.uploaded.length > 0) {
+            data.uploaded.forEach(function (item) {
+                html += '<div class="mini-publish-message ' + (item.paired ? 'mini-publish-ok' : 'mini-publish-warning') + '">';
+                html += escapeHtml(item.filename);
+                html += item.paired ? ' spárováno' : ' bez spárování';
+                html += '</div>';
+            });
+        }
+
+        miniPublishResult.innerHTML = html;
+    }
+
+    if (miniPublishForm && miniPublishFiles && miniPublishDropzone) {
+        miniPublishFiles.addEventListener('change', updateMiniPublishSummary);
+
+        ['dragenter', 'dragover'].forEach(function (eventName) {
+            miniPublishDropzone.addEventListener(eventName, function (event) {
+                event.preventDefault();
+                miniPublishDropzone.classList.add('is-dragover');
+            });
+        });
+
+        ['dragleave', 'drop'].forEach(function (eventName) {
+            miniPublishDropzone.addEventListener(eventName, function (event) {
+                event.preventDefault();
+                miniPublishDropzone.classList.remove('is-dragover');
+            });
+        });
+
+        miniPublishDropzone.addEventListener('drop', function (event) {
+            if (event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length > 0) {
+                miniPublishFiles.files = event.dataTransfer.files;
+                updateMiniPublishSummary();
+            }
+        });
+
+        miniPublishForm.addEventListener('submit', function (event) {
+            event.preventDefault();
+
+            if (!miniPublishFiles.files || miniPublishFiles.files.length === 0) {
+                if (miniPublishResult) {
+                    miniPublishResult.innerHTML = '<div class="mini-publish-message mini-publish-error">Vyber JPG soubory.</div>';
+                }
+                return;
+            }
+
+            const xhr = new XMLHttpRequest();
+            const formData = new FormData(miniPublishForm);
+            const submitButton = miniPublishForm.querySelector('button[type="submit"]');
+
+            if (miniPublishResult) {
+                miniPublishResult.innerHTML = '';
+            }
+            setMiniPublishProgress(0, 'Připravuji...');
+
+            if (submitButton) {
+                submitButton.disabled = true;
+            }
+
+            xhr.upload.addEventListener('progress', function (event) {
+                if (event.lengthComputable) {
+                    setMiniPublishProgress((event.loaded / event.total) * 100, 'Nahrávám...');
+                } else {
+                    setMiniPublishProgress(0, 'Nahrávám...');
+                }
+            });
+
+            xhr.addEventListener('load', function () {
+                if (submitButton) {
+                    submitButton.disabled = false;
+                }
+
+                setMiniPublishProgress(100, 'Zpracovávám...');
+
+                try {
+                    const data = JSON.parse(xhr.responseText || '{}');
+                    renderMiniPublishResult(data);
+                    if (miniPublishLabel) {
+                        miniPublishLabel.textContent = data.ok ? 'Hotovo' : 'Dokončeno s chybou';
+                    }
+                    refreshPhotoFeed();
+                } catch (e) {
+                    if (miniPublishResult) {
+                        miniPublishResult.innerHTML = '<div class="mini-publish-message mini-publish-error">Server vrátil nečitelnou odpověď.</div>';
+                    }
+                    if (miniPublishLabel) {
+                        miniPublishLabel.textContent = 'Chyba';
+                    }
+                }
+            });
+
+            xhr.addEventListener('error', function () {
+                if (submitButton) {
+                    submitButton.disabled = false;
+                }
+                if (miniPublishResult) {
+                    miniPublishResult.innerHTML = '<div class="mini-publish-message mini-publish-error">Upload se nepodařilo dokončit.</div>';
+                }
+                if (miniPublishLabel) {
+                    miniPublishLabel.textContent = 'Chyba';
+                }
+            });
+
+            xhr.open('POST', '/published-upload.php');
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+            xhr.send(formData);
+        });
     }
 
     async function refreshPhotoFeed() {
