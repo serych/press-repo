@@ -118,6 +118,11 @@ Cíl sprintu: rozšířit presscentrum z jednosměrného vstupu fotek na komplet
    - Do `published_photos.download_count` se přičítá počet stažení.
    - Stav stažení pro společný žurnalistický účet je pouze session-based.
    - Stažení se loguje jako `downloaded` bez ukládání konkrétního uživatele.
+   - Záhlaví galerie - velký název akce, podmínky použití fotek
+   - Staženo v této relaci - jen nějaký menší symbol
+   - Zrušit tlačítko Stáhnout vše (je tam vybrat vše)
+   - update stránky po stažení, aby bylo vidět staženo v relaci
+   - pro žurnalisty zneviditelnit věci na které nemají právo (možná samostatný header?)
 
 6. Statistiky a dashboard - částečně hotovo
    - Detail originální fotky ukazuje časové metriky po fotce.
@@ -128,16 +133,21 @@ Cíl sprintu: rozšířit presscentrum z jednosměrného vstupu fotek na komplet
 7. Ruční párování a korekce
    - Přidat jednoduchý admin/fotoeditor nástroj pro ruční propojení hotové fotky s originálem, pokud automatika selže.
 
-## Obecné nápady
+8. Úklid adresáře pro publikaci samostatně, ale zahrnout do "Vyčistit testovací data"?   
 
-- Úklid presscentra a rozhodnutí, jak dlouho držet originály a hotové fotky.
-- Jednoduchý chat v rámci presscentra.
+## Nápady pro další sprinty
+- organizace menu, zobrazení podle práv rolí
+- zmenšení náhledů
+- smazání (RAW) fotky fotoeditorem (např. rozmazaná)
+- procházení fotek v detailu < >
+- seznam publikovaných fotek pro jednotlivé fotografy + skript windows/mac pro označení?
+- GPS souřadnice eventu a update v EXIFu
+- Seřizovač času foťáků
+- menu pro soubory s návody
+- vylepšení chatu (pár jednoduchých smajliků)
 - API do Lightroomu nebo jiného exportního workflow.
 - Tabulka akcí, název, odkazy na galerie, výběr fotografů a fotoeditorů, statistika.
-- Přidat telefon a další kontaktní kanály do záznamů uživatelů a zobrazovat je na dashboardu eventu.
+- vyčištění kódu, dokumentace 
 
-## Starší TODO
 
-- Runner v eventu jako checkbox místo radio buttonu.
-- Tabulky fotografů a fotoeditorů v eventu, filtr podle rolí a výběr našeptávačem.
-- Trvalé přihlášení, zejména na telefonu.
+
