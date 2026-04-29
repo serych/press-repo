@@ -243,3 +243,113 @@ function published_photos_store_upload(array $event, array $user, array $file): 
         'source_photo' => $sourcePhoto,
     ];
 }
+
+function published_photos_current_event(): ?array
+{
+    $sql = "
+        SELECT *
+        FROM events
+        WHERE status = 'active'
+        ORDER BY is_temporary ASC, id DESC
+        LIMIT 1
+    ";
+
+    $row = db()->query($sql)->fetch(PDO::FETCH_ASSOC);
+    return $row ?: null;
+}
+
+function published_photos_list_ready(int $eventId): array
+{
+    $stmt = db()->prepare("
+        SELECT
+            pp.*,
+            sp.filename AS source_filename,
+            sp.ftp_user AS source_ftp_user
+        FROM published_photos pp
+        LEFT JOIN photos sp ON sp.id = pp.source_photo_id
+        WHERE pp.event_id = ?
+          AND pp.status = 'ready'
+        ORDER BY
+          pp.captured_at IS NULL,
+          pp.captured_at ASC,
+          pp.published_at ASC,
+          pp.id ASC
+    ");
+    $stmt->execute([$eventId]);
+
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+function published_photos_get_ready(int $id): ?array
+{
+    $stmt = db()->prepare("
+        SELECT *
+        FROM published_photos
+        WHERE id = ?
+          AND status = 'ready'
+        LIMIT 1
+    ");
+    $stmt->execute([$id]);
+
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $row ?: null;
+}
+
+function published_photos_author_label(string $filepath): string
+{
+    if (!is_file($filepath)) {
+        return 'Člověk a Víra';
+    }
+
+    $escaped = escapeshellarg($filepath);
+    $cmd = "exiftool -s3 -Artist -Author -Creator -XMP-dc:Creator -IPTC:By-line $escaped 2>/dev/null";
+    $output = shell_exec($cmd);
+
+    $author = '';
+    if (is_string($output) && trim($output) !== '') {
+        foreach (preg_split('~\R~u', trim($output)) ?: [] as $line) {
+            $line = trim((string)$line);
+            if ($line !== '') {
+                $author = $line;
+                break;
+            }
+        }
+    }
+
+    if ($author === '') {
+        return 'Člověk a Víra';
+    }
+
+    return $author . ' / Člověk a Víra';
+}
+
+function published_photos_mark_downloaded(int $id): void
+{
+    db()->prepare("
+        UPDATE published_photos
+        SET download_count = download_count + 1
+        WHERE id = ?
+          AND status = 'ready'
+    ")->execute([$id]);
+
+    db()->prepare("
+        INSERT INTO published_photo_log (published_photo_id, user_id, action, ip, created_at)
+        VALUES (?, NULL, 'downloaded', ?, NOW())
+    ")->execute([
+        $id,
+        inet_pton($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1'),
+    ]);
+
+    if (!isset($_SESSION['published_downloaded']) || !is_array($_SESSION['published_downloaded'])) {
+        $_SESSION['published_downloaded'] = [];
+    }
+
+    $_SESSION['published_downloaded'][(string)$id] = time();
+}
+
+function published_photos_was_downloaded_in_session(int $id): bool
+{
+    return !empty($_SESSION['published_downloaded'])
+        && is_array($_SESSION['published_downloaded'])
+        && isset($_SESSION['published_downloaded'][(string)$id]);
+}

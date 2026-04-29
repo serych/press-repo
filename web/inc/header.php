@@ -57,6 +57,7 @@ $styleVersion = is_file($styleFile) ? (string)filemtime($styleFile) : '1';
             <nav class="top-nav" id="top-nav">
                 <a href="/dashboard.php">Dashboard</a>
                 <a href="/photos.php">Fotografie</a>
+                <a href="/published.php">Ke stažení</a>
                 <?php if (has_permission('published_photos.upload')): ?>
                     <a href="/published-upload.php">Publikace fotek</a>
                 <?php endif; ?>

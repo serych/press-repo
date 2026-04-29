@@ -167,6 +167,7 @@ CREATE TABLE IF NOT EXISTS published_photos (
     source_uploaded_at DATETIME NULL,
     editor_downloaded_at DATETIME NULL,
     published_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    download_count INT UNSIGNED NOT NULL DEFAULT 0,
     status ENUM('ready', 'hidden', 'deleted') NOT NULL DEFAULT 'ready',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -175,6 +176,7 @@ CREATE TABLE IF NOT EXISTS published_photos (
     INDEX idx_published_photos_uploaded_by_user_id (uploaded_by_user_id),
     INDEX idx_published_photos_status (status),
     INDEX idx_published_photos_published_at (published_at),
+    INDEX idx_published_photos_download_count (download_count),
     INDEX idx_published_photos_captured_at (captured_at),
     INDEX idx_published_photos_event_published_at (event_id, published_at),
     CONSTRAINT fk_published_photos_source_photo

@@ -52,8 +52,12 @@ Cíl sprintu: rozšířit presscentrum z jednosměrného vstupu fotek na komplet
   - nespárované publikace se ukládají do DB se `source_photo_id = NULL`.
   - samostatné náhledy zatím nejsou potřeba / nejsou hotové.
 - Stažení hotových fotek žurnalistou:
-  - nová galerie hotových fotek dostupná roli `journalist`.
-  - logovat stažení kvůli auditu.
+  - nová galerie hotových fotek dostupná žurnalistům i ostatním přihlášeným rolím - hotovo v první verzi.
+  - řazení podle času pořízení z EXIFu - hotovo.
+  - individuální a hromadné stažení - hotovo jako dávka individuálních downloadů.
+  - počítat počet stažení u každé publikované fotky v `published_photos.download_count` - hotovo.
+  - stav „staženo“ se eviduje jen v aktuální session, ne jako identita žurnalisty - hotovo.
+  - logovat stažení kvůli auditu bez vazby na konkrétního uživatele - hotovo.
 - Statistiky:
   - v detailu originální fotky už se zobrazují:
     - `captured_at -> uploaded_at`: cesta od foťáku/SD karty do presscentra;
@@ -105,10 +109,15 @@ Cíl sprintu: rozšířit presscentrum z jednosměrného vstupu fotek na komplet
    - Nespárované fotky se ukládají do DB se `source_photo_id = NULL` a v UI jsou označené oranžově.
    - Samostatné náhledy publikovaných JPG zatím nejsou řešené; pro další galerii lze pravděpodobně použít přímo JPG nebo doplnit menší preview později.
 
-5. Galerie hotových fotek pro žurnalisty
-   - Zapnout práva `published_photos.view/download` pro roli `journalist`.
-   - Přidat přehled hotových fotek, detail a stažení.
-   - Logovat stažení.
+5. Galerie hotových fotek pro žurnalisty - hotovo v první verzi
+   - Přidána stránka „Ke stažení“ pro všechny přihlášené role.
+   - Fotky se řadí podle `captured_at`, tedy času pořízení z EXIFu.
+   - U každé fotky se zobrazuje autor z EXIFu ve formátu `autor / Člověk a Víra`.
+   - Individuální stažení je hotové.
+   - Hromadné stažení je hotové jako postupné spuštění individuálních downloadů.
+   - Do `published_photos.download_count` se přičítá počet stažení.
+   - Stav stažení pro společný žurnalistický účet je pouze session-based.
+   - Stažení se loguje jako `downloaded` bez ukládání konkrétního uživatele.
 
 6. Statistiky a dashboard - částečně hotovo
    - Detail originální fotky ukazuje časové metriky po fotce.
