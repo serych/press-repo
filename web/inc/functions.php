@@ -59,6 +59,10 @@ function default_homepage_for_user(?array $user = null): string
 
     $roleCode = (string)($user['role_code'] ?? '');
 
+    if ($roleCode === 'journalist') {
+        return '/published.php';
+    }
+
     if ($roleCode === 'photographer') {
         return '/photos-status.php';
     }
