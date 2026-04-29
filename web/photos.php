@@ -269,6 +269,11 @@ require_once __DIR__ . '/inc/header.php';
                 id="chat-sidebar"
                 data-chat-event-id="<?= (int)$currentEventId ?>"
             >
+                <div class="side-panel-toggle-row">
+                    <button type="button" class="side-panel-toggle" id="chat-sidebar-toggle" aria-label="Sbalit nebo rozbalit pravý panel" aria-expanded="false">
+                        <span class="side-panel-toggle-icon" aria-hidden="true">‹</span>
+                    </button>
+                </div>
                 <?php if (has_permission('published_photos.upload')): ?>
                     <form class="mini-publish" id="mini-publish-form" enctype="multipart/form-data">
                         <div class="mini-publish-head">
@@ -302,9 +307,15 @@ require_once __DIR__ . '/inc/header.php';
                 <?php endif; ?>
 
                 <div class="chat-panel">
+                    <div class="side-panel-collapsed-icons" aria-hidden="true">
+                        <?php if (has_permission('published_photos.upload')): ?>
+                            <span class="side-panel-collapsed-icon">📤</span>
+                        <?php endif; ?>
+                        <span class="side-panel-collapsed-icon">💬</span>
+                    </div>
+
                     <div class="chat-sidebar-head">
                         <strong>Chat</strong>
-                        <button type="button" class="chat-sidebar-toggle" id="chat-sidebar-toggle" aria-label="Sbalit nebo rozbalit chat">☰</button>
                     </div>
 
                     <div class="event-chat-messages" id="event-chat-messages"></div>
@@ -889,15 +900,24 @@ document.addEventListener('DOMContentLoaded', function () {
         const storageKey = 'press_chat_sidebar_collapsed';
         const saved = localStorage.getItem(storageKey);
 
+        function syncSidebarToggle() {
+            const collapsed = sidebar.classList.contains('is-collapsed');
+            toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+            toggle.setAttribute('title', collapsed ? 'Rozbalit pravý panel' : 'Sbalit pravý panel');
+        }
+
         if (saved === '0') {
             sidebar.classList.remove('is-collapsed');
         } else {
             sidebar.classList.add('is-collapsed');
         }
 
+        syncSidebarToggle();
+
         toggle.addEventListener('click', function () {
             const collapsed = sidebar.classList.toggle('is-collapsed');
             localStorage.setItem(storageKey, collapsed ? '1' : '0');
+            syncSidebarToggle();
         });
     }
 });
