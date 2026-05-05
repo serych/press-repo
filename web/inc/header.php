@@ -8,10 +8,26 @@ require_once __DIR__ . '/photos.php';
 $user = current_user();
 $currentEvent = null;
 $currentEventId = 0;
+$roleCode = '';
+$dashboardUrl = '/dashboard.php';
+$showPhotographerOverview = false;
+$showPhotoEditing = false;
+$showAdminItems = false;
+$displayName = '';
 
 if ($user) {
     $currentEvent = photos_get_current_event();
     $currentEventId = !empty($currentEvent['id']) ? (int)$currentEvent['id'] : 0;
+    $roleCode = (string)($user['role_code'] ?? '');
+    $dashboardUrl = $roleCode === 'journalist' ? '/ongoing-event.php' : '/dashboard.php';
+    $showPhotographerOverview = $roleCode !== 'journalist';
+    $showPhotoEditing = in_array($roleCode, ['press_operator', 'admin', 'superadmin'], true);
+    $showAdminItems = in_array($roleCode, ['admin', 'superadmin'], true);
+    $displayName = trim((string)($user['jmeno'] ?? '') . ' ' . (string)($user['prijmeni'] ?? ''));
+
+    if ($displayName === '') {
+        $displayName = (string)($user['user'] ?? '');
+    }
 }
 
 $chatUrl = '/chat.php';
@@ -55,22 +71,25 @@ $styleVersion = is_file($styleFile) ? (string)filemtime($styleFile) : '1';
             </button>
 
             <nav class="top-nav" id="top-nav">
-                <a href="/dashboard.php">Dashboard</a>
-                <a href="/photos.php">Fotografie</a>
-                <a href="/published.php">Ke stažení</a>
-                <?php if (has_permission('published_photos.upload')): ?>
-                    <a href="/published-upload.php">Publikace fotek</a>
-                <?php endif; ?>
-                <a href="/photos-status.php">Foto přehled</a>
-                
-                <?php if (has_permission('users.manage')): ?>
-                    <a href="/users.php">Uživatelé</a>
+                <a href="<?= h($dashboardUrl) ?>">Dashboard</a>
+                <a href="/published.php">Galerie</a>
+
+                <?php if ($showPhotographerOverview): ?>
+                    <a href="/photos-status.php">Fotograf přehled</a>
                 <?php endif; ?>
 
-                <?php if (has_permission('users.manage') || has_permission('photos.select')): ?>
+                <?php if ($showPhotoEditing): ?>
+                    <a href="/photos.php">Foto editace</a>
+                <?php endif; ?>
+
+                <?php if ($showAdminItems): ?>
+                    <a href="/users.php">Uživatelé</a>
                     <a href="/events.php">Eventy</a>
                 <?php endif; ?>
 
+                <?php if ($displayName !== ''): ?>
+                    <span class="nav-user-name"><?= h($displayName) ?></span>
+                <?php endif; ?>
                 <a href="/logout.php">Odhlásit</a>
             </nav>
         <?php endif; ?>

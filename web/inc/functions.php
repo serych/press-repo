@@ -67,9 +67,9 @@ function default_homepage_for_user(?array $user = null): string
         return '/photos-status.php';
     }
 
-    if (is_probably_mobile_device()) {
-        return '/photos-status.php';
+    if ($roleCode === 'press_operator') {
+        return is_probably_mobile_device() ? '/photos-status.php' : '/photos.php';
     }
 
-    return '/photos.php';
+    return '/dashboard.php';
 }
