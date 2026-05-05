@@ -3075,6 +3075,33 @@ body::after {
     margin-bottom: 16px;
 }
 
+.published-page-head {
+    margin-bottom: 18px;
+}
+
+.published-page-head h1 {
+    margin-bottom: 8px;
+}
+
+.published-event-description {
+    color: var(--text-muted);
+    font-size: 14px;
+    line-height: 1.5;
+    max-width: 900px;
+}
+
+.published-license-note {
+    color: var(--accent);
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.45;
+    max-width: 980px;
+}
+
+.published-license-note a {
+    color: var(--accent-hover);
+}
+
 .published-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));

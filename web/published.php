@@ -16,19 +16,20 @@ require_once __DIR__ . '/inc/header.php';
 ?>
 
 <section class="panel">
-    <div class="page-head">
-        <h1>Fotky ke stažení</h1>
-        <?php if ($photos): ?>
-            <button type="button" class="button" id="published-download-all">Stáhnout vše</button>
-        <?php endif; ?>
-    </div>
+    <div class="published-page-head">
+        <h1>Galerie<?= $event ? ' - ' . h((string)$event['title']) : '' ?></h1>
 
-    <?php if ($event): ?>
-        <p class="table-subtext">
-            Event:
-            <strong><?= h((string)$event['title']) ?></strong>
+        <?php if ($event && !empty($event['description'])): ?>
+            <div class="published-event-description">
+                <?= nl2br(h((string)$event['description'])) ?>
+            </div>
+        <?php endif; ?>
+
+        <p class="published-license-note">
+            Při použití fotografie uveďte jméno autora/Člověk a Víra, tak jak je uvedeno u každé fotografie.
+            <a href="https://www.clovekavira.cz/licencni-podminky" target="_blank" rel="noopener noreferrer">Licenční podmínky</a>
         </p>
-    <?php endif; ?>
+    </div>
 
     <?php if (!$event): ?>
         <p>Žádný aktivní event.</p>
@@ -85,7 +86,6 @@ document.addEventListener('DOMContentLoaded', function () {
     const checkboxes = Array.from(document.querySelectorAll('.published-checkbox'));
     const selectAll = document.getElementById('published-select-all');
     const selectedButton = document.getElementById('published-download-selected');
-    const allButton = document.getElementById('published-download-all');
     const status = document.getElementById('published-download-status');
 
     function selectedIds() {
@@ -127,12 +127,6 @@ document.addEventListener('DOMContentLoaded', function () {
     if (selectedButton) {
         selectedButton.addEventListener('click', function () {
             downloadIds(selectedIds());
-        });
-    }
-
-    if (allButton) {
-        allButton.addEventListener('click', function () {
-            downloadIds(checkboxes.map(function (checkbox) { return checkbox.value; }));
         });
     }
 });
