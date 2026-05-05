@@ -590,6 +590,18 @@ function events_get_cleanup_files(int $eventId): array
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
+function events_get_cleanup_published_files(int $eventId): array
+{
+    $stmt = db()->prepare("
+        SELECT id, filepath, preview_filepath
+        FROM published_photos
+        WHERE event_id = ?
+    ");
+    $stmt->execute([$eventId]);
+
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
 function events_delete_file_if_exists(?string $path): void
 {
     if ($path === null || trim($path) === '') {
@@ -613,6 +625,15 @@ function events_overview_preview_path(string $previewPath): string
     }
 
     return $dir . '/' . $base . '-small.' . $ext;
+}
+
+function events_published_small_preview_path(string $filepath): string
+{
+    $dir = dirname($filepath);
+    $filename = basename($filepath);
+    $base = pathinfo($filename, PATHINFO_FILENAME);
+
+    return $dir . '/' . $base . '-small.jpg';
 }
 
 function events_delete_empty_parent_dirs(array $paths): void
@@ -742,6 +763,79 @@ function events_cleanup_photos_of_event(int $eventId): array
         'deleted_photos'   => $deletedPhotos,
         'deleted_files'    => $deletedFiles,
         'deleted_previews' => $deletedPreviews,
+    ];
+}
+
+function events_cleanup_published_gallery(int $eventId): array
+{
+    $pdo = db();
+    $files = events_get_cleanup_published_files($eventId);
+
+    $deletedPublishedPhotos = count($files);
+    $deletedFiles = 0;
+    $deletedPreviews = 0;
+    $pathsForDirCleanup = [];
+
+    foreach ($files as $file) {
+        $filepath = (string)($file['filepath'] ?? '');
+        $previewPath = (string)($file['preview_filepath'] ?? '');
+        $smallPreviewPath = $filepath !== '' ? events_published_small_preview_path($filepath) : '';
+
+        if ($filepath !== '' && is_file($filepath)) {
+            @unlink($filepath);
+            $deletedFiles++;
+        }
+
+        if ($previewPath !== '' && is_file($previewPath)) {
+            @unlink($previewPath);
+            $deletedPreviews++;
+        }
+
+        if ($smallPreviewPath !== '' && is_file($smallPreviewPath)) {
+            @unlink($smallPreviewPath);
+            $deletedPreviews++;
+        }
+
+        if ($filepath !== '') {
+            $pathsForDirCleanup[] = $filepath;
+        }
+        if ($previewPath !== '') {
+            $pathsForDirCleanup[] = $previewPath;
+        }
+        if ($smallPreviewPath !== '') {
+            $pathsForDirCleanup[] = $smallPreviewPath;
+        }
+    }
+
+    $pdo->beginTransaction();
+
+    try {
+        $deletePublishedLogs = $pdo->prepare("
+            DELETE ppl
+            FROM published_photo_log ppl
+            INNER JOIN published_photos pp ON pp.id = ppl.published_photo_id
+            WHERE pp.event_id = ?
+        ");
+        $deletePublishedLogs->execute([$eventId]);
+
+        $deletePublishedPhotos = $pdo->prepare("
+            DELETE FROM published_photos
+            WHERE event_id = ?
+        ");
+        $deletePublishedPhotos->execute([$eventId]);
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+
+    events_delete_empty_parent_dirs($pathsForDirCleanup);
+
+    return [
+        'deleted_published_photos' => $deletedPublishedPhotos,
+        'deleted_files'            => $deletedFiles,
+        'deleted_previews'         => $deletedPreviews,
     ];
 }
 

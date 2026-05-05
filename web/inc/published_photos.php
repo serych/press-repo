@@ -8,6 +8,9 @@ if (!defined('PUBLISHED_PHOTOS_ROOT')) {
     define('PUBLISHED_PHOTOS_ROOT', '/var/www/press/published');
 }
 
+const PUBLISHED_DETAIL_PREVIEW_SIZE = '2000x2000>';
+const PUBLISHED_OVERVIEW_PREVIEW_SIZE = '420x420>';
+
 function published_photos_event_storage_dir(array $event): string
 {
     $slug = trim((string)($event['slug'] ?? ''));
@@ -106,6 +109,95 @@ function published_photos_unique_path(string $dir, string $filename): array
     return [$candidate, $dir . '/' . $candidate];
 }
 
+function published_photos_preview_path(string $filepath, string $size = 'detail'): string
+{
+    $dir = dirname($filepath);
+    $filename = basename($filepath);
+    $base = pathinfo($filename, PATHINFO_FILENAME);
+
+    return $dir . '/' . $base . ($size === 'small' ? '-small' : '-preview') . '.jpg';
+}
+
+function published_photos_preview_filename(string $filename, string $size = 'detail'): string
+{
+    $base = pathinfo($filename, PATHINFO_FILENAME);
+    return $base . ($size === 'small' ? '-small' : '-preview') . '.jpg';
+}
+
+function published_photos_generate_preview(string $sourcePath, string $targetPath, string $geometry, int $quality): bool
+{
+    if (!is_file($sourcePath)) {
+        return false;
+    }
+
+    $dir = dirname($targetPath);
+    if (!is_dir($dir) && !mkdir($dir, 0775, true)) {
+        return false;
+    }
+
+    $cmd = implode(' ', [
+        'convert',
+        escapeshellarg($sourcePath),
+        '-auto-orient',
+        '-resize',
+        escapeshellarg($geometry),
+        '-strip',
+        '-interlace',
+        'Plane',
+        '-quality',
+        (string)$quality,
+        escapeshellarg($targetPath),
+        '2>&1',
+    ]);
+
+    exec($cmd, $output, $code);
+    if ($code !== 0 || !is_file($targetPath)) {
+        return false;
+    }
+
+    @chmod($targetPath, 0664);
+    return true;
+}
+
+function published_photos_generate_previews(string $sourcePath): array
+{
+    $detailPath = published_photos_preview_path($sourcePath, 'detail');
+    $smallPath = published_photos_preview_path($sourcePath, 'small');
+
+    if (!published_photos_generate_preview($sourcePath, $detailPath, PUBLISHED_DETAIL_PREVIEW_SIZE, 82)) {
+        throw new RuntimeException('Nepodařilo se vytvořit náhled hotové fotografie.');
+    }
+
+    if (!published_photos_generate_preview($detailPath, $smallPath, PUBLISHED_OVERVIEW_PREVIEW_SIZE, 72)) {
+        @unlink($detailPath);
+        throw new RuntimeException('Nepodařilo se vytvořit malý náhled hotové fotografie.');
+    }
+
+    return [
+        'detail' => $detailPath,
+        'small' => $smallPath,
+    ];
+}
+
+function published_photos_preview_for_photo(array $photo, string $size = 'detail'): string
+{
+    $filepath = (string)($photo['filepath'] ?? '');
+    $previewPath = (string)($photo['preview_filepath'] ?? '');
+
+    if ($size === 'small' && $previewPath !== '') {
+        $smallPath = published_photos_preview_path($filepath, 'small');
+        if (is_file($smallPath)) {
+            return $smallPath;
+        }
+    }
+
+    if ($previewPath !== '' && is_file($previewPath)) {
+        return $previewPath;
+    }
+
+    return $filepath;
+}
+
 function published_photos_lower(string $value): string
 {
     if (function_exists('mb_strtolower')) {
@@ -169,6 +261,13 @@ function published_photos_store_upload(array $event, array $user, array $file): 
 
     @chmod($filepath, 0664);
 
+    try {
+        $previewPaths = published_photos_generate_previews($filepath);
+    } catch (Throwable $e) {
+        @unlink($filepath);
+        throw $e;
+    }
+
     $imageInfo = @getimagesize($filepath) ?: [];
     $sourcePhoto = published_photos_find_source_photo((int)$event['id'], $filename);
     $checksum = hash_file('sha256', $filepath) ?: null;
@@ -180,6 +279,8 @@ function published_photos_store_upload(array $event, array $user, array $file): 
             uploaded_by_user_id,
             filename,
             filepath,
+            preview_filename,
+            preview_filepath,
             filesize,
             filetype,
             width,
@@ -196,6 +297,8 @@ function published_photos_store_upload(array $event, array $user, array $file): 
             :uploaded_by_user_id,
             :filename,
             :filepath,
+            :preview_filename,
+            :preview_filepath,
             :filesize,
             :filetype,
             :width,
@@ -215,6 +318,8 @@ function published_photos_store_upload(array $event, array $user, array $file): 
         ':uploaded_by_user_id' => (int)$user['id'],
         ':filename' => $filename,
         ':filepath' => $filepath,
+        ':preview_filename' => published_photos_preview_filename($filename, 'detail'),
+        ':preview_filepath' => $previewPaths['detail'],
         ':filesize' => filesize($filepath) ?: null,
         ':filetype' => 'jpg',
         ':width' => isset($imageInfo[0]) ? (int)$imageInfo[0] : null,
@@ -293,6 +398,37 @@ function published_photos_get_ready(int $id): ?array
 
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     return $row ?: null;
+}
+
+function published_photos_neighbor_ids(array $photo): array
+{
+    $eventId = (int)($photo['event_id'] ?? 0);
+    $photoId = (int)($photo['id'] ?? 0);
+
+    if ($eventId <= 0 || $photoId <= 0) {
+        return ['prev' => null, 'next' => null];
+    }
+
+    $photos = published_photos_list_ready($eventId);
+    $prev = null;
+    $next = null;
+
+    foreach ($photos as $index => $item) {
+        if ((int)$item['id'] !== $photoId) {
+            continue;
+        }
+
+        if (isset($photos[$index - 1])) {
+            $prev = (int)$photos[$index - 1]['id'];
+        }
+        if (isset($photos[$index + 1])) {
+            $next = (int)$photos[$index + 1]['id'];
+        }
+
+        break;
+    }
+
+    return ['prev' => $prev, 'next' => $next];
 }
 
 function published_photos_author_label(string $filepath): string

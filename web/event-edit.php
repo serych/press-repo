@@ -133,6 +133,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cleanup_action'])) {
                 . (int)$result['archived_downloaded_total'] . '. Smazané fotky: '
                 . (int)$result['deleted_photos'] . '.';
             $flashType = 'success';
+        } elseif ($cleanupAction === 'cleanup_published_gallery') {
+            $result = events_cleanup_published_gallery($id);
+            $flashMessage = 'Hotová galerie byla smazána. Publikované fotky: '
+                . (int)$result['deleted_published_photos']
+                . ', soubory: ' . (int)$result['deleted_files']
+                . ', náhledy: ' . (int)$result['deleted_previews'] . '.';
+            $flashType = 'success';
         }
 
         $event = events_get($id);
@@ -318,11 +325,20 @@ require_once __DIR__ . '/inc/header.php';
 
             <form method="post" class="js-confirm-form"
                   data-confirm-title="Archivovat event?"
-                  data-confirm-message="Uloží se finální souhrn, smažou se všechny fotky a náhledy a event bude přepnut do stavu Ukončený."
+                  data-confirm-message="Uloží se finální souhrn, smažou se pracovní fotky a náhledy a event bude přepnut do stavu Ukončený. Hotová galerie zůstane zachovaná."
                   data-confirm-submit="Ano, archivovat event">
                 <input type="hidden" name="id" value="<?= (int)$id ?>">
                 <input type="hidden" name="cleanup_action" value="archive_event">
                 <button type="submit" class="btn-danger">Archivovat po eventu</button>
+            </form>
+
+            <form method="post" class="js-confirm-form"
+                  data-confirm-title="Smazat hotovou galerii?"
+                  data-confirm-message="Budou nenávratně odstraněny publikované JPG soubory, jejich náhledy a záznamy galerie pro tento event. Pracovní RAW/editor část zůstane beze změny."
+                  data-confirm-submit="Ano, smazat hotovou galerii">
+                <input type="hidden" name="id" value="<?= (int)$id ?>">
+                <input type="hidden" name="cleanup_action" value="cleanup_published_gallery">
+                <button type="submit" class="btn-danger">Smazání hotové galerie</button>
             </form>
 
             <form method="post" class="js-confirm-form"

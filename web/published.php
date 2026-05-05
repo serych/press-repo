@@ -56,8 +56,8 @@ require_once __DIR__ . '/inc/header.php';
                         <input type="checkbox" class="published-checkbox" value="<?= $id ?>">
                     </label>
 
-                    <a href="/published-download.php?id=<?= $id ?>" class="published-thumb-link">
-                        <img src="/published-preview.php?id=<?= $id ?>" alt="<?= h((string)$photo['filename']) ?>" loading="lazy">
+                    <a href="/published-photo.php?id=<?= $id ?>" class="published-thumb-link">
+                        <img src="/published-preview.php?id=<?= $id ?>&size=small" alt="<?= h((string)$photo['filename']) ?>" loading="lazy">
                     </a>
 
                     <div class="published-meta">
