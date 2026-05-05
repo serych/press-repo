@@ -67,6 +67,7 @@ $sql = "
         p.status,
         p.uploaded_at,
         p.locked_by_user_id,
+        p.is_blocked,
         p.exif_problem,
         p.event_photographer_allowed,
         lu.user AS locked_by_user,
@@ -153,7 +154,10 @@ require_once __DIR__ . '/inc/header.php';
                 $statusClass = 'status-ready';
                 $statusNote = '';
 
-                if ((int)($photo['event_photographer_allowed'] ?? 1) !== 1) {
+                if (!empty($photo['is_blocked'])) {
+                    $statusText = 'zablokováno';
+                    $statusClass = 'status-blocked';
+                } elseif ((int)($photo['event_photographer_allowed'] ?? 1) !== 1) {
                     $statusText = 'mimo event';
                     $statusClass = 'status-unassigned';
                     $statusNote = 'fotograf není přiřazen';
@@ -195,6 +199,9 @@ require_once __DIR__ . '/inc/header.php';
                 $cardClass = 'status-photo-card';
                 if (!empty($photo['exif_problem'])) {
                     $cardClass .= ' exif-problem';
+                }
+                if (!empty($photo['is_blocked'])) {
+                    $cardClass .= ' blocked-photo';
                 }
                 if ((int)($photo['event_photographer_allowed'] ?? 1) !== 1) {
                     $cardClass .= ' unassigned-event-photo';
@@ -315,6 +322,9 @@ document.addEventListener('DOMContentLoaded', function () {
             : '';
 
         let cardClass = 'status-photo-card' + (item.exif_problem ? ' exif-problem' : '');
+        if (item.is_blocked === true) {
+            cardClass += ' blocked-photo';
+        }
         if (item.event_photographer_allowed === false) {
             cardClass += ' unassigned-event-photo';
         }
@@ -368,6 +378,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const ftpUser = card.querySelector('[data-role="ftp-user"]');
 
         card.classList.toggle('exif-problem', !!item.exif_problem);
+        card.classList.toggle('blocked-photo', item.is_blocked === true);
         card.classList.toggle('unassigned-event-photo', item.event_photographer_allowed === false);
 
         if (badge) {

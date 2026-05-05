@@ -26,7 +26,7 @@ $user = current_user();
 /* načti fotku */
 
 $sql = "
-SELECT id, locked_by_user_id, event_photographer_allowed
+SELECT id, status, locked_by_user_id, event_photographer_allowed, is_blocked
 FROM photos
 WHERE id = :id
 LIMIT 1
@@ -44,6 +44,47 @@ if (!$photo) {
 if ((int)($photo['event_photographer_allowed'] ?? 1) !== 1) {
     http_response_code(403);
     exit('Fotografie není od fotografa přiřazeného k eventu.');
+}
+
+if ($action === 'block') {
+    $sql = "
+    UPDATE photos
+    SET
+        is_blocked = 1,
+        blocked_by_user_id = :uid,
+        blocked_at = NOW(),
+        status = IF(status = 'locked', 'ready', status),
+        locked_by_user_id = NULL,
+        locked_at = NULL
+    WHERE id = :id
+    ";
+
+    db()->prepare($sql)->execute([
+        'id' => $id,
+        'uid' => $user['id'],
+    ]);
+
+    redirect($_SERVER['HTTP_REFERER'] ?? '/photos.php');
+}
+
+if ($action === 'unblock') {
+    $sql = "
+    UPDATE photos
+    SET
+        is_blocked = 0,
+        blocked_by_user_id = NULL,
+        blocked_at = NULL
+    WHERE id = :id
+    ";
+
+    db()->prepare($sql)->execute(['id' => $id]);
+
+    redirect($_SERVER['HTTP_REFERER'] ?? '/photos.php');
+}
+
+if (!empty($photo['is_blocked'])) {
+    http_response_code(403);
+    exit('Fotografie je zablokovaná.');
 }
 
 /* LOCK */
@@ -72,7 +113,7 @@ if ($action === 'lock') {
         'uid'=>$user['id']
     ]);
 
-    $logAction = 'locked';
+    redirect($_SERVER['HTTP_REFERER'] ?? '/photos.php');
 }
 
 /* UNLOCK */
@@ -96,21 +137,7 @@ if ($action === 'unlock') {
 
     db()->prepare($sql)->execute(['id'=>$id]);
 
-    $logAction = 'unlocked';
+    redirect($_SERVER['HTTP_REFERER'] ?? '/photos.php');
 }
-
-/* log */
-
-$sql = "
-INSERT INTO photo_log
-(photo_id,user_id,action,created_at)
-VALUES (:pid,:uid,:action,NOW())
-";
-
-db()->prepare($sql)->execute([
-    'pid'=>$id,
-    'uid'=>$user['id'],
-    'action'=>$logAction
-]);
 
 redirect($_SERVER['HTTP_REFERER'] ?? '/photos.php');

@@ -26,7 +26,8 @@ SELECT
     filename,
     filepath,
     locked_by_user_id,
-    event_photographer_allowed
+    event_photographer_allowed,
+    is_blocked
 FROM photos
 WHERE id = :id
 LIMIT 1
@@ -45,6 +46,11 @@ if (!$photo) {
 if ((int)($photo['event_photographer_allowed'] ?? 1) !== 1) {
     http_response_code(403);
     exit('Fotografie není aktivní pro tento event.');
+}
+
+if (!empty($photo['is_blocked'])) {
+    http_response_code(403);
+    exit('Fotografie je zablokovaná.');
 }
 
 /* musí být locked a náležet uživateli */

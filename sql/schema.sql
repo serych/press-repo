@@ -77,6 +77,9 @@ CREATE TABLE IF NOT EXISTS photos (
     user_id INT UNSIGNED NULL,
     event_id INT UNSIGNED NULL,
     event_photographer_allowed TINYINT(1) NOT NULL DEFAULT 1,
+    is_blocked TINYINT(1) NOT NULL DEFAULT 0,
+    blocked_by_user_id INT UNSIGNED NULL,
+    blocked_at DATETIME NULL,
     captured_at DATETIME NULL,
     exif_problem TINYINT(1) NOT NULL DEFAULT 0,
     exif_problem_note VARCHAR(255) NULL,
@@ -108,6 +111,8 @@ CREATE TABLE IF NOT EXISTS photos (
     INDEX idx_photos_ftp_user (ftp_user),
     INDEX idx_photos_user_id (user_id),
     INDEX idx_photos_status (status),
+    INDEX idx_photos_is_blocked (is_blocked),
+    INDEX idx_photos_blocked_by_user_id (blocked_by_user_id),
     INDEX idx_photos_selected (selected),
     INDEX idx_photos_captured_at (captured_at),
     INDEX idx_photos_event_captured_at (event_id, captured_at),
@@ -119,6 +124,10 @@ CREATE TABLE IF NOT EXISTS photos (
         ON UPDATE CASCADE,
     CONSTRAINT fk_photos_downloaded_by_user
         FOREIGN KEY (downloaded_by_user_id) REFERENCES users(id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE,
+    CONSTRAINT fk_photos_blocked_by_user
+        FOREIGN KEY (blocked_by_user_id) REFERENCES users(id)
         ON DELETE SET NULL
         ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_czech_ci;

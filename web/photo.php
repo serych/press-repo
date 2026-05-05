@@ -36,6 +36,7 @@ if (!$photo) {
 $currentUser = current_user();
 $currentUserId = (int)$currentUser['id'];
 $isEventPhotographerAllowed = photos_is_event_photographer_allowed($photo);
+$isBlocked = photos_is_blocked($photo);
 $publishedPhotos = photos_get_published_for_source((int)$photo['id']);
 $firstPublishedPhoto = $publishedPhotos[0] ?? null;
 $currentEvent = photos_get_current_event();
@@ -83,6 +84,15 @@ $downloadedByName = trim(
 
 if ($downloadedByName === '') {
     $downloadedByName = (string)($photo['downloaded_by_user'] ?? '');
+}
+
+$blockedByName = trim(
+    ((string)($photo['blocked_jmeno'] ?? '')) . ' ' .
+    ((string)($photo['blocked_prijmeni'] ?? ''))
+);
+
+if ($blockedByName === '') {
+    $blockedByName = (string)($photo['blocked_by_user'] ?? '');
 }
 
 require_once __DIR__ . '/inc/header.php';
@@ -160,7 +170,15 @@ require_once __DIR__ . '/inc/header.php';
 <th>Stav</th>
 <td>
 
-<?php if (!$isEventPhotographerAllowed): ?>
+<?php if ($isBlocked): ?>
+<span class="status-line">
+    <span class="status status-blocked">zablokováno</span>
+    <?php if ($blockedByName !== ''): ?>
+        <span class="lock-owner">(<?= h($blockedByName) ?>)</span>
+    <?php endif; ?>
+</span>
+
+<?php elseif (!$isEventPhotographerAllowed): ?>
 <span class="status status-unassigned">mimo event</span>
 
 <?php elseif ($photo['status'] === 'downloaded'): ?>
@@ -317,7 +335,13 @@ if ($uploadedByName === '') {
 
 <div class="photo-actions">
 
-<?php if (!$isEventPhotographerAllowed): ?>
+<?php if ($isBlocked): ?>
+
+<div class="btn btn-disabled">
+Fotografie je zablokovaná
+</div>
+
+<?php elseif (!$isEventPhotographerAllowed): ?>
 
 <div class="btn btn-disabled">
 Fotografie není aktivní pro tento event
@@ -346,7 +370,14 @@ Nejprve zamkněte fotografii
 
 <div class="photo-actions">
 
-<?php if (!$isEventPhotographerAllowed): ?>
+<?php if ($isBlocked): ?>
+
+<a href="/select.php?id=<?= (int)$photo['id'] ?>&action=unblock"
+class="btn btn-primary">
+Odblokovat
+</a>
+
+<?php elseif (!$isEventPhotographerAllowed): ?>
 
 <div class="btn btn-disabled">
 Fotografa je potřeba nejdřív přiřadit k eventu
@@ -376,6 +407,13 @@ class="btn btn-primary">
 Vybrat / zamknout
 </a>
 
+<?php endif; ?>
+
+<?php if (!$isBlocked && $isEventPhotographerAllowed): ?>
+<a href="/select.php?id=<?= (int)$photo['id'] ?>&action=block"
+class="btn btn-secondary">
+Zablokovat
+</a>
 <?php endif; ?>
 
 </div>

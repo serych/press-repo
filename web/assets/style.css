@@ -292,6 +292,12 @@ h1 {
     color: #ffffff;
 }
 
+.status-blocked {
+    background: #4c0519;
+    color: #fecdd3;
+    border: 1px solid #be123c;
+}
+
 .status-unassigned {
     background: #3f3f46;
     color: #e4e4e7;
@@ -513,6 +519,11 @@ h1 {
     background:#1e293b;
     color:#93c5fd;
     border:1px solid #3b82f6;
+}
+
+.photo-card.blocked-photo,
+.status-photo-card.blocked-photo {
+    border-color: rgba(190, 18, 60, 0.75);
 }
 
 .bulk-toolbar {

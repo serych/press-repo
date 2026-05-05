@@ -189,6 +189,7 @@ $sql = "
         p.status,
         p.uploaded_at,
         p.locked_by_user_id,
+        p.is_blocked,
         p.exif_problem,
         p.event_photographer_allowed,
         p.ftp_user,
@@ -255,7 +256,10 @@ foreach ($rows as $row) {
     $statusClass = 'status-ready';
     $statusNote = '';
 
-    if ((int)($row['event_photographer_allowed'] ?? 1) !== 1) {
+    if (!empty($row['is_blocked'])) {
+        $statusText = 'zablokováno';
+        $statusClass = 'status-blocked';
+    } elseif ((int)($row['event_photographer_allowed'] ?? 1) !== 1) {
         $statusText = 'mimo event';
         $statusClass = 'status-unassigned';
         $statusNote = 'fotograf není přiřazen';
@@ -307,6 +311,7 @@ foreach ($rows as $row) {
         'status_note' => $statusNote,
         'exif_problem' => !empty($row['exif_problem']),
         'event_photographer_allowed' => (int)($row['event_photographer_allowed'] ?? 1) === 1,
+        'is_blocked' => !empty($row['is_blocked']),
         'uploaded_at' => (string)$row['uploaded_at'],
     ];
 }

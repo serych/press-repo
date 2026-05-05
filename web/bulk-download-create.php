@@ -21,6 +21,7 @@ $stmt = $pdo->prepare("
     WHERE status = 'locked'
       AND locked_by_user_id = ?
       AND event_photographer_allowed = 1
+      AND is_blocked = 0
     ORDER BY uploaded_at ASC, id ASC
 ");
 $stmt->execute([$userId]);

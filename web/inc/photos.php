@@ -71,11 +71,15 @@ function photos_list(array $filters, ?int $limit = null, int $offset = 0, string
             lu.user AS locked_by_user,
             lu.jmeno AS locked_jmeno,
             lu.prijmeni AS locked_prijmeni,
+            bu.user AS blocked_by_user,
+            bu.jmeno AS blocked_jmeno,
+            bu.prijmeni AS blocked_prijmeni,
             pps.published_count,
             pps.first_published_at,
             pps.last_published_at
         FROM photos p
         LEFT JOIN users lu ON lu.id = p.locked_by_user_id
+        LEFT JOIN users bu ON bu.id = p.blocked_by_user_id
         LEFT JOIN (
             SELECT
                 source_photo_id,
@@ -130,6 +134,11 @@ function photos_is_event_photographer_allowed(array $photo): bool
         || (int)($photo['event_photographer_allowed'] ?? 1) === 1;
 }
 
+function photos_is_blocked(array $photo): bool
+{
+    return !empty($photo['is_blocked']);
+}
+
 function photos_build_where(array $filters): array
 {
     $where = [];
@@ -168,12 +177,16 @@ function photos_get_by_id(int $id): ?array
             lu.user AS locked_by_user,
             lu.jmeno AS locked_jmeno,
             lu.prijmeni AS locked_prijmeni,
+            bu.user AS blocked_by_user,
+            bu.jmeno AS blocked_jmeno,
+            bu.prijmeni AS blocked_prijmeni,
             du.user AS downloaded_by_user,
             du.jmeno AS downloaded_jmeno,
             du.prijmeni AS downloaded_prijmeni
         FROM photos p
         LEFT JOIN users u ON u.id = p.user_id
         LEFT JOIN users lu ON lu.id = p.locked_by_user_id
+        LEFT JOIN users bu ON bu.id = p.blocked_by_user_id
         LEFT JOIN users du ON du.id = p.downloaded_by_user_id
         WHERE p.id = :id
         LIMIT 1

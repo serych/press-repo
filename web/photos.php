@@ -144,6 +144,7 @@ require_once __DIR__ . '/inc/header.php';
                         <?php
                         $cardClass = 'photo-card';
                         $isEventPhotographerAllowed = photos_is_event_photographer_allowed($p);
+                        $isBlocked = photos_is_blocked($p);
 
                         if (($p['status'] ?? '') === 'locked' && !empty($p['locked_by_user_id'])) {
                             if ((int)$p['locked_by_user_id'] === $currentUserId) {
@@ -159,6 +160,9 @@ require_once __DIR__ . '/inc/header.php';
 
                         if (!$isEventPhotographerAllowed) {
                             $cardClass .= ' unassigned-event-photo';
+                        }
+                        if ($isBlocked) {
+                            $cardClass .= ' blocked-photo';
                         }
                         ?>
 
@@ -182,7 +186,13 @@ require_once __DIR__ . '/inc/header.php';
                                     </div>
 
                                     <div class="status-wrapper">
-                                        <?php if (!$isEventPhotographerAllowed): ?>
+                                        <?php if ($isBlocked): ?>
+                                            <div class="status-line">
+                                                <div class="status status-blocked">
+                                                    zablokováno
+                                                </div>
+                                            </div>
+                                        <?php elseif (!$isEventPhotographerAllowed): ?>
                                             <div class="status status-unassigned">
                                                 mimo event
                                             </div>
@@ -248,6 +258,12 @@ require_once __DIR__ . '/inc/header.php';
                                     <?php if (!$isEventPhotographerAllowed): ?>
                                         <div class="photo-warning photo-warning-unassigned">
                                             fotograf není přiřazen k eventu
+                                        </div>
+                                    <?php endif; ?>
+
+                                    <?php if ($isBlocked): ?>
+                                        <div class="photo-warning">
+                                            fotka je vyřazená z výběru
                                         </div>
                                     <?php endif; ?>
 
@@ -396,6 +412,7 @@ function escapeHtml(value) {
 function renderPhotoCard(item, currentUserId, canSelect) {
     let cardClass = 'photo-card';
     const isEventPhotographerAllowed = item.event_photographer_allowed !== false;
+    const isBlocked = item.is_blocked === true;
 
     if (item.status === 'locked' && item.locked_by_user_id) {
         if (Number(item.locked_by_user_id) === Number(currentUserId)) {
@@ -412,6 +429,9 @@ function renderPhotoCard(item, currentUserId, canSelect) {
     if (!isEventPhotographerAllowed) {
         cardClass += ' unassigned-event-photo';
     }
+    if (isBlocked) {
+        cardClass += ' blocked-photo';
+    }
 
     let thumbHtml = '';
     if (item.preview_exists) {
@@ -422,7 +442,9 @@ function renderPhotoCard(item, currentUserId, canSelect) {
 
     let statusHtml = '';
 
-    if (!isEventPhotographerAllowed) {
+    if (isBlocked) {
+        statusHtml = '<div class="status status-blocked">zablokováno</div>';
+    } else if (!isEventPhotographerAllowed) {
         statusHtml = '<div class="status status-unassigned">mimo event</div>';
     } else if (item.status === 'downloaded') {
         statusHtml = '<div class="status status-downloaded">downloaded</div>';
@@ -466,6 +488,10 @@ function renderPhotoCard(item, currentUserId, canSelect) {
 
     if (!isEventPhotographerAllowed) {
         warningHtml += '<div class="photo-warning photo-warning-unassigned">fotograf není přiřazen k eventu</div>';
+    }
+
+    if (isBlocked) {
+        warningHtml += '<div class="photo-warning">fotka je vyřazená z výběru</div>';
     }
 
     let publishedTimeHtml = '';
@@ -846,7 +872,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     item.locked_by_user_id || 0,
                     item.exif_problem ? 1 : 0,
                     item.exif_problem_note || '',
-                    item.published_duration_label || ''
+                    item.published_duration_label || '',
+                    item.is_blocked ? 1 : 0
                 ];
             }));
 
