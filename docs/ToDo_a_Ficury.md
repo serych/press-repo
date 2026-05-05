@@ -136,10 +136,10 @@ Cíl sprintu: rozšířit presscentrum z jednosměrného vstupu fotek na komplet
 8. Úklid adresáře pro publikaci samostatně, ale zahrnout do "Vyčistit testovací data"?   
 
 ## Nápady pro další sprinty
-- organizace menu, zobrazení podle práv rolí
-- zmenšení náhledů
+- organizace menu, zobrazení podle práv rolí - hotovo
+- zmenšení náhledů - hotovo
 - smazání (RAW) fotky fotoeditorem (např. rozmazaná)
-- procházení fotek v detailu < >
+- procházení fotek v detailu < > - hotovo
 - seznam publikovaných fotek pro jednotlivé fotografy + skript windows/mac pro označení?
 - GPS souřadnice eventu a update v EXIFu
 - Seřizovač času foťáků
