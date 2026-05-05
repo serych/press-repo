@@ -1,145 +1,159 @@
 # ToDo a fíčury
 
-## Sprint 8: výstupní úložiště hotových fotografií
+## Sprint 8: výstupní úložiště hotových fotografií - ukončeno
 
-Cíl sprintu: rozšířit presscentrum z jednosměrného vstupu fotek na kompletní workflow od pořízení snímku přes FTP upload, výběr fotoeditorem, nahrání upravené hotové fotky a stažení žurnalistou.
+Cíl sprintu byl rozšířit presscentrum z jednosměrného vstupu fotek na kompletní workflow od pořízení snímku přes FTP upload, výběr fotoeditorem, nahrání hotové fotky a stažení žurnalistou. Sprint 8 považujeme za uzavřený.
 
-### Databáze
+### Databáze a migrace
 
-- Přidat čas pořízení originálu do `photos`:
-  - `captured_at DATETIME NULL` načtený z EXIFu (`DateTimeOriginal`, případně záložní tagy).
-  - Index podle `event_id, captured_at` kvůli statistikám průběhu eventu.
-- Zpřesnit existující časové body u originálu:
-  - `uploaded_at` ponechat jako čas nahrání originálu do presscentra.
-  - `downloaded_at` používat jako čas prvního stažení originálu fotoeditorem.
-  - Doplnit `downloaded_by_user_id INT UNSIGNED NULL`, aby bylo jasné, který fotoeditor originál převzal.
-- Přidat tabulku hotových fotografií, např. `published_photos`:
-  - `id`, `event_id`, `source_photo_id NULL`, `uploaded_by_user_id`, `filename`, `filepath`, `filesize`, `width`, `height`, `checksum`, `captured_at NULL`, `source_uploaded_at NULL`, `editor_downloaded_at NULL`, `published_at`, `status`.
-  - `source_photo_id` propojí hotovou fotku s originálem, pokud ji dokážeme spárovat podle názvu nebo metadat.
-  - `status`: minimálně `ready`, `hidden`, `deleted`.
-- Přidat log pro hotové fotky, např. `published_photo_log`:
-  - akce `uploaded`, `downloaded`, `hidden`, `deleted`.
-- Přidat oprávnění:
-  - `published_photos.upload` pro fotoeditory.
-  - `published_photos.view` a `published_photos.download` pro žurnalisty.
-  - admin/superadmin vše.
+- Doplněno `photos.captured_at` pro čas pořízení z EXIFu.
+- Doplněno `photos.downloaded_by_user_id`; `downloaded_at` je čas prvního stažení originálu fotoeditorem a další downloady ho nepřepisují.
+- Přidány tabulky `published_photos` a `published_photo_log`.
+- Přidán počet stažení publikované fotky `published_photos.download_count`.
+- Přidány sloupce pro preview publikovaných fotek `preview_filename`, `preview_filepath`.
+- Přidána blokace nepoužitelných originálů:
+  - `photos.is_blocked`,
+  - `photos.blocked_by_user_id`,
+  - `photos.blocked_at`.
+- Aktualizováno `schema.sql`.
+- Aplikované sprintové migrace:
+  - `sql/sprint8_001_foundation.sql`,
+  - `sql/sprint8_002_published_download_count.sql`,
+  - `sql/sprint8_003_photo_blocking.sql`.
 
-### Párování hotové fotky s originálem
+### Workflow Originálů
 
-- Primární pravidlo: hotový soubor může mít upravený název, ale měl by zachovat rozpoznatelný základ originálu.
-- První implementovaná verze:
-  - hotová fotka musí být JPG;
-  - nový název musí obsahovat původní název bez přípony, kontrola je case insensitive;
-  - hledá se jednoznačná shoda mezi fotkami stejného eventu;
-  - pokud je shoda jednoznačná, uloží se `source_photo_id`;
-  - pokud shoda není jistá, fotka se uloží do souborového úložiště i do `published_photos`, ale `source_photo_id` zůstane `NULL`.
-- Později zvážit:
-  - číst EXIF `DateTimeOriginal` přímo z publikované JPG;
-  - využít autora / metadata pro robustnější automatické párování;
-  - ruční párování nespárovaných publikací.
+- Watcher ukládá čas pořízení `captured_at` z EXIFu.
+- Watcher generuje dvě verze náhledů originálů:
+  - detailní preview pro `photo.php`,
+  - malé `-small` preview pro `photos.php` a `photos-status.php`.
+- Existing preview soubory byly zpětně doplněny o malé náhledy.
+- `photos.php` je bez paginace a zobrazuje kontinuální seznam fotek.
+- `photos.php` umí řazení podle:
+  - času uploadu do systému,
+  - času pořízení z EXIFu.
+- `photos.php` zobrazuje počet fotek:
+  - celkem,
+  - nebo `x z celkových y` při použití filtrů.
+- Detail `photo.php` zobrazuje workflow časy ve formátu `mm:ss` / `hh:mm:ss`:
+  - `Vyfocení -> Nahrátí`,
+  - `Nahrátí -> Stažení`,
+  - `Stažení -> Publikace`,
+  - `Workflow celkem`.
+- Detail `photo.php` má procházení předchozí/následující fotky podle aktuálních filtrů a řazení z `photos.php`.
+- Kliknutí na fotku v `photo.php` otevírá čistý JPG náhled v nové kartě.
+- Fotoeditor může v detailu `photo.php` fotku zablokovat/odblokovat.
+- Zablokovaná fotka:
+  - je viditelně označená jako `zablokováno`,
+  - nejde zamknout k downloadu,
+  - nejde stáhnout individuálně,
+  - nejde stáhnout hromadným downloadem,
+  - při zablokování se případný lock uvolní.
 
-### Backend a logika
+### Upload Hotových Fotek
 
-- Watcher originálů:
-  - doplnit načtení `captured_at` z EXIFu při prvním zpracování originálu.
-- Stažení originálu fotoeditorem:
-  - při prvním stažení uložit `downloaded_at` a `downloaded_by_user_id`.
-  - další stažení už nemá přepsat první čas převzetí.
-- Upload hotových fotek:
-  - nová stránka/API pro fotoeditory v rámci eventu - hotovo.
-  - ukládat JPG do `/var/www/press/published/<event-slug>/` - hotovo.
-  - eventový podadresář se vytváří až při prvním uploadu do daného eventu.
-  - nespárované publikace se ukládají do DB se `source_photo_id = NULL`.
-  - samostatné náhledy zatím nejsou potřeba / nejsou hotové.
-- Stažení hotových fotek žurnalistou:
-  - nová galerie hotových fotek dostupná žurnalistům i ostatním přihlášeným rolím - hotovo v první verzi.
-  - řazení podle času pořízení z EXIFu - hotovo.
-  - individuální a hromadné stažení - hotovo jako dávka individuálních downloadů.
-  - počítat počet stažení u každé publikované fotky v `published_photos.download_count` - hotovo.
-  - stav „staženo“ se eviduje jen v aktuální session, ne jako identita žurnalisty - hotovo.
-  - logovat stažení kvůli auditu bez vazby na konkrétního uživatele - hotovo.
-- Statistiky:
-  - v detailu originální fotky už se zobrazují:
-    - `captured_at -> uploaded_at`: cesta od foťáku/SD karty do presscentra;
-    - `uploaded_at -> downloaded_at`: čekání na převzetí fotoeditorem;
-    - `downloaded_at -> published_at`: práce fotoeditora;
-    - `captured_at -> published_at`: celkový čas od vyfocení po publikaci.
-  - v náhledové galerii se u publikovaných fotek zobrazuje stručně `captured_at -> published_at`.
-  - dashboardové souhrny, mediány a maxima ještě nejsou hotové.
+- Vytvořena stránka `published-upload.php` pro upload hotových fotek fotoeditorem.
+- Upload je dostupný také jako malé upload okno v pravém panelu `photos.php`.
+- Upload podporuje:
+  - výběr souborů tlačítkem,
+  - drag & drop,
+  - progress bar,
+  - procenta,
+  - počítadlo nahrávaných souborů typu `3/5`.
+- Povolené jsou pouze JPG/JPEG soubory.
+- Hotové fotky se ukládají do `/var/www/press/published/<event-slug>/`.
+- Eventový adresář pro hotové fotky vzniká lazy až při prvním uploadu.
+- Automatické párování funguje podle názvu:
+  - nový název hotové fotky musí obsahovat původní název bez přípony,
+  - kontrola je case insensitive,
+  - jednoznačná shoda uloží `source_photo_id`,
+  - nespárovaná fotka se uloží do DB se `source_photo_id = NULL`.
+- Výsledky uploadu barevně rozlišují spárované a nespárované fotky.
+- Při uploadu hotové fotky se generují dvě statické preview verze:
+  - detailní `*-preview.jpg`,
+  - malé `*-small.jpg` pro Galerii.
+- Existující publikované fotky byly zpětně doplněny o preview.
 
-### UI
+### Galerie Pro Žurnalisty
 
-- Do detailu originální fotky přidat čas pořízení a čas převzetí fotoeditorem - hotovo.
-- Do detailu originální fotky přidat detailní rozbor workflow časů - hotovo.
-- Do náhledové galerie originálů přidat u publikovaných fotek rozdíl `publikace - pořízení` - hotovo.
-- Do dashboardu eventu přidat blok „Hotové fotografie“:
-  - počet nahraných hotových fotek;
-  - medián/maximum celkového času zpracování;
-  - poslední nahrané hotové fotky.
-- Přidat stránku pro fotoeditory: upload hotových fotek - hotovo jako „Publikace fotek“.
-  - drag & drop zóna - hotovo.
-  - progress uploadu včetně procent a odhadovaného počítadla souborů - hotovo.
-  - výsledky uploadu barevně rozlišují spárované a nespárované fotky - hotovo.
-- Přidat stránku pro žurnalisty: přehled a stažení hotových fotek.
-- V administraci eventu ponechat možnost přiřazovat žurnalisty, až bude role aktivně používaná.
+- Stránka `published.php` je v menu jako `Galerie`.
+- Galerie je dostupná všem přihlášeným rolím.
+- Pro roli `journalist` je Galerie výchozí stránka po přihlášení.
+- Žurnalista nemá přístup k chatu ani přes ikonu v hlavičce, ani přímým URL/API.
+- Galerie má záhlaví:
+  - `Galerie - <název eventu>`,
+  - popis eventu,
+  - výraznou licenční poznámku a odkaz na licenční podmínky.
+- Fotky jsou řazené podle času pořízení z EXIFu.
+- U každé fotky se zobrazuje autor z EXIFu ve formátu `autor / Člověk a Víra`.
+- Individuální stažení je hotové.
+- Hromadné stažení je hotové jako postupné spuštění individuálních downloadů.
+- Tlačítko `Stáhnout vše` bylo odstraněno; používá se `Vybrat vše` + `Stáhnout vybrané`.
+- `published_photos.download_count` počítá stažení.
+- Stav `staženo v této relaci` je session-based a zobrazuje se v Galerii i detailu publikované fotky.
+- Stažení se loguje jako `downloaded` bez vazby na konkrétního žurnalistu.
+- Kliknutí na náhled v Galerii otevírá detail `published-photo.php`, nikoliv download.
+- Detail publikované fotky obsahuje:
+  - autora,
+  - čas pořízení,
+  - dobu úprav,
+  - počet stažení,
+  - stav stažení v této relaci,
+  - šipky na předchozí/následující publikovanou fotku.
 
-### Navržené menší kroky implementace
+### Menu a Role
 
-1. Databázový základ a oprávnění - hotovo
-   - Přidat `captured_at`, `downloaded_by_user_id`, tabulky `published_photos` a `published_photo_log`, nová oprávnění.
-   - Migrovat DB a doplnit `schema.sql`.
+- Menu bylo sjednoceno a přejmenováno:
+  - `Dashboard`,
+  - `Galerie`,
+  - `Fotograf přehled`,
+  - `Foto editace`,
+  - `Uživatelé`,
+  - `Eventy`,
+  - `Odhlásit`.
+- `Publikace fotek` už není samostatná položka v menu; plná upload stránka je dostupná přes upload box ve `photos.php`.
+- Aktivní položka menu je jemně zvýrazněná.
+- U odhlášení se nenápadně zobrazuje jméno přihlášeného uživatele.
+- Výchozí stránky podle role:
+  - žurnalista: `published.php`,
+  - fotograf: `photos-status.php`,
+  - fotoeditor desktop: `photos.php`,
+  - fotoeditor mobil: `photos-status.php`,
+  - admin/superadmin: `dashboard.php`.
+- `ongoing-event.php` používá přihlášenou hlavičku a pro žurnalistu ukazuje jeho dostupné menu.
 
-2. Čas pořízení u originálů - hotovo
-   - Upravit watcher, aby ukládal `captured_at`.
-   - Doplnit backfill skript pro existující fotky.
-   - Zobrazit čas pořízení v detailu fotky.
+### Úklid a Archivace
 
-3. Převzetí originálu fotoeditorem - hotovo
-   - Upravit download originálu tak, aby uložil první `downloaded_at` a `downloaded_by_user_id`.
-   - Ošetřit hromadný download stejně jako jednotlivý.
+- Úklid pracovních/testovacích dat maže pouze pracovní část:
+  - RAW/originály,
+  - jejich detailní a malé náhledy,
+  - související DB záznamy.
+- Archivace eventu také nechává hotovou Galerii zachovanou.
+- Přidána samostatná akce v editaci eventu:
+  - `Smazání hotové galerie`.
+- `Smazání hotové galerie` po potvrzení maže:
+  - publikované JPG,
+  - detailní preview,
+  - malé preview,
+  - DB záznamy `published_photos`,
+  - DB logy `published_photo_log`.
 
-4. Upload hotových fotek - hotovo pro základní workflow
-   - Vytvořena stránka „Publikace fotek“ pro fotoeditory.
-   - Upload podporuje výběr souborů i drag & drop.
-   - Progress ukazuje procenta a odhadované pořadí souboru v dávce.
-   - Serverové limity uploadu navýšeny pro Apache/PHP.
-   - Úložiště je `/var/www/press/published/<event-slug>/`; podadresář vzniká lazy při prvním uploadu.
-   - Upload bere pouze JPG, zapisuje DB a loguje `uploaded`.
-   - Automatické párování podle názvu funguje case insensitive.
-   - Nespárované fotky se ukládají do DB se `source_photo_id = NULL` a v UI jsou označené oranžově.
-   - Samostatné náhledy publikovaných JPG zatím nejsou řešené; pro další galerii lze pravděpodobně použít přímo JPG nebo doplnit menší preview později.
+### Technický Úklid
 
-5. Galerie hotových fotek pro žurnalisty - hotovo v první verzi
-   - Přidána stránka „Ke stažení“ pro všechny přihlášené role.
-   - Fotky se řadí podle `captured_at`, tedy času pořízení z EXIFu.
-   - U každé fotky se zobrazuje autor z EXIFu ve formátu `autor / Člověk a Víra`.
-   - Individuální stažení je hotové.
-   - Hromadné stažení je hotové jako postupné spuštění individuálních downloadů.
-   - Do `published_photos.download_count` se přičítá počet stažení.
-   - Stav stažení pro společný žurnalistický účet je pouze session-based.
-   - Stažení se loguje jako `downloaded` bez ukládání konkrétního uživatele.
-   - Záhlaví galerie - velký název akce, podmínky použití fotek
-   - Staženo v této relaci - jen nějaký menší symbol
-   - Zrušit tlačítko Stáhnout vše (je tam vybrat vše)
-   - update stránky po stažení, aby bylo vidět staženo v relaci
-   - pro žurnalisty zneviditelnit věci na které nemají právo (možná samostatný header?)
+- `web/assets/style.css` byl opraven na validní UTF-8/ASCII, takže už ho lze normálně patchovat.
+- Serverové limity uploadu byly sladěny pro větší JPG soubory.
+- Apache/PHP upload problémy a práva adresářů publikované galerie byly dořešené.
 
-6. Statistiky a dashboard - částečně hotovo
-   - Detail originální fotky ukazuje časové metriky po fotce.
-   - Galerie originálů ukazuje u publikovaných fotek stručný čas `publikace - pořízení`.
-   - Ještě dopočítat souhrny po eventu: počet publikovaných fotek, medián/maximum celkového času, poslední publikované fotky.
-   - Doplnit dashboard eventu a případně export/report.
+### Co Zůstává Do Dalších Sprintů
 
-7. Ruční párování a korekce
-   - Přidat jednoduchý admin/fotoeditor nástroj pro ruční propojení hotové fotky s originálem, pokud automatika selže.
-
-8. Úklid adresáře pro publikaci samostatně, ale zahrnout do "Vyčistit testovací data"?   
+- Souhrnné dashboardové statistiky hotových fotek:
+  - počet publikovaných fotek,
+  - medián/maximum celkového workflow času,
+  - poslední publikované fotky.
+- Ruční párování nespárovaných publikovaných fotek s originálem.
+- Případné reporty/exporty po eventu.
 
 ## Nápady pro další sprinty
-- organizace menu, zobrazení podle práv rolí - hotovo
-- zmenšení náhledů - hotovo
-- smazání (RAW) fotky fotoeditorem (např. rozmazaná) - hotovo
-- procházení fotek v detailu < > - hotovo
 - seznam publikovaných fotek pro jednotlivé fotografy + skript windows/mac pro označení?
 - GPS souřadnice eventu a update v EXIFu
 - Seřizovač času foťáků
@@ -148,6 +162,4 @@ Cíl sprintu: rozšířit presscentrum z jednosměrného vstupu fotek na komplet
 - API do Lightroomu nebo jiného exportního workflow.
 - Tabulka akcí, název, odkazy na galerie, výběr fotografů a fotoeditorů, statistika.
 - vyčištění kódu, dokumentace 
-
-
 
