@@ -4,6 +4,8 @@ set -u
 FTP_ROOT="/var/www/press/ftp"
 PREVIEW_ROOT="/var/www/press/previews"
 LOG_FILE="/var/log/press-watcher.log"
+OVERVIEW_PREVIEW_SUFFIX="-small"
+OVERVIEW_PREVIEW_SIZE="420x420>"
 
 mkdir -p "$PREVIEW_ROOT"
 touch "$LOG_FILE"
@@ -689,6 +691,40 @@ generate_preview_from_jpeg() {
         "$dst" >> "$LOG_FILE" 2>&1
 }
 
+overview_preview_path() {
+    local preview_filepath="$1"
+    local dir
+    local filename
+    local base
+    local ext
+
+    dir="$(dirname "$preview_filepath")"
+    filename="$(basename "$preview_filepath")"
+    ext="${filename##*.}"
+    base="${filename%.*}"
+
+    if [ "$base" = "$filename" ]; then
+        ext="jpg"
+    fi
+
+    printf "%s/%s%s.%s" "$dir" "$base" "$OVERVIEW_PREVIEW_SUFFIX" "$ext"
+}
+
+generate_overview_preview() {
+    local detail_preview="$1"
+    local overview_preview="$2"
+
+    mkdir -p "$(dirname "$overview_preview")"
+
+    "$IM_CONVERT" "$detail_preview" \
+        -auto-orient \
+        -resize "$OVERVIEW_PREVIEW_SIZE" \
+        -strip \
+        -interlace Plane \
+        -quality 72 \
+        "$overview_preview" >> "$LOG_FILE" 2>&1
+}
+
 extract_embedded_preview() {
     local src="$1"
     local dst="$2"
@@ -1033,6 +1069,8 @@ process_file() {
     local preview_dir="$PREVIEW_ROOT/$ftp_user"
     local preview_filename="${base_no_ext}.jpg"
     local preview_filepath="$preview_dir/$preview_filename"
+    local overview_preview_filepath
+    overview_preview_filepath="$(overview_preview_path "$preview_filepath")"
 
     local ok=1
     if is_jpeg "$file"; then
@@ -1044,6 +1082,12 @@ process_file() {
     if [ $ok -ne 1 ] || [ ! -f "$preview_filepath" ]; then
         update_photo_error "$photo_id"
         log "Preview generation FAILED: $file"
+        return 1
+    fi
+
+    if ! generate_overview_preview "$preview_filepath" "$overview_preview_filepath"; then
+        update_photo_error "$photo_id"
+        log "Overview preview generation FAILED: $file"
         return 1
     fi
 
@@ -1060,7 +1104,7 @@ process_file() {
     update_photo_ready "$photo_id" "$preview_filename" "$preview_filepath" "$width" "$height"
     insert_photo_log "$photo_id" "$user_id" "preview_generated"
 
-    log "Zpracováno OK: $file -> $preview_filepath"
+    log "Zpracováno OK: $file -> $preview_filepath, $overview_preview_filepath"
     return 0
 }
 

@@ -601,6 +601,20 @@ function events_delete_file_if_exists(?string $path): void
     }
 }
 
+function events_overview_preview_path(string $previewPath): string
+{
+    $dir = dirname($previewPath);
+    $filename = basename($previewPath);
+    $ext = pathinfo($filename, PATHINFO_EXTENSION);
+    $base = pathinfo($filename, PATHINFO_FILENAME);
+
+    if ($ext === '') {
+        $ext = 'jpg';
+    }
+
+    return $dir . '/' . $base . '-small.' . $ext;
+}
+
 function events_delete_empty_parent_dirs(array $paths): void
 {
     $dirs = [];
@@ -661,6 +675,7 @@ function events_cleanup_photos_of_event(int $eventId): array
     foreach ($files as $file) {
         $filepath = (string)($file['filepath'] ?? '');
         $previewPath = (string)($file['preview_filepath'] ?? '');
+        $overviewPreviewPath = $previewPath !== '' ? events_overview_preview_path($previewPath) : '';
 
         if ($filepath !== '' && is_file($filepath)) {
             @unlink($filepath);
@@ -672,11 +687,19 @@ function events_cleanup_photos_of_event(int $eventId): array
             $deletedPreviews++;
         }
 
+        if ($overviewPreviewPath !== '' && is_file($overviewPreviewPath)) {
+            @unlink($overviewPreviewPath);
+            $deletedPreviews++;
+        }
+
         if ($filepath !== '') {
             $pathsForDirCleanup[] = $filepath;
         }
         if ($previewPath !== '') {
             $pathsForDirCleanup[] = $previewPath;
+        }
+        if ($overviewPreviewPath !== '') {
+            $pathsForDirCleanup[] = $overviewPreviewPath;
         }
     }
 

@@ -204,7 +204,7 @@ require_once __DIR__ . '/inc/header.php';
                 <div class="<?= h($cardClass) ?>" data-photo-id="<?= (int)$photo['id'] ?>">
                     <div class="status-photo-thumb">
                         <?php if (!empty($photo['preview_filepath'])): ?>
-                            <img src="/preview.php?id=<?= (int)$photo['id'] ?>" alt="<?= h((string)$photo['filename']) ?>">
+                            <img src="/preview.php?id=<?= (int)$photo['id'] ?>&size=small" alt="<?= h((string)$photo['filename']) ?>" loading="lazy">
                         <?php else: ?>
                             <div class="status-no-preview">bez náhledu</div>
                         <?php endif; ?>

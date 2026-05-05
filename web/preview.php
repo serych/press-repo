@@ -31,6 +31,14 @@ if (!$row || !$row['preview_filepath']) {
 }
 
 $file = $row['preview_filepath'];
+$size = (string)($_GET['size'] ?? 'detail');
+
+if ($size === 'small') {
+    $smallFile = preview_small_filepath((string)$file);
+    if (is_file($smallFile)) {
+        $file = $smallFile;
+    }
+}
 
 if (!is_file($file)) {
     http_response_code(404);
@@ -42,3 +50,17 @@ header('Cache-Control: public, max-age=60');
 
 readfile($file);
 exit;
+
+function preview_small_filepath(string $detailPath): string
+{
+    $dir = dirname($detailPath);
+    $filename = basename($detailPath);
+    $ext = pathinfo($filename, PATHINFO_EXTENSION);
+    $base = pathinfo($filename, PATHINFO_FILENAME);
+
+    if ($ext === '') {
+        $ext = 'jpg';
+    }
+
+    return $dir . '/' . $base . '-small.' . $ext;
+}

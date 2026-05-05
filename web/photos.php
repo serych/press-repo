@@ -161,7 +161,7 @@ require_once __DIR__ . '/inc/header.php';
                             <a href="/photo.php?id=<?= (int)$p['id'] ?>" class="photo-card-link">
                                 <div class="thumb">
                                     <?php if (!empty($p['preview_filepath'])): ?>
-                                        <img src="/preview.php?id=<?= (int)$p['id'] ?>">
+                                        <img src="/preview.php?id=<?= (int)$p['id'] ?>&size=small" loading="lazy">
                                     <?php else: ?>
                                         <div class="no-preview">bez náhledu</div>
                                     <?php endif; ?>
@@ -410,7 +410,7 @@ function renderPhotoCard(item, currentUserId, canSelect) {
 
     let thumbHtml = '';
     if (item.preview_exists) {
-        thumbHtml = '<img src="/preview.php?id=' + item.id + '" loading="lazy">';
+        thumbHtml = '<img src="/preview.php?id=' + item.id + '&size=small" loading="lazy">';
     } else {
         thumbHtml = '<div class="no-preview">bez náhledu</div>';
     }

@@ -299,7 +299,7 @@ foreach ($rows as $row) {
         'filename' => (string)$row['filename'],
         'ftp_user' => (string)$row['ftp_user'],
         'preview_url' => !empty($row['preview_filepath'])
-            ? '/preview.php?id=' . (int)$row['id']
+            ? '/preview.php?id=' . (int)$row['id'] . '&size=small'
             : '',
         'status' => (string)$row['status'],
         'status_text' => $statusText,
