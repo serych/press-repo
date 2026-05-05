@@ -104,7 +104,7 @@ require_once __DIR__ . '/inc/header.php';
 
 <section class="panel panel-status">
     <div class="status-head">
-        <h1>Stav fotek</h1>
+        <h1>Přehled stavu fotografií</h1>
 
         <div class="status-subhead">
             <?php if ($scope === 'mine'): ?>

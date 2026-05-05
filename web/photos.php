@@ -15,15 +15,15 @@ if (!has_permission('photos.view')) {
 
 $ftpUser = isset($_GET['ftp_user']) ? trim((string)$_GET['ftp_user']) : '';
 $status  = isset($_GET['status']) ? trim((string)$_GET['status']) : '';
+$sort = (string)($_GET['sort'] ?? 'uploaded');
+if (!in_array($sort, ['uploaded', 'captured'], true)) {
+    $sort = 'uploaded';
+}
 $currentEvent = photos_get_current_event();
 $currentEventId = !empty($currentEvent['id']) ? (int)$currentEvent['id'] : 0;
 
 $downloadJobId = max(0, (int)($_GET['download_job'] ?? 0));
 $downloadTotal = max(0, (int)($_GET['download_total'] ?? 0));
-
-$page = max(1, (int)($_GET['page'] ?? 1));
-$perPage = 24;
-$offset = ($page - 1) * $perPage;
 
 $filters = [
     'event_id' => $currentEventId,
@@ -31,11 +31,10 @@ $filters = [
     'status'   => $status,
 ];
 
-$total = photos_count($filters);
-$photos = photos_list($filters, $perPage, $offset);
-$photographers = photos_get_photographers($filters);
-
-$totalPages = max(1, (int)ceil($total / $perPage));
+$totalFiltered = photos_count($filters);
+$totalAll = photos_count(['event_id' => $currentEventId]);
+$photos = photos_list($filters, null, 0, $sort);
+$photographers = photos_get_photographers(['event_id' => $currentEventId]);
 
 $user = current_user();
 $currentUserId = (int)$user['id'];
@@ -54,7 +53,7 @@ require_once __DIR__ . '/inc/header.php';
 ?>
 
 <section class="panel">
-    <h1>Fotografie</h1>
+    <h1>Fotografie download RAW, upload hotových</h1>
 
     <?php if (!empty($currentEvent)): ?>
         <p class="table-subtext">
@@ -88,8 +87,21 @@ require_once __DIR__ . '/inc/header.php';
                     <?php endforeach; ?>
                 </select>
 
+                <select name="sort">
+                    <option value="uploaded" <?= $sort === 'uploaded' ? 'selected' : '' ?>>řadit podle uploadu</option>
+                    <option value="captured" <?= $sort === 'captured' ? 'selected' : '' ?>>řadit podle pořízení</option>
+                </select>
+
                 <button type="submit">Filtrovat</button>
             </form>
+
+            <p class="photo-count-summary" id="photo-count-summary">
+                <?php if ($totalFiltered === $totalAll): ?>
+                    Celkem fotografií: <strong><?= (int)$totalAll ?></strong>
+                <?php else: ?>
+                    Zobrazeno: <strong><?= (int)$totalFiltered ?></strong> z celkových <strong><?= (int)$totalAll ?></strong>
+                <?php endif; ?>
+            </p>
 
             <?php if (!empty($photos) && has_permission('photos.download')): ?>
                 <div class="bulk-toolbar">
@@ -101,7 +113,7 @@ require_once __DIR__ . '/inc/header.php';
                         <?php if ($downloadJobId > 0 && $downloadTotal > 0): ?>
                             Připraven download <?= $downloadTotal ?> fotografií.
                         <?php else: ?>
-                            Moje zamčené na této stránce: <?= $lockedMineCount ?>
+                            Moje zamčené v přehledu: <?= $lockedMineCount ?>
                         <?php endif; ?>
                     </span>
 
@@ -251,16 +263,6 @@ require_once __DIR__ . '/inc/header.php';
                 </div>
             <?php endif; ?>
 
-            <?php if ($totalPages > 1): ?>
-                <div class="pagination">
-                    <?php for ($i = 1; $i <= $totalPages; $i++): ?>
-                        <a class="<?= $i === $page ? 'active' : '' ?>"
-                           href="?page=<?= $i ?>&ftp_user=<?= urlencode($ftpUser) ?>&status=<?= urlencode($status) ?>">
-                            <?= $i ?>
-                        </a>
-                    <?php endfor; ?>
-                </div>
-            <?php endif; ?>
         </div>
 
         <?php if ($currentEventId > 0): ?>
@@ -498,6 +500,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const uploadingCountEl = document.getElementById('uploading-count');
     const processingCountEl = document.getElementById('processing-count');
     const uploadingDotsEl = document.getElementById('uploading-dots');
+    const photoCountSummary = document.getElementById('photo-count-summary');
     const miniPublishForm = document.getElementById('mini-publish-form');
     const miniPublishFiles = document.getElementById('mini-publish-files');
     const miniPublishDropzone = document.getElementById('mini-publish-dropzone');
@@ -776,12 +779,14 @@ document.addEventListener('DOMContentLoaded', function () {
         const url = new URL('/api/photos-feed.php', window.location.origin);
         const current = new URL(window.location.href);
 
-        url.searchParams.set('page', current.searchParams.get('page') || '1');
         if (current.searchParams.get('ftp_user')) {
             url.searchParams.set('ftp_user', current.searchParams.get('ftp_user'));
         }
         if (current.searchParams.get('status')) {
             url.searchParams.set('status', current.searchParams.get('status'));
+        }
+        if (current.searchParams.get('sort')) {
+            url.searchParams.set('sort', current.searchParams.get('sort'));
         }
 
         try {
@@ -816,6 +821,7 @@ document.addEventListener('DOMContentLoaded', function () {
             knownIds = newIds;
 
             updateIngestStatus(data);
+            updatePhotoCountSummary(data);
 
             const signature = JSON.stringify(data.items.map(function (item) {
                 return [
@@ -842,10 +848,25 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             if (statusBox && !current.searchParams.get('download_job')) {
-                statusBox.textContent = 'Moje zamčené na této stránce: ' + Number(data.locked_mine_count || 0);
+                statusBox.textContent = 'Moje zamčené v přehledu: ' + Number(data.locked_mine_count || 0);
             }
         } catch (e) {
             // ticho, zkusíme příště
+        }
+    }
+
+    function updatePhotoCountSummary(data) {
+        if (!photoCountSummary) {
+            return;
+        }
+
+        const total = Number(data.total || 0);
+        const totalAll = Number(data.total_all || total);
+
+        if (total === totalAll) {
+            photoCountSummary.innerHTML = 'Celkem fotografií: <strong>' + totalAll + '</strong>';
+        } else {
+            photoCountSummary.innerHTML = 'Zobrazeno: <strong>' + total + '</strong> z celkových <strong>' + totalAll + '</strong>';
         }
     }
 

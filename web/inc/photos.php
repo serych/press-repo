@@ -55,9 +55,15 @@ function photos_count(array $filters): int
     return (int)$stmt->fetchColumn();
 }
 
-function photos_list(array $filters, int $limit, int $offset): array
+function photos_list(array $filters, ?int $limit = null, int $offset = 0, string $sort = 'uploaded'): array
 {
     [$where, $params] = photos_build_where($filters);
+    $orderBy = photos_order_by($sort);
+    $limitSql = '';
+
+    if ($limit !== null) {
+        $limitSql = 'LIMIT :limit OFFSET :offset';
+    }
 
     $sql = "
         SELECT
@@ -82,8 +88,8 @@ function photos_list(array $filters, int $limit, int $offset): array
             GROUP BY source_photo_id
         ) pps ON pps.source_photo_id = p.id
         $where
-        ORDER BY p.id DESC
-        LIMIT :limit OFFSET :offset
+        $orderBy
+        $limitSql
     ";
 
     $stmt = db()->prepare($sql);
@@ -96,16 +102,26 @@ function photos_list(array $filters, int $limit, int $offset): array
         }
     }
 
-    $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
-    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+    if ($limit !== null) {
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+    }
 
     $stmt->execute();
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-function photos_feed(array $filters, int $limit, int $offset): array
+function photos_feed(array $filters, ?int $limit = null, int $offset = 0, string $sort = 'uploaded'): array
 {
-    return photos_list($filters, $limit, $offset);
+    return photos_list($filters, $limit, $offset, $sort);
+}
+
+function photos_order_by(string $sort): string
+{
+    return match ($sort) {
+        'captured' => 'ORDER BY p.captured_at IS NULL, p.captured_at ASC, p.uploaded_at ASC, p.id ASC',
+        default => 'ORDER BY p.uploaded_at DESC, p.id DESC',
+    };
 }
 
 function photos_is_event_photographer_allowed(array $photo): bool

@@ -467,6 +467,16 @@ h1 {
     align-items: center;
 }
 
+.photo-count-summary {
+    color: var(--text-muted);
+    font-size: 13px;
+    margin: -8px 0 14px;
+}
+
+.photo-count-summary strong {
+    color: var(--text-main);
+}
+
 .bulk-checkbox {
     position: absolute;
     top: 8px;

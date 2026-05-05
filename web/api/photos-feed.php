@@ -126,10 +126,10 @@ function count_uploading_files(PDO $pdo, ?string $ftpUserFilter = null): int
 
 $ftpUser = isset($_GET['ftp_user']) ? trim((string)$_GET['ftp_user']) : '';
 $status  = isset($_GET['status']) ? trim((string)($_GET['status'] ?? '')) : '';
-
-$page = max(1, (int)($_GET['page'] ?? 1));
-$perPage = 24;
-$offset = ($page - 1) * $perPage;
+$sort = (string)($_GET['sort'] ?? 'uploaded');
+if (!in_array($sort, ['uploaded', 'captured'], true)) {
+    $sort = 'uploaded';
+}
 $currentEvent = photos_get_current_event();
 $currentEventId = !empty($currentEvent['id']) ? (int)$currentEvent['id'] : 0;
 
@@ -139,9 +139,9 @@ $filters = [
     'status'   => $status,
 ];
 
-$total = photos_count($filters);
-$photos = photos_feed($filters, $perPage, $offset);
-$totalPages = max(1, (int)ceil($total / $perPage));
+$totalFiltered = photos_count($filters);
+$totalAll = photos_count(['event_id' => $currentEventId]);
+$photos = photos_feed($filters, null, 0, $sort);
 
 $currentUser = current_user();
 $currentUserId = (int)$currentUser['id'];
@@ -186,8 +186,8 @@ echo json_encode([
     'locked_mine_count' => $lockedMineCount,
     'uploading_count' => $uploadingCount,
     'processing_count' => $processingCount,
-    'total' => $total,
-    'total_pages' => $totalPages,
+    'total' => $totalFiltered,
+    'total_all' => $totalAll,
     'items' => array_map(static function (array $p): array {
         return [
             'id' => (int)$p['id'],
