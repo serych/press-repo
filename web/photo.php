@@ -14,6 +14,12 @@ if (!has_permission('photos.view')) {
 }
 
 $id = (int)($_GET['id'] ?? 0);
+$ftpUser = isset($_GET['ftp_user']) ? trim((string)$_GET['ftp_user']) : '';
+$status = isset($_GET['status']) ? trim((string)$_GET['status']) : '';
+$sort = (string)($_GET['sort'] ?? 'uploaded');
+if (!in_array($sort, ['uploaded', 'captured'], true)) {
+    $sort = 'uploaded';
+}
 
 if ($id <= 0) {
     http_response_code(404);
@@ -32,6 +38,43 @@ $currentUserId = (int)$currentUser['id'];
 $isEventPhotographerAllowed = photos_is_event_photographer_allowed($photo);
 $publishedPhotos = photos_get_published_for_source((int)$photo['id']);
 $firstPublishedPhoto = $publishedPhotos[0] ?? null;
+$currentEvent = photos_get_current_event();
+$currentEventId = !empty($currentEvent['id']) ? (int)$currentEvent['id'] : (int)($photo['event_id'] ?? 0);
+
+$contextFilters = [
+    'event_id' => $currentEventId,
+    'ftp_user' => $ftpUser,
+    'status' => $status,
+];
+$contextPhotos = photos_list($contextFilters, null, 0, $sort);
+$prevPhotoId = null;
+$nextPhotoId = null;
+
+foreach ($contextPhotos as $index => $contextPhoto) {
+    if ((int)$contextPhoto['id'] !== (int)$photo['id']) {
+        continue;
+    }
+
+    if (isset($contextPhotos[$index - 1])) {
+        $prevPhotoId = (int)$contextPhotos[$index - 1]['id'];
+    }
+    if (isset($contextPhotos[$index + 1])) {
+        $nextPhotoId = (int)$contextPhotos[$index + 1]['id'];
+    }
+
+    break;
+}
+
+$contextQuery = array_filter([
+    'ftp_user' => $ftpUser,
+    'status' => $status,
+    'sort' => $sort !== 'uploaded' ? $sort : '',
+], static fn(string $value): bool => $value !== '');
+
+$photosBackUrl = '/photos.php' . ($contextQuery ? '?' . http_build_query($contextQuery) : '');
+$photoDetailUrl = static function (int $photoId) use ($contextQuery): string {
+    return '/photo.php?' . http_build_query(['id' => $photoId] + $contextQuery);
+};
 
 $downloadedByName = trim(
     ((string)($photo['downloaded_jmeno'] ?? '')) . ' ' .
@@ -49,7 +92,9 @@ require_once __DIR__ . '/inc/header.php';
 
 <div class="photo-detail-top">
 <h1>Detail fotografie</h1>
-<p><a href="/photos.php" class="back-link">← zpět</a></p>
+<div class="photo-detail-nav">
+    <a href="<?= h($photosBackUrl) ?>" class="back-link">← zpět na přehled</a>
+</div>
 </div>
 
 <?php if (!empty($photo['exif_problem'])): ?>
@@ -72,7 +117,23 @@ require_once __DIR__ . '/inc/header.php';
 <div class="photo-preview-card<?= !empty($photo['exif_problem']) ? ' detail-exif-problem' : '' ?><?= !$isEventPhotographerAllowed ? ' detail-unassigned-event-photo' : '' ?>">
 
 <?php if (!empty($photo['preview_filepath'])): ?>
-<img src="/preview.php?id=<?= (int)$photo['id'] ?>" class="photo-detail-image">
+<div class="photo-detail-preview-nav">
+    <?php if ($prevPhotoId !== null): ?>
+        <a href="<?= h($photoDetailUrl($prevPhotoId)) ?>" class="photo-detail-side-arrow" aria-label="Předchozí fotografie">‹</a>
+    <?php else: ?>
+        <span class="photo-detail-side-arrow is-disabled" aria-hidden="true">‹</span>
+    <?php endif; ?>
+
+    <a href="/preview.php?id=<?= (int)$photo['id'] ?>" target="_blank" rel="noopener noreferrer" class="photo-detail-image-link">
+        <img src="/preview.php?id=<?= (int)$photo['id'] ?>" class="photo-detail-image">
+    </a>
+
+    <?php if ($nextPhotoId !== null): ?>
+        <a href="<?= h($photoDetailUrl($nextPhotoId)) ?>" class="photo-detail-side-arrow" aria-label="Následující fotografie">›</a>
+    <?php else: ?>
+        <span class="photo-detail-side-arrow is-disabled" aria-hidden="true">›</span>
+    <?php endif; ?>
+</div>
 <?php else: ?>
 <div class="no-preview large">bez náhledu</div>
 <?php endif; ?>

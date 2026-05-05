@@ -35,6 +35,11 @@ $totalFiltered = photos_count($filters);
 $totalAll = photos_count(['event_id' => $currentEventId]);
 $photos = photos_list($filters, null, 0, $sort);
 $photographers = photos_get_photographers(['event_id' => $currentEventId]);
+$photoContextQuery = array_filter([
+    'ftp_user' => $ftpUser,
+    'status' => $status,
+    'sort' => $sort !== 'uploaded' ? $sort : '',
+], static fn(string $value): bool => $value !== '');
 
 $user = current_user();
 $currentUserId = (int)$user['id'];
@@ -158,7 +163,7 @@ require_once __DIR__ . '/inc/header.php';
                         ?>
 
                         <div class="<?= h($cardClass) ?>">
-                            <a href="/photo.php?id=<?= (int)$p['id'] ?>" class="photo-card-link">
+                            <a href="/photo.php?<?= h(http_build_query(['id' => (int)$p['id']] + $photoContextQuery)) ?>" class="photo-card-link">
                                 <div class="thumb">
                                     <?php if (!empty($p['preview_filepath'])): ?>
                                         <img src="/preview.php?id=<?= (int)$p['id'] ?>&size=small" loading="lazy">
@@ -471,9 +476,19 @@ function renderPhotoCard(item, currentUserId, canSelect) {
             '</div>';
     }
 
+    const detailUrl = new URL('/photo.php', window.location.origin);
+    const currentParams = new URL(window.location.href).searchParams;
+    detailUrl.searchParams.set('id', item.id);
+
+    ['ftp_user', 'status', 'sort'].forEach(function (key) {
+        if (currentParams.get(key)) {
+            detailUrl.searchParams.set(key, currentParams.get(key));
+        }
+    });
+
     return '' +
         '<div class="' + cardClass + '">' +
-            '<a href="/photo.php?id=' + item.id + '" class="photo-card-link">' +
+            '<a href="' + detailUrl.pathname + detailUrl.search + '" class="photo-card-link">' +
                 '<div class="thumb">' +
                     thumbHtml +
                 '</div>' +

@@ -346,6 +346,61 @@ h1 {
     border-radius: 8px;
 }
 
+.photo-detail-image-link {
+    display: block;
+    min-width: 0;
+}
+
+.photo-detail-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.photo-detail-preview-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.photo-detail-side-arrow {
+    flex: 0 0 42px;
+    width: 42px;
+    min-height: 86px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #111;
+    color: var(--text-main);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    font-size: 42px;
+    line-height: 1;
+}
+
+.photo-detail-side-arrow:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.photo-detail-side-arrow.is-disabled {
+    opacity: 0.18;
+    pointer-events: none;
+}
+
+@media (max-width: 720px) {
+    .photo-detail-side-arrow {
+        flex-basis: 34px;
+        width: 34px;
+        min-height: 68px;
+        font-size: 34px;
+    }
+}
+
 .detail-table {
     width: 100%;
     border-collapse: collapse;
