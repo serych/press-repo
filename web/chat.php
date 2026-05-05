@@ -8,6 +8,11 @@ require_once __DIR__ . '/inc/photos.php';
 
 require_login();
 
+if (!can_access_chat()) {
+    http_response_code(403);
+    exit('Přístup odepřen.');
+}
+
 $eventId = max(0, (int)($_GET['event_id'] ?? 0));
 $showHistory = !empty($_GET['history']) ? 1 : 0;
 $currentEvent = null;

@@ -8,6 +8,12 @@ require_once __DIR__ . '/../inc/chat.php';
 require_login();
 header('Content-Type: application/json; charset=utf-8');
 
+if (!can_access_chat()) {
+    http_response_code(403);
+    echo json_encode(['ok' => false, 'error' => 'Přístup odepřen.'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 $eventId = max(1, (int)($_GET['event_id'] ?? 0));
 $afterId = max(0, (int)($_GET['after_id'] ?? 0));
 

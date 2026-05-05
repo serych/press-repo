@@ -2,9 +2,12 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/config/config.php';
+require_once __DIR__ . '/inc/auth.php';
 require_once __DIR__ . '/inc/functions.php';
 require_once __DIR__ . '/inc/events.php';
 require_once __DIR__ . '/inc/users.php';
+
+require_login();
 
 $currentEvent = events_get_current_dashboard_event();
 
@@ -19,32 +22,9 @@ if ($currentEvent && !empty($currentEvent['is_public'])) {
     $currentEvent = null;
 }
 
+require_once __DIR__ . '/inc/header.php';
 ?>
-<!doctype html>
-<html lang="cs">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Probíhající událost – <?= h(APP_NAME) ?></title>
-    <link rel="stylesheet" href="/assets/style.css">
-</head>
-<body>
-<header class="site-header">
-    <div class="wrap header-row">
-        <div class="brand">
-            <a href="/ongoing-event.php" class="brand-link">
-                <img src="/assets/logo-cs.svg" alt="PRESS centrum Člověk a Víra" class="brand-logo">
-                <span class="brand-text">PRESScentrum ČaV</span>
-            </a>
-        </div>
 
-        <nav class="top-nav top-nav-public">
-            <a href="/login.php">Login do PRESS centra</a>
-        </nav>
-    </div>
-</header>
-
-<main class="wrap">
 <section class="panel">
     <div class="page-head">
         <h1>Probíhající událost</h1>
@@ -193,6 +173,4 @@ if ($currentEvent && !empty($currentEvent['is_public'])) {
         </div>
     <?php endif; ?>
 </section>
-</main>
-</body>
-</html>
+<?php require_once __DIR__ . '/inc/footer.php'; ?>

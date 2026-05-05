@@ -13,7 +13,9 @@ $dashboardUrl = '/dashboard.php';
 $showPhotographerOverview = false;
 $showPhotoEditing = false;
 $showAdminItems = false;
+$showChat = false;
 $displayName = '';
+$currentPath = (string)(parse_url((string)($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH) ?: '');
 
 if ($user) {
     $currentEvent = photos_get_current_event();
@@ -23,11 +25,16 @@ if ($user) {
     $showPhotographerOverview = $roleCode !== 'journalist';
     $showPhotoEditing = in_array($roleCode, ['press_operator', 'admin', 'superadmin'], true);
     $showAdminItems = in_array($roleCode, ['admin', 'superadmin'], true);
+    $showChat = can_access_chat($user);
     $displayName = trim((string)($user['jmeno'] ?? '') . ' ' . (string)($user['prijmeni'] ?? ''));
 
     if ($displayName === '') {
         $displayName = (string)($user['user'] ?? '');
     }
+}
+
+if ($currentPath === '') {
+    $currentPath = (string)($_SERVER['SCRIPT_NAME'] ?? '');
 }
 
 $chatUrl = '/chat.php';
@@ -55,7 +62,7 @@ $styleVersion = is_file($styleFile) ? (string)filemtime($styleFile) : '1';
                 <span class="brand-text">PRESScentrum ČaV</span>
             </a>
 
-            <?php if ($user): ?>
+            <?php if ($user && $showChat): ?>
                 <a href="<?= h($chatUrl) ?>" class="header-chat-indicator" aria-label="Otevřít chat">
                     <span class="header-chat-icon" aria-hidden="true">💬</span>
                     <span class="header-chat-badge" id="chat-unread-badge" hidden>0</span>
@@ -71,20 +78,20 @@ $styleVersion = is_file($styleFile) ? (string)filemtime($styleFile) : '1';
             </button>
 
             <nav class="top-nav" id="top-nav">
-                <a href="<?= h($dashboardUrl) ?>">Dashboard</a>
-                <a href="/published.php">Galerie</a>
+                <a href="<?= h($dashboardUrl) ?>" class="<?= $currentPath === $dashboardUrl ? 'is-active' : '' ?>">Dashboard</a>
+                <a href="/published.php" class="<?= $currentPath === '/published.php' ? 'is-active' : '' ?>">Galerie</a>
 
                 <?php if ($showPhotographerOverview): ?>
-                    <a href="/photos-status.php">Fotograf přehled</a>
+                    <a href="/photos-status.php" class="<?= $currentPath === '/photos-status.php' ? 'is-active' : '' ?>">Fotograf přehled</a>
                 <?php endif; ?>
 
                 <?php if ($showPhotoEditing): ?>
-                    <a href="/photos.php">Foto editace</a>
+                    <a href="/photos.php" class="<?= in_array($currentPath, ['/photos.php', '/photo.php'], true) ? 'is-active' : '' ?>">Foto editace</a>
                 <?php endif; ?>
 
                 <?php if ($showAdminItems): ?>
-                    <a href="/users.php">Uživatelé</a>
-                    <a href="/events.php">Eventy</a>
+                    <a href="/users.php" class="<?= in_array($currentPath, ['/users.php', '/user-create.php', '/user-edit.php'], true) ? 'is-active' : '' ?>">Uživatelé</a>
+                    <a href="/events.php" class="<?= in_array($currentPath, ['/events.php', '/event-create.php', '/event-edit.php'], true) ? 'is-active' : '' ?>">Eventy</a>
                 <?php endif; ?>
 
                 <?php if ($displayName !== ''): ?>
@@ -111,6 +118,10 @@ document.addEventListener('DOMContentLoaded', function () {
             btn.classList.toggle('is-open', isOpen);
             btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
         });
+    }
+
+    if (!chatBadge) {
+        return;
     }
 
     async function refreshChatBadge() {

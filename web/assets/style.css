@@ -66,6 +66,14 @@ body {
     color: var(--accent);
 }
 
+.top-nav a.is-active {
+    color: var(--accent);
+    background: rgba(245, 158, 11, 0.12);
+    border-radius: 6px;
+    padding: 6px 9px;
+    margin-left: 11px;
+}
+
 .panel {
     background: transparent;
 }
@@ -1031,6 +1039,11 @@ h1 {
     .top-nav a:hover {
         background: rgba(255,255,255,0.04);
         color: var(--accent);
+    }
+
+    .top-nav a.is-active {
+        margin-left: 0;
+        padding: 12px 10px;
     }
 }
 

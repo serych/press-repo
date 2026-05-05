@@ -185,3 +185,13 @@ function has_role(string $roleCode): bool
 
     return ($user['role_code'] ?? '') === $roleCode;
 }
+
+function can_access_chat(?array $user = null): bool
+{
+    $user = $user ?? current_user();
+    if (!$user) {
+        return false;
+    }
+
+    return (string)($user['role_code'] ?? '') !== 'journalist';
+}
