@@ -62,7 +62,7 @@ require_once __DIR__ . '/inc/header.php';
 
                     <div class="published-meta">
                         <div class="file"><?= h((string)$photo['filename']) ?></div>
-                        <div class="author"><?= h(published_photos_author_label((string)$photo['filepath'])) ?></div>
+                        <div class="author"><?= h(published_photos_author_label_for_photo($photo)) ?></div>
                         <div class="time">
                             Vyfoceno:
                             <?= !empty($photo['captured_at']) ? h((string)$photo['captured_at']) : '—' ?>

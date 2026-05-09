@@ -286,6 +286,7 @@ function published_photos_store_upload(array $event, array $user, array $file): 
             width,
             height,
             checksum,
+            author_label,
             captured_at,
             source_uploaded_at,
             editor_downloaded_at,
@@ -304,6 +305,7 @@ function published_photos_store_upload(array $event, array $user, array $file): 
             :width,
             :height,
             :checksum,
+            :author_label,
             :captured_at,
             :source_uploaded_at,
             :editor_downloaded_at,
@@ -325,6 +327,7 @@ function published_photos_store_upload(array $event, array $user, array $file): 
         ':width' => isset($imageInfo[0]) ? (int)$imageInfo[0] : null,
         ':height' => isset($imageInfo[1]) ? (int)$imageInfo[1] : null,
         ':checksum' => $checksum,
+        ':author_label' => published_photos_author_label($filepath),
         ':captured_at' => $sourcePhoto ? ($sourcePhoto['captured_at'] ?? null) : null,
         ':source_uploaded_at' => $sourcePhoto ? ($sourcePhoto['uploaded_at'] ?? null) : null,
         ':editor_downloaded_at' => $sourcePhoto ? ($sourcePhoto['downloaded_at'] ?? null) : null,
@@ -457,6 +460,16 @@ function published_photos_author_label(string $filepath): string
     }
 
     return $author . ' / Člověk a Víra';
+}
+
+function published_photos_author_label_for_photo(array $photo): string
+{
+    $authorLabel = trim((string)($photo['author_label'] ?? ''));
+    if ($authorLabel !== '') {
+        return $authorLabel;
+    }
+
+    return published_photos_author_label((string)($photo['filepath'] ?? ''));
 }
 
 function published_photos_mark_downloaded(int $id): void

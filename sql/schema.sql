@@ -172,6 +172,7 @@ CREATE TABLE IF NOT EXISTS published_photos (
     width INT NULL,
     height INT NULL,
     checksum VARCHAR(64) NULL,
+    author_label VARCHAR(255) NULL,
     captured_at DATETIME NULL,
     source_uploaded_at DATETIME NULL,
     editor_downloaded_at DATETIME NULL,

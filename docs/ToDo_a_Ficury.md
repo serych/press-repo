@@ -76,7 +76,7 @@ Cíl sprintu byl rozšířit presscentrum z jednosměrného vstupu fotek na komp
 
 ### Galerie Pro Žurnalisty
 
-- Stránka `published.php` je v menu jako `Galerie`.
+- Stránka `galerie.php` je v menu jako `Galerie`.
 - Galerie je dostupná všem přihlášeným rolím.
 - Pro roli `journalist` je Galerie výchozí stránka po přihlášení.
 - Žurnalista nemá přístup k chatu ani přes ikonu v hlavičce, ani přímým URL/API.
@@ -115,7 +115,7 @@ Cíl sprintu byl rozšířit presscentrum z jednosměrného vstupu fotek na komp
 - Aktivní položka menu je jemně zvýrazněná.
 - U odhlášení se nenápadně zobrazuje jméno přihlášeného uživatele.
 - Výchozí stránky podle role:
-  - žurnalista: `published.php`,
+  - žurnalista: `galerie.php`,
   - fotograf: `photos-status.php`,
   - fotoeditor desktop: `photos.php`,
   - fotoeditor mobil: `photos-status.php`,

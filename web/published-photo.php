@@ -18,7 +18,7 @@ if (!$photo || empty($photo['filepath']) || !is_file((string)$photo['filepath'])
 }
 
 $neighbors = published_photos_neighbor_ids($photo);
-$authorLabel = published_photos_author_label((string)$photo['filepath']);
+$authorLabel = published_photos_author_label_for_photo($photo);
 $downloadedInSession = published_photos_was_downloaded_in_session((int)$photo['id']);
 $workflowTime = (!empty($photo['captured_at']) && !empty($photo['published_at']))
     ? photos_format_duration_between((string)$photo['captured_at'], (string)$photo['published_at'])
@@ -29,7 +29,7 @@ require_once __DIR__ . '/inc/header.php';
 
 <section class="panel">
     <div class="published-detail-head">
-        <a href="/published.php" class="back-link">← Zpět do galerie</a>
+        <a href="/galerie.php" class="back-link">← Zpět do galerie</a>
         <a href="/published-download.php?id=<?= (int)$photo['id'] ?>" class="button">Stáhnout</a>
     </div>
 

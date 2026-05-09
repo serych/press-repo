@@ -79,7 +79,7 @@ $styleVersion = is_file($styleFile) ? (string)filemtime($styleFile) : '1';
 
             <nav class="top-nav" id="top-nav">
                 <a href="<?= h($dashboardUrl) ?>" class="<?= $currentPath === $dashboardUrl ? 'is-active' : '' ?>">Dashboard</a>
-                <a href="/published.php" class="<?= $currentPath === '/published.php' ? 'is-active' : '' ?>">Galerie</a>
+                <a href="/galerie.php" class="<?= $currentPath === '/galerie.php' ? 'is-active' : '' ?>">Galerie</a>
 
                 <?php if ($showPhotographerOverview): ?>
                     <a href="/photos-status.php" class="<?= $currentPath === '/photos-status.php' ? 'is-active' : '' ?>">Fotograf přehled</a>
