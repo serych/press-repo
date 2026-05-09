@@ -21,7 +21,7 @@ if ($user) {
     $currentEvent = photos_get_current_event();
     $currentEventId = !empty($currentEvent['id']) ? (int)$currentEvent['id'] : 0;
     $roleCode = (string)($user['role_code'] ?? '');
-    $dashboardUrl = $roleCode === 'journalist' ? '/ongoing-event.php' : '/dashboard.php';
+    $dashboardUrl = $roleCode === 'journalist' ? '/info.php' : '/dashboard.php';
     $showPhotographerOverview = $roleCode !== 'journalist';
     $showPhotoEditing = in_array($roleCode, ['press_operator', 'admin', 'superadmin'], true);
     $showAdminItems = in_array($roleCode, ['admin', 'superadmin'], true);
@@ -59,7 +59,7 @@ $styleVersion = is_file($styleFile) ? (string)filemtime($styleFile) : '1';
         <div class="brand">
             <a href="/" class="brand-link">
                 <img src="/assets/logo-cs.svg" alt="PRESS centrum Člověk a Víra" class="brand-logo">
-                <span class="brand-text">PRESScentrum ČaV</span>
+                <span class="brand-text">PRESS centrum ČaV</span>
             </a>
 
             <?php if ($user && $showChat): ?>

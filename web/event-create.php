@@ -24,7 +24,6 @@ $values = [
     'starts_at'       => '',
     'ends_at'         => '',
     'cav_gallery_url' => '',
-    'cloud_url'       => '',
     'leader_user_id'  => '',
     'status'          => 'planned',
     'is_public'       => '0',
@@ -42,7 +41,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $values['starts_at']       = trim((string)($_POST['starts_at'] ?? ''));
     $values['ends_at']         = trim((string)($_POST['ends_at'] ?? ''));
     $values['cav_gallery_url'] = trim((string)($_POST['cav_gallery_url'] ?? ''));
-    $values['cloud_url']       = trim((string)($_POST['cloud_url'] ?? ''));
     $values['leader_user_id']  = trim((string)($_POST['leader_user_id'] ?? ''));
     $values['status']          = trim((string)($_POST['status'] ?? 'planned'));
     $values['is_public']       = !empty($_POST['is_public']) ? '1' : '0';
@@ -115,7 +113,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'starts_at'       => $values['starts_at'],
             'ends_at'         => $values['ends_at'],
             'cav_gallery_url' => $values['cav_gallery_url'],
-            'cloud_url'       => $values['cloud_url'],
             'leader_user_id'  => $leaderUserId > 0 ? $leaderUserId : null,
             'status'          => $values['status'],
             'is_public'       => $values['is_public'] === '1' ? 1 : 0,
@@ -202,11 +199,6 @@ require_once __DIR__ . '/inc/header.php';
                 <div>
                     <label for="cav_gallery_url">URL galerie Člověk a Víra</label>
                     <input type="url" name="cav_gallery_url" id="cav_gallery_url" value="<?= h($values['cav_gallery_url']) ?>">
-                </div>
-
-                <div>
-                    <label for="cloud_url">URL cloudového disku</label>
-                    <input type="url" name="cloud_url" id="cloud_url" value="<?= h($values['cloud_url']) ?>">
                 </div>
 
                 <div class="form-grid-span-2">

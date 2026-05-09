@@ -128,18 +128,6 @@ require_once __DIR__ . '/inc/header.php';
                         </div>
                     </div>
 
-                    <div>
-                        <div class="dashboard-label">Cloudový disk</div>
-                        <div class="dashboard-value">
-                            <?php if (!empty($dashboardEvent['cloud_url'])): ?>
-                                <a href="<?= h((string)$dashboardEvent['cloud_url']) ?>" target="_blank" rel="noopener noreferrer">
-                                    <?= h((string)$dashboardEvent['cloud_url']) ?>
-                                </a>
-                            <?php else: ?>
-                                —
-                            <?php endif; ?>
-                        </div>
-                    </div>
                 </div>
             </div>
 

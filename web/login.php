@@ -51,7 +51,7 @@ if (is_post()) {
 
             <?php if ($currentEvent): ?>
                 <div class="login-ongoing-event">
-                    <a href="/ongoing-event.php" class="login-ongoing-event-link">
+                    <a href="/info.php" class="login-ongoing-event-link">
                         <?= h((string)$currentEvent['title']) ?>
                     </a>
                 </div>

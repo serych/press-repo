@@ -120,7 +120,7 @@ Cíl sprintu byl rozšířit presscentrum z jednosměrného vstupu fotek na komp
   - fotoeditor desktop: `photos.php`,
   - fotoeditor mobil: `photos-status.php`,
   - admin/superadmin: `dashboard.php`.
-- `ongoing-event.php` používá přihlášenou hlavičku a pro žurnalistu ukazuje jeho dostupné menu.
+- `info.php` používá přihlášenou hlavičku a pro žurnalistu ukazuje jeho dostupné menu.
 
 ### Úklid a Archivace
 
@@ -162,4 +162,3 @@ Cíl sprintu byl rozšířit presscentrum z jednosměrného vstupu fotek na komp
 - API do Lightroomu nebo jiného exportního workflow.
 - Tabulka akcí, název, odkazy na galerie, výběr fotografů a fotoeditorů, statistika.
 - vyčištění kódu, dokumentace 
-

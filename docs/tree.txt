@@ -16,7 +16,7 @@ drwxr-xr-x 2 www-data www-data  4096 Apr  3 20:21 inc
 -rw-r--r-- 1 root     root       268 Mar 31 21:02 index.php
 -rw-r--r-- 1 root     root      2433 Apr  4 16:19 login.php
 -rw-r--r-- 1 root     root       201 Mar 30 21:40 logout.php
--rw-r--r-- 1 root     root      7617 Apr  4 16:20 ongoing-event.php
+-rw-r--r-- 1 root     root      7617 Apr  4 16:20 info.php
 -rw-r--r-- 1 root     root      3553 Mar 31 20:52 photo.php
 -rw-r--r-- 1 root     root     17479 Apr  3 22:10 photos.php
 -rw-r--r-- 1 root     root     14300 Apr  4 14:12 photos-status.php
