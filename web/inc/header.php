@@ -94,10 +94,12 @@ $styleVersion = is_file($styleFile) ? (string)filemtime($styleFile) : '1';
                     <a href="/events.php" class="<?= in_array($currentPath, ['/events.php', '/event-create.php', '/event-edit.php'], true) ? 'is-active' : '' ?>">Eventy</a>
                 <?php endif; ?>
 
-                <?php if ($displayName !== ''): ?>
-                    <span class="nav-user-name"><?= h($displayName) ?></span>
-                <?php endif; ?>
-                <a href="/logout.php">Odhlásit</a>
+                <a href="/logout.php" class="nav-logout">
+                    Odhlásit
+                    <?php if ($displayName !== ''): ?>
+                        <span class="nav-logout-tooltip" role="tooltip"><?= h($displayName) ?></span>
+                    <?php endif; ?>
+                </a>
             </nav>
         <?php endif; ?>
     </div>

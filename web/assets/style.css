@@ -3358,16 +3358,44 @@ body::after {
     }
 }
 
-.nav-user-name {
-    color: rgba(255, 255, 255, 0.55);
+.top-nav a.nav-logout {
+    position: relative;
+}
+
+.nav-logout-tooltip {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 10px);
+    z-index: 20;
+    display: block;
+    min-width: max-content;
+    max-width: 260px;
+    padding: 7px 9px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-card);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+    color: var(--text-main);
     font-size: 12px;
-    margin-left: 20px;
+    line-height: 1.25;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-4px);
+    transition: opacity 120ms ease, transform 120ms ease;
     white-space: nowrap;
 }
 
+.top-nav a.nav-logout:hover .nav-logout-tooltip,
+.top-nav a.nav-logout:focus .nav-logout-tooltip,
+.top-nav a.nav-logout:focus-visible .nav-logout-tooltip {
+    opacity: 1;
+    transform: translateY(0);
+}
+
 @media (max-width: 900px) {
-    .nav-user-name {
-        margin-left: 0;
-        padding: 10px 10px 2px;
+    .nav-logout-tooltip {
+        right: auto;
+        left: 10px;
+        top: calc(100% + 4px);
     }
 }
