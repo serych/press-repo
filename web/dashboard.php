@@ -15,6 +15,9 @@ $summary = null;
 $participantCounts = null;
 $photographers = [];
 $editors = [];
+$serverNow = microtime(true);
+$serverMsToday = ((int)date('G', (int)$serverNow) * 3600 + (int)date('i', (int)$serverNow) * 60 + (int)date('s', (int)$serverNow)) * 1000
+    + (int)(($serverNow - floor($serverNow)) * 1000);
 
 if ($dashboardEvent) {
     $eventId = (int)$dashboardEvent['id'];
@@ -29,10 +32,6 @@ require_once __DIR__ . '/inc/header.php';
 ?>
 
 <section class="panel">
-    <div class="page-head">
-        <h1>Dashboard</h1>
-    </div>
-
     <?php if (!$dashboardEvent): ?>
         <div class="card">
             <p>Momentálně není k dispozici žádný aktivní event.</p>
@@ -63,7 +62,7 @@ require_once __DIR__ . '/inc/header.php';
             <div class="card dashboard-card dashboard-card-main">
                 <div class="dashboard-event-head">
                     <div>
-                        <h2 class="dashboard-event-title"><?= h((string)$dashboardEvent['title']) ?></h2>
+                        <h1 class="dashboard-event-title"><?= h((string)$dashboardEvent['title']) ?> - dashboard</h1>
                         <div class="dashboard-event-sub">
                             <?= h((string)$dashboardEvent['slug']) ?>
                             <?php if (!empty($dashboardEvent['is_temporary'])): ?>
@@ -72,10 +71,15 @@ require_once __DIR__ . '/inc/header.php';
                         </div>
                     </div>
 
-                    <div>
+                    <div class="dashboard-event-side">
                         <span class="badge <?= h($statusClass) ?>">
                             <?= h($statusLabel) ?>
                         </span>
+                        <div class="dashboard-clock" id="dashboard-clock" data-server-ms="<?= $serverMsToday ?>">--:--:--</div>
+                        <label class="dashboard-beep-toggle">
+                            <input type="checkbox" id="dashboard-beep-toggle">
+                            <span>Pípat</span>
+                        </label>
                     </div>
                 </div>
 
@@ -200,12 +204,27 @@ require_once __DIR__ . '/inc/header.php';
 
                     <div class="stat-box">
                         <div class="stat-value"><?= (int)($summary['uploaded_total'] ?? 0) ?></div>
-                        <div class="stat-label">Upload celkem</div>
+                        <div class="stat-label">Upload od fotografů</div>
                     </div>
 
                     <div class="stat-box">
-                        <div class="stat-value"><?= (int)($summary['downloaded_total'] ?? 0) ?></div>
-                        <div class="stat-label">Použito celkem</div>
+                        <div class="stat-value"><?= (int)($summary['published_total'] ?? 0) ?></div>
+                        <div class="stat-label">Publikováno</div>
+                    </div>
+
+                    <div class="stat-box">
+                        <div class="stat-value"><?= h(events_format_duration($summary['workflow_min'] ?? null)) ?></div>
+                        <div class="stat-label">Workflow min.</div>
+                    </div>
+
+                    <div class="stat-box">
+                        <div class="stat-value"><?= h(events_format_duration($summary['workflow_median'] ?? null)) ?></div>
+                        <div class="stat-label">Workflow medián</div>
+                    </div>
+
+                    <div class="stat-box">
+                        <div class="stat-value"><?= h(events_format_duration($summary['workflow_max'] ?? null)) ?></div>
+                        <div class="stat-label">Workflow max.</div>
                     </div>
                 </div>
             </div>
@@ -249,9 +268,154 @@ require_once __DIR__ . '/inc/header.php';
 </section>
 
 <script>
-setTimeout(function () {
-    window.location.reload();
-}, 60000);
+document.addEventListener('DOMContentLoaded', function () {
+    const clock = document.getElementById('dashboard-clock');
+    if (!clock) {
+        return;
+    }
+
+    const beepToggle = document.getElementById('dashboard-beep-toggle');
+    const serverMs = Number(clock.dataset.serverMs || 0);
+    const navigationEntry = performance.getEntriesByType('navigation')[0];
+    const startedAt = navigationEntry && navigationEntry.responseStart ? navigationEntry.responseStart : 0;
+    let audioContext = null;
+    let lastRenderedSecond = null;
+    let lastBeepKey = '';
+    let reloadTimer = null;
+
+    function pad(value) {
+        return String(value).padStart(2, '0');
+    }
+
+    function isBeepEnabled() {
+        return Boolean(beepToggle && beepToggle.checked);
+    }
+
+    function scheduleReload() {
+        if (reloadTimer) {
+            window.clearTimeout(reloadTimer);
+            reloadTimer = null;
+        }
+
+        if (!isBeepEnabled()) {
+            reloadTimer = window.setTimeout(function () {
+                window.location.reload();
+            }, 60000);
+        }
+    }
+
+    function ensureAudioContext() {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) {
+            return null;
+        }
+
+        if (!audioContext) {
+            audioContext = new AudioContextClass();
+        }
+
+        if (audioContext.state === 'suspended') {
+            audioContext.resume();
+        }
+
+        return audioContext;
+    }
+
+    function startBeep(context, durationMs) {
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        const now = context.currentTime;
+        const duration = durationMs / 1000;
+
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(1000, now);
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.22, now + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+        oscillator.connect(gain);
+        gain.connect(context.destination);
+        oscillator.start(now);
+        oscillator.stop(now + duration + 0.02);
+    }
+
+    function playBeep(durationMs) {
+        const context = ensureAudioContext();
+        if (!context) {
+            return;
+        }
+
+        if (context.state === 'suspended') {
+            context.resume().then(function () {
+                startBeep(context, durationMs);
+            });
+            return;
+        }
+
+        startBeep(context, durationMs);
+    }
+
+    function maybeBeep(secondsToday) {
+        if (!isBeepEnabled()) {
+            return;
+        }
+
+        const secondsFromQuarter = secondsToday % 15;
+        const isQuarterSecond = secondsFromQuarter === 0;
+        const secondsToNextQuarter = isQuarterSecond ? 0 : 15 - secondsFromQuarter;
+        if (secondsToNextQuarter > 4) {
+            return;
+        }
+
+        const key = String(secondsToday);
+        if (key === lastBeepKey) {
+            return;
+        }
+
+        lastBeepKey = key;
+        playBeep(isQuarterSecond ? 500 : 250);
+    }
+
+    function updateClock() {
+        const elapsedMs = performance.now() - startedAt;
+        const msToday = (serverMs + elapsedMs) % 86400000;
+        const secondsToday = Math.floor(msToday / 1000);
+        if (secondsToday === lastRenderedSecond) {
+            return;
+        }
+
+        lastRenderedSecond = secondsToday;
+        const hours = Math.floor(secondsToday / 3600);
+        const minutes = Math.floor((secondsToday % 3600) / 60);
+        const seconds = secondsToday % 60;
+        clock.textContent = pad(hours) + ':' + pad(minutes) + ':' + pad(seconds);
+        maybeBeep(secondsToday);
+    }
+
+    if (beepToggle) {
+        beepToggle.addEventListener('change', function () {
+            if (beepToggle.checked) {
+                if (!window.confirm('Opravdu zapnout pípání hodin?')) {
+                    beepToggle.checked = false;
+                    scheduleReload();
+                    return;
+                }
+
+                playBeep(250);
+            }
+
+            scheduleReload();
+        });
+
+        window.addEventListener('pagehide', function () {
+            beepToggle.checked = false;
+        });
+    }
+
+    updateClock();
+    window.setInterval(updateClock, 250);
+    scheduleReload();
+});
 </script>
 
 <?php require_once __DIR__ . '/inc/footer.php'; ?>

@@ -445,17 +445,87 @@ function events_stats_summary(int $eventId): array
     $uploadedTotal = (int)($row['uploaded_total'] ?? 0);
     $downloadedTotal = (int)($row['downloaded_total'] ?? 0);
 
+    $publishedStmt = db()->prepare("
+        SELECT COUNT(*) AS published_total
+        FROM published_photos
+        WHERE event_id = ?
+          AND status = 'ready'
+    ");
+    $publishedStmt->execute([$eventId]);
+    $publishedRow = $publishedStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $publishedTotal = (int)($publishedRow['published_total'] ?? 0);
+
+    $workflowStmt = db()->prepare("
+        SELECT TIMESTAMPDIFF(SECOND, captured_at, published_at) AS workflow_seconds
+        FROM published_photos
+        WHERE event_id = ?
+          AND status = 'ready'
+          AND captured_at IS NOT NULL
+          AND published_at IS NOT NULL
+        ORDER BY workflow_seconds ASC
+    ");
+    $workflowStmt->execute([$eventId]);
+    $workflowSeconds = array_map(
+        'intval',
+        array_column($workflowStmt->fetchAll(PDO::FETCH_ASSOC), 'workflow_seconds')
+    );
+    $workflowCount = count($workflowSeconds);
+    $workflowMin = $workflowCount > 0 ? $workflowSeconds[0] : null;
+    $workflowMax = $workflowCount > 0 ? $workflowSeconds[$workflowCount - 1] : null;
+    $workflowMedian = null;
+
+    if ($workflowCount > 0) {
+        $middle = intdiv($workflowCount, 2);
+        if ($workflowCount % 2 === 1) {
+            $workflowMedian = $workflowSeconds[$middle];
+        } else {
+            $workflowMedian = (int)round(($workflowSeconds[$middle - 1] + $workflowSeconds[$middle]) / 2);
+        }
+    }
+
     if ($uploadedTotal === 0 && $event && !empty($event['archived_at'])) {
         return [
             'uploaded_total'   => (int)($event['archived_uploaded_total'] ?? 0),
             'downloaded_total' => (int)($event['archived_downloaded_total'] ?? 0),
+            'published_total'  => $publishedTotal,
+            'workflow_min'     => $workflowMin,
+            'workflow_max'     => $workflowMax,
+            'workflow_median'  => $workflowMedian,
         ];
     }
 
     return [
         'uploaded_total'   => $uploadedTotal,
         'downloaded_total' => $downloadedTotal,
+        'published_total'  => $publishedTotal,
+        'workflow_min'     => $workflowMin,
+        'workflow_max'     => $workflowMax,
+        'workflow_median'  => $workflowMedian,
     ];
+}
+
+function events_format_duration(?int $seconds): string
+{
+    if ($seconds === null) {
+        return '—';
+    }
+
+    $prefix = '';
+    if ($seconds < 0) {
+        $prefix = '-';
+        $seconds = abs($seconds);
+    }
+
+    $hours = intdiv($seconds, 3600);
+    $seconds %= 3600;
+    $minutes = intdiv($seconds, 60);
+    $seconds %= 60;
+
+    if ($hours > 0) {
+        return sprintf('%s%d:%02d:%02d', $prefix, $hours, $minutes, $seconds);
+    }
+
+    return sprintf('%s%02d:%02d', $prefix, $minutes, $seconds);
 }
 
 function events_stats_photographers(int $eventId): array
