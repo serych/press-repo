@@ -194,6 +194,7 @@ echo json_encode([
             'filename' => (string)$p['filename'],
             'ftp_user' => (string)$p['ftp_user'],
             'status' => (string)$p['status'],
+            'published_count' => (int)($p['published_count'] ?? 0),
             'uploaded_at' => (string)$p['uploaded_at'],
             'published_duration_label' => (!empty($p['first_published_at']) && !empty($p['captured_at']))
                 ? photos_format_duration_between((string)$p['captured_at'], (string)$p['first_published_at'])

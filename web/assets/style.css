@@ -314,6 +314,12 @@ h1 {
     border: 1px solid #f59e0b;
 }
 
+.status-published {
+    background: #581c87;
+    color: #f5d0fe;
+    border: 1px solid #c026d3;
+}
+
 .status {
     font-weight: 600;
     letter-spacing: 0.2px;

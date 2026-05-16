@@ -139,6 +139,106 @@ function photos_is_blocked(array $photo): bool
     return !empty($photo['is_blocked']);
 }
 
+function photos_status_label(string $status): string
+{
+    return match ($status) {
+        'uploaded' => 'nahráno',
+        'processing' => 'zpracování',
+        'ready' => 'připraveno',
+        'selected' => 'ke stažení',
+        'locked' => 'zamknuto',
+        'downloaded' => 'staženo',
+        'deleted' => 'smazáno',
+        'error' => 'chyba',
+        default => $status,
+    };
+}
+
+function photos_status_class(string $status): string
+{
+    return match ($status) {
+        'uploaded' => 'status-uploaded',
+        'processing' => 'status-processing',
+        'selected' => 'status-selected',
+        'locked' => 'status-locked',
+        'downloaded' => 'status-downloaded',
+        'deleted', 'error' => 'status-error',
+        default => 'status-ready',
+    };
+}
+
+function photos_display_status(array $photo, ?int $currentUserId = null): array
+{
+    if (photos_is_blocked($photo)) {
+        return [
+            'text' => 'zablokováno',
+            'class' => 'status-blocked',
+            'note' => photos_person_label($photo, 'blocked'),
+        ];
+    }
+
+    if (!photos_is_event_photographer_allowed($photo)) {
+        return [
+            'text' => 'mimo event',
+            'class' => 'status-unassigned',
+            'note' => 'fotograf není přiřazen',
+        ];
+    }
+
+    if ((int)($photo['published_count'] ?? 0) > 0) {
+        return [
+            'text' => 'publikováno',
+            'class' => 'status-published',
+            'note' => '',
+        ];
+    }
+
+    $status = (string)($photo['status'] ?? 'ready');
+    if (in_array($status, ['uploaded', 'processing', 'downloaded', 'error', 'deleted'], true)) {
+        return [
+            'text' => photos_status_label($status),
+            'class' => photos_status_class($status),
+            'note' => '',
+        ];
+    }
+
+    if (!empty($photo['locked_by_user_id'])) {
+        if ($currentUserId !== null && (int)$photo['locked_by_user_id'] === $currentUserId) {
+            return [
+                'text' => 'ke stažení',
+                'class' => 'status-selected',
+                'note' => '',
+            ];
+        }
+
+        return [
+            'text' => 'zamknuto',
+            'class' => 'status-locked',
+            'note' => photos_person_label($photo, 'locked'),
+        ];
+    }
+
+    return [
+        'text' => photos_status_label($status),
+        'class' => photos_status_class($status),
+        'note' => '',
+    ];
+}
+
+function photos_person_label(array $row, string $prefix): string
+{
+    $name = trim(
+        ((string)($row[$prefix . '_jmeno'] ?? '')) . ' ' .
+        ((string)($row[$prefix . '_prijmeni'] ?? ''))
+    );
+
+    if ($name !== '') {
+        return $name;
+    }
+
+    return (string)($row[$prefix . '_by_user'] ?? '');
+}
+
 function photos_used_original_basenames_for_photographer(int $eventId, string $ftpUser): array
 {
     $ftpUser = trim($ftpUser);

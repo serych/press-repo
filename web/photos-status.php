@@ -75,12 +75,20 @@ $sql = "
         p.is_blocked,
         p.exif_problem,
         p.event_photographer_allowed,
+        pps.published_count,
         lu.user AS locked_by_user,
         lu.jmeno AS locked_jmeno,
         lu.prijmeni AS locked_prijmeni,
         p.ftp_user
     FROM photos p
     LEFT JOIN users lu ON lu.id = p.locked_by_user_id
+    LEFT JOIN (
+        SELECT source_photo_id, COUNT(*) AS published_count
+        FROM published_photos
+        WHERE source_photo_id IS NOT NULL
+          AND status = 'ready'
+        GROUP BY source_photo_id
+    ) pps ON pps.source_photo_id = p.id
     WHERE p.status <> 'deleted'
 ";
 
@@ -177,56 +185,7 @@ require_once __DIR__ . '/inc/header.php';
             <?php foreach ($photos as $photo): ?>
 
                 <?php
-                $lockedByName = trim(
-                    ((string)($photo['locked_jmeno'] ?? '')) . ' ' .
-                    ((string)($photo['locked_prijmeni'] ?? ''))
-                );
-
-                $statusText = 'připraveno';
-                $statusClass = 'status-ready';
-                $statusNote = '';
-
-                if (!empty($photo['is_blocked'])) {
-                    $statusText = 'zablokováno';
-                    $statusClass = 'status-blocked';
-                } elseif ((int)($photo['event_photographer_allowed'] ?? 1) !== 1) {
-                    $statusText = 'mimo event';
-                    $statusClass = 'status-unassigned';
-                    $statusNote = 'fotograf není přiřazen';
-                } else {
-                    switch ((string)$photo['status']) {
-                        case 'downloaded':
-                            $statusText = 'staženo';
-                            $statusClass = 'status-downloaded';
-                            break;
-
-                        case 'locked':
-                            $statusText = 'zamknuto';
-                            $statusClass = 'status-locked';
-
-                            if ($lockedByName !== '') {
-                                $statusNote = $lockedByName;
-                            } elseif (!empty($photo['locked_by_user'])) {
-                                $statusNote = (string)$photo['locked_by_user'];
-                            }
-                            break;
-
-                        case 'processing':
-                            $statusText = 'zpracování';
-                            $statusClass = 'status-processing';
-                            break;
-
-                        case 'uploaded':
-                            $statusText = 'nahráno';
-                            $statusClass = 'status-uploaded';
-                            break;
-
-                        case 'error':
-                            $statusText = 'chyba';
-                            $statusClass = 'status-error';
-                            break;
-                    }
-                }
+                $statusInfo = photos_display_status($photo);
 
                 $cardClass = 'status-photo-card';
                 if (!empty($photo['exif_problem'])) {
@@ -261,16 +220,16 @@ require_once __DIR__ . '/inc/header.php';
                         <?php endif; ?>
 
                         <div class="status-photo-state">
-                            <span class="status <?= h($statusClass) ?>" data-role="status-badge">
-                                <?php if ($statusClass === 'status-processing'): ?>
+                            <span class="status <?= h($statusInfo['class']) ?>" data-role="status-badge">
+                                <?php if ($statusInfo['class'] === 'status-processing'): ?>
                                     <span class="status-spinner"></span>
                                 <?php endif; ?>
-                                <?= h($statusText) ?>
+                                <?= h($statusInfo['text']) ?>
                             </span>
 
-                            <span class="lock-owner" data-role="status-note" <?= $statusNote === '' ? 'style="display:none;"' : '' ?>>
-                                <?php if ($statusNote !== ''): ?>
-                                    (<?= h($statusNote) ?>)
+                            <span class="lock-owner" data-role="status-note" <?= $statusInfo['note'] === '' ? 'style="display:none;"' : '' ?>>
+                                <?php if ($statusInfo['note'] !== ''): ?>
+                                    (<?= h($statusInfo['note']) ?>)
                                 <?php endif; ?>
                             </span>
                         </div>

@@ -39,6 +39,8 @@ $isEventPhotographerAllowed = photos_is_event_photographer_allowed($photo);
 $isBlocked = photos_is_blocked($photo);
 $publishedPhotos = photos_get_published_for_source((int)$photo['id']);
 $firstPublishedPhoto = $publishedPhotos[0] ?? null;
+$photo['published_count'] = count($publishedPhotos);
+$statusInfo = photos_display_status($photo, $currentUserId);
 $currentEvent = photos_get_current_event();
 $currentEventId = !empty($currentEvent['id']) ? (int)$currentEvent['id'] : (int)($photo['event_id'] ?? 0);
 
@@ -84,15 +86,6 @@ $downloadedByName = trim(
 
 if ($downloadedByName === '') {
     $downloadedByName = (string)($photo['downloaded_by_user'] ?? '');
-}
-
-$blockedByName = trim(
-    ((string)($photo['blocked_jmeno'] ?? '')) . ' ' .
-    ((string)($photo['blocked_prijmeni'] ?? ''))
-);
-
-if ($blockedByName === '') {
-    $blockedByName = (string)($photo['blocked_by_user'] ?? '');
 }
 
 require_once __DIR__ . '/inc/header.php';
@@ -170,50 +163,12 @@ require_once __DIR__ . '/inc/header.php';
 <th>Stav</th>
 <td>
 
-<?php if ($isBlocked): ?>
 <span class="status-line">
-    <span class="status status-blocked">zablokováno</span>
-    <?php if ($blockedByName !== ''): ?>
-        <span class="lock-owner">(<?= h($blockedByName) ?>)</span>
+    <span class="status <?= h($statusInfo['class']) ?>"><?= h($statusInfo['text']) ?></span>
+    <?php if ($statusInfo['note'] !== ''): ?>
+        <span class="lock-owner">(<?= h($statusInfo['note']) ?>)</span>
     <?php endif; ?>
 </span>
-
-<?php elseif (!$isEventPhotographerAllowed): ?>
-<span class="status status-unassigned">mimo event</span>
-
-<?php elseif ($photo['status'] === 'downloaded'): ?>
-<span class="status status-downloaded">downloaded</span>
-
-<?php elseif (!empty($photo['locked_by_user_id'])): ?>
-
-<?php if ((int)$photo['locked_by_user_id'] === $currentUserId): ?>
-<span class="status status-selected">ke stažení</span>
-<?php else: ?>
-
-<?php
-$lockedByName = trim(
-    ((string)($photo['locked_jmeno'] ?? '')) . ' ' .
-    ((string)($photo['locked_prijmeni'] ?? ''))
-);
-?>
-
-<span class="status-line">
-    <span class="status status-locked">zamknuto</span>
-
-    <?php if ($lockedByName !== ''): ?>
-        <span class="lock-owner">(<?= h($lockedByName) ?>)</span>
-    <?php elseif (!empty($photo['locked_by_user'])): ?>
-        <span class="lock-owner">(<?= h((string)$photo['locked_by_user']) ?>)</span>
-    <?php endif; ?>
-</span>
-
-<?php endif; ?>
-
-<?php else: ?>
-
-<span class="status status-ready">ready</span>
-
-<?php endif; ?>
 
 </td>
 </tr>

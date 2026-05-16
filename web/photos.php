@@ -87,7 +87,7 @@ require_once __DIR__ . '/inc/header.php';
                     <option value="">-- stav --</option>
                     <?php foreach (['ready', 'locked', 'downloaded', 'error'] as $s): ?>
                         <option value="<?= h($s) ?>" <?= $status === $s ? 'selected' : '' ?>>
-                            <?= h($s) ?>
+                            <?= h(photos_status_label($s)) ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
@@ -145,6 +145,7 @@ require_once __DIR__ . '/inc/header.php';
                         $cardClass = 'photo-card';
                         $isEventPhotographerAllowed = photos_is_event_photographer_allowed($p);
                         $isBlocked = photos_is_blocked($p);
+                        $statusInfo = photos_display_status($p, $currentUserId);
 
                         if (($p['status'] ?? '') === 'locked' && !empty($p['locked_by_user_id'])) {
                             if ((int)$p['locked_by_user_id'] === $currentUserId) {
@@ -186,64 +187,37 @@ require_once __DIR__ . '/inc/header.php';
                                     </div>
 
                                     <div class="status-wrapper">
-                                        <?php if ($isBlocked): ?>
-                                            <div class="status-line">
-                                                <div class="status status-blocked">
-                                                    zablokováno
-                                                </div>
-                                            </div>
-                                        <?php elseif (!$isEventPhotographerAllowed): ?>
-                                            <div class="status status-unassigned">
-                                                mimo event
-                                            </div>
-                                        <?php elseif ($p['status'] === 'downloaded'): ?>
-                                            <div class="status status-downloaded">
-                                                downloaded
-                                            </div>
-                                        <?php elseif ($p['locked_by_user_id']): ?>
-                                            <?php if ($p['locked_by_user_id'] == $currentUserId): ?>
+                                        <?php if (
+                                            $statusInfo['class'] === 'status-selected'
+                                            && !empty($p['locked_by_user_id'])
+                                        ): ?>
                                                 <a href="/select.php?id=<?= (int)$p['id'] ?>&action=unlock"
                                                    class="status status-selected status-clickable"
                                                    onclick="event.stopPropagation();">
-                                                    ke stažení
+                                                    <?= h($statusInfo['text']) ?>
                                                 </a>
-                                            <?php else: ?>
-                                                <div class="status-line">
-                                                    <div class="status status-locked">
-                                                        zamknuto
-                                                    </div>
-
-                                                    <?php
-                                                    $lockedByName = trim(
-                                                        ((string)($p['locked_jmeno'] ?? '')) . ' ' .
-                                                        ((string)($p['locked_prijmeni'] ?? ''))
-                                                    );
-                                                    ?>
-
-                                                    <?php if ($lockedByName !== ''): ?>
-                                                        <div class="lock-owner">
-                                                            (<?= h($lockedByName) ?>)
-                                                        </div>
-                                                    <?php elseif (!empty($p['locked_by_user'])): ?>
-                                                        <div class="lock-owner">
-                                                            (<?= h((string)$p['locked_by_user']) ?>)
-                                                        </div>
-                                                    <?php endif; ?>
-                                                </div>
-                                            <?php endif; ?>
-                                        <?php else: ?>
-                                            <?php if (has_permission('photos.select')): ?>
+                                        <?php elseif (
+                                            $statusInfo['class'] === 'status-ready'
+                                            && has_permission('photos.select')
+                                        ): ?>
                                                 <a href="/select.php?id=<?= (int)$p['id'] ?>&action=lock"
                                                    class="status status-ready status-clickable"
                                                    onclick="event.stopPropagation();">
-                                                    ready
+                                                    <?= h($statusInfo['text']) ?>
                                                 </a>
-                                            <?php else: ?>
-                                                <div class="status status-ready">
-                                                    ready
+                                        <?php else: ?>
+                                            <div class="status-line">
+                                                <div class="status <?= h($statusInfo['class']) ?>">
+                                                    <?= h($statusInfo['text']) ?>
                                                 </div>
+
+                                                <?php if ($statusInfo['note'] !== ''): ?>
+                                                    <div class="lock-owner">
+                                                        (<?= h($statusInfo['note']) ?>)
+                                                    </div>
+                                                <?php endif; ?>
+                                            </div>
                                             <?php endif; ?>
-                                        <?php endif; ?>
                                     </div>
 
                                     <?php if (!empty($p['exif_problem'])): ?>
@@ -446,10 +420,16 @@ function renderPhotoCard(item, currentUserId, canSelect) {
         statusHtml = '<div class="status status-blocked">zablokováno</div>';
     } else if (!isEventPhotographerAllowed) {
         statusHtml = '<div class="status status-unassigned">mimo event</div>';
+    } else if (Number(item.published_count || 0) > 0) {
+        statusHtml = '<div class="status status-published">publikováno</div>';
     } else if (item.status === 'downloaded') {
-        statusHtml = '<div class="status status-downloaded">downloaded</div>';
+        statusHtml = '<div class="status status-downloaded">staženo</div>';
     } else if (item.status === 'processing') {
-        statusHtml = '<div class="status status-processing">processing</div>';
+        statusHtml = '<div class="status status-processing">zpracování</div>';
+    } else if (item.status === 'uploaded') {
+        statusHtml = '<div class="status status-uploaded">nahráno</div>';
+    } else if (item.status === 'error') {
+        statusHtml = '<div class="status status-error">chyba</div>';
     } else if (item.locked_by_user_id) {
         if (Number(item.locked_by_user_id) === Number(currentUserId)) {
             statusHtml =
@@ -473,9 +453,9 @@ function renderPhotoCard(item, currentUserId, canSelect) {
     } else {
         if (canSelect) {
             statusHtml =
-                '<a href="/select.php?id=' + item.id + '&action=lock" class="status status-ready status-clickable" onclick="event.stopPropagation();">ready</a>';
+                '<a href="/select.php?id=' + item.id + '&action=lock" class="status status-ready status-clickable" onclick="event.stopPropagation();">připraveno</a>';
         } else {
-            statusHtml = '<div class="status status-ready">ready</div>';
+            statusHtml = '<div class="status status-ready">připraveno</div>';
         }
     }
 

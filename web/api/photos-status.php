@@ -5,6 +5,7 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../inc/auth.php';
 require_once __DIR__ . '/../inc/functions.php';
 require_once __DIR__ . '/../inc/db.php';
+require_once __DIR__ . '/../inc/photos.php';
 
 require_login();
 
@@ -193,11 +194,19 @@ $sql = "
         p.exif_problem,
         p.event_photographer_allowed,
         p.ftp_user,
+        pps.published_count,
         lu.user AS locked_by_user,
         lu.jmeno AS locked_jmeno,
         lu.prijmeni AS locked_prijmeni
     FROM photos p
     LEFT JOIN users lu ON lu.id = p.locked_by_user_id
+    LEFT JOIN (
+        SELECT source_photo_id, COUNT(*) AS published_count
+        FROM published_photos
+        WHERE source_photo_id IS NOT NULL
+          AND status = 'ready'
+        GROUP BY source_photo_id
+    ) pps ON pps.source_photo_id = p.id
     WHERE p.status <> 'deleted'
 ";
 $params = [];
@@ -247,56 +256,7 @@ $uploadingCount = count_uploading_files($pdo, $ftpUser, $activeEventId, $scope);
 $data = [];
 
 foreach ($rows as $row) {
-    $lockedByName = trim(
-        ((string)($row['locked_jmeno'] ?? '')) . ' ' .
-        ((string)($row['locked_prijmeni'] ?? ''))
-    );
-
-    $statusText = 'připraveno';
-    $statusClass = 'status-ready';
-    $statusNote = '';
-
-    if (!empty($row['is_blocked'])) {
-        $statusText = 'zablokováno';
-        $statusClass = 'status-blocked';
-    } elseif ((int)($row['event_photographer_allowed'] ?? 1) !== 1) {
-        $statusText = 'mimo event';
-        $statusClass = 'status-unassigned';
-        $statusNote = 'fotograf není přiřazen';
-    } else {
-        switch ((string)$row['status']) {
-            case 'downloaded':
-                $statusText = 'staženo';
-                $statusClass = 'status-downloaded';
-                break;
-
-            case 'locked':
-                $statusText = 'zamknuto';
-                $statusClass = 'status-locked';
-
-                if ($lockedByName !== '') {
-                    $statusNote = $lockedByName;
-                } elseif (!empty($row['locked_by_user'])) {
-                    $statusNote = (string)$row['locked_by_user'];
-                }
-                break;
-
-            case 'processing':
-                $statusText = 'zpracování';
-                $statusClass = 'status-processing';
-                break;
-
-            case 'uploaded':
-                $statusText = 'nahráno';
-                $statusClass = 'status-uploaded';
-                break;
-
-            case 'error':
-                $statusText = 'chyba';
-                $statusClass = 'status-error';
-                break;
-        }
-    }
+    $statusInfo = photos_display_status($row);
 
     $data[] = [
         'id' => (int)$row['id'],
@@ -306,9 +266,9 @@ foreach ($rows as $row) {
             ? '/preview.php?id=' . (int)$row['id'] . '&size=small'
             : '',
         'status' => (string)$row['status'],
-        'status_text' => $statusText,
-        'status_class' => $statusClass,
-        'status_note' => $statusNote,
+        'status_text' => $statusInfo['text'],
+        'status_class' => $statusInfo['class'],
+        'status_note' => $statusInfo['note'],
         'exif_problem' => !empty($row['exif_problem']),
         'event_photographer_allowed' => (int)($row['event_photographer_allowed'] ?? 1) === 1,
         'is_blocked' => !empty($row['is_blocked']),
