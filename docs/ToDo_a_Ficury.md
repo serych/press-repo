@@ -85,7 +85,8 @@ Cíl sprintu byl rozšířit presscentrum z jednosměrného vstupu fotek na komp
   - popis eventu,
   - výraznou licenční poznámku a odkaz na licenční podmínky.
 - Fotky jsou řazené podle času pořízení z EXIFu.
-- U každé fotky se zobrazuje autor z EXIFu ve formátu `autor / Člověk a Víra`.
+- U každé fotky se zobrazuje autor ve formátu `autor / Člověk a Víra`.
+- Autor publikované fotky je uložený v `published_photos.author_label`, aby Galerie při vykreslení nespouštěla `exiftool` pro každou fotku.
 - Individuální stažení je hotové.
 - Hromadné stažení je hotové jako postupné spuštění individuálních downloadů.
 - Tlačítko `Stáhnout vše` bylo odstraněno; používá se `Vybrat vše` + `Stáhnout vybrané`.
@@ -113,7 +114,7 @@ Cíl sprintu byl rozšířit presscentrum z jednosměrného vstupu fotek na komp
   - `Odhlásit`.
 - `Publikace fotek` už není samostatná položka v menu; plná upload stránka je dostupná přes upload box ve `photos.php`.
 - Aktivní položka menu je jemně zvýrazněná.
-- U odhlášení se nenápadně zobrazuje jméno přihlášeného uživatele.
+- Jméno přihlášeného uživatele se nezobrazuje trvale; je dostupné jako bublina při hover/focus na `Odhlásit`.
 - Výchozí stránky podle role:
   - žurnalista: `galerie.php`,
   - fotograf: `photos-status.php`,
@@ -121,6 +122,93 @@ Cíl sprintu byl rozšířit presscentrum z jednosměrného vstupu fotek na komp
   - fotoeditor mobil: `photos-status.php`,
   - admin/superadmin: `dashboard.php`.
 - `info.php` používá přihlášenou hlavičku a pro žurnalistu ukazuje jeho dostupné menu.
+
+## Sprint 9: drobné opravy, dashboard, galerie, GPS metadata - probíhá
+
+Sprint 9 zatím řeší hlavně zpřehlednění žurnalistických a dashboardových obrazovek, zrychlení Galerie a přípravu geotagování fotografií.
+
+### Žurnalistické Info
+
+- Původní `ongoing-event.php` bylo přejmenováno na `info.php`.
+- Ze stránky byly odstraněny položky:
+  - `Cloudový disk`,
+  - `Veřejný dashboard`,
+  - samostatný nadpis `Probíhající událost`.
+- Položka `Galerie Člověk a Víra` zůstává.
+- Opraveno zobrazení `Vedoucí eventu` včetně telefonu; problém byl v kolizi proměnné s hlavičkou.
+- Odkazy v loginu a hlavičce vedou na nové `info.php`.
+
+### Galerie
+
+- Původní `published.php` bylo přejmenováno na `galerie.php`.
+- Starý produkční vstup `published.php` byl odstraněn.
+- Menu, výchozí stránka žurnalisty a zpětný odkaz z detailu publikované fotky používají `galerie.php`.
+- Výkon Galerie byl optimalizován:
+  - dříve se autor každé fotky načítal při renderu přes `exiftool`,
+  - nově se autor ukládá do `published_photos.author_label`,
+  - existující publikované fotky byly zpětně doplněny.
+- Přidána migrace `sql/sprint9_002_published_author_label.sql`.
+
+### Dashboard
+
+- Samostatný nadpis `Dashboard` byl odstraněn.
+- Název eventu se zobrazuje jako `<název eventu> - dashboard`.
+- Souhrn používá nové popisky:
+  - `Upload od fotografů`,
+  - `Publikováno`.
+- `Publikováno` ukazuje počet hotových fotek v Galerii.
+- Přidány workflow statistiky z publikovaných fotek:
+  - minimum,
+  - medián,
+  - maximum.
+- Přidány velké digitální hodiny ve formátu `HH:mm:ss`.
+- Hodiny jsou inicializované ze serverového času a zpřesněné pomocí `performance.navigation.responseStart`.
+- Přidáno volitelné pípání hodin:
+  - zapnutí vyžaduje potvrzení,
+  - pípá 5 sekund před hranami `00`, `15`, `30`, `45` sekund,
+  - krátké pípnutí má 250 ms,
+  - poslední pípnutí na hraně má 500 ms,
+  - při opuštění dashboardu se checkbox automaticky vypne.
+
+### Hlavička
+
+- Text značky změněn na `PRESS centrum ČaV`.
+- Jméno přihlášeného uživatele je schované v tooltipu odhlašovacího odkazu.
+
+### Eventy a Cloud
+
+- Položka `Cloudový disk` byla odstraněna z dashboardů, create/edit formulářů i z databáze.
+- Sloupec `events.cloud_url` byl odstraněn.
+- Přidána migrace `sql/sprint9_001_remove_event_cloud_url.sql`.
+
+### GPS a EXIF
+
+- Do tabulky `events` byly přidány GPS hodnoty pro zápis do EXIFu:
+  - `gps_latitude`,
+  - `gps_latitude_ref`,
+  - `gps_longitude`,
+  - `gps_longitude_ref`.
+- Přidána migrace `sql/sprint9_003_event_gps_exif.sql`.
+- `event-create.php` a `event-edit.php` používají jedno pole `GPS souřadnice`.
+- Formulář přijímá mapový formát, např. `49.1896308N, 16.5751786E`.
+- Hodnota se při uložení převádí na EXIF DMS formát:
+  - `GPSLatitude`,
+  - `GPSLatitudeRef`,
+  - `GPSLongitude`,
+  - `GPSLongitudeRef`.
+- Při editaci se uložený EXIF formát převádí zpět na mapový desetinný zápis.
+- Watcher při prvním zpracování nové fotky:
+  - přepisuje autora podle uživatele,
+  - přepisuje copyright podle uživatele,
+  - nastavuje copyright status,
+  - zapisuje `Title = via PRESS centrum`,
+  - pokud fotka nemá GPS a event GPS má, doplní GPS do EXIFu.
+- Pokud fotka GPS v EXIFu už má, watcher ji nepřepisuje.
+- Runner workflow bylo zkontrolováno:
+  - runner upload hledá autora podle EXIF autora a pole `users.exif_author`,
+  - po nalezení autora přesune soubor z adresáře runnera do FTP adresáře autora,
+  - následně provede standardní EXIF zápis podle nalezeného autora.
+- Porovnání runner autora je po normalizaci volnější, aby prošel i širší EXIF text obsahující očekávaný autor string.
 
 ### Úklid a Archivace
 
@@ -146,17 +234,14 @@ Cíl sprintu byl rozšířit presscentrum z jednosměrného vstupu fotek na komp
 
 ### Co Zůstává Do Dalších Sprintů
 
-- Souhrnné dashboardové statistiky hotových fotek:
-  - počet publikovaných fotek,
-  - medián/maximum celkového workflow času,
-  - poslední publikované fotky.
 - Ruční párování nespárovaných publikovaných fotek s originálem.
 - Případné reporty/exporty po eventu.
+- Přehled posledních publikovaných fotek na dashboardu.
+- Další ruční nástroje pro práci se soubory a eventem.
 
 ## Nápady pro další sprinty
 - seznam publikovaných fotek pro jednotlivé fotografy + skript windows/mac pro označení?
-- GPS souřadnice eventu a update v EXIFu
-- Seřizovač času foťáků
+- případné rozšíření GPS o nadmořskou výšku
 - menu pro soubory s návody
 - vylepšení chatu (pár jednoduchých smajliků)
 - API do Lightroomu nebo jiného exportního workflow.
