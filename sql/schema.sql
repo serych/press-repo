@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS photos (
     user_id INT UNSIGNED NULL,
     event_id INT UNSIGNED NULL,
     event_photographer_allowed TINYINT(1) NOT NULL DEFAULT 1,
+    uploaded_by_role ENUM('author', 'runner') NOT NULL DEFAULT 'author',
     is_blocked TINYINT(1) NOT NULL DEFAULT 0,
     blocked_by_user_id INT UNSIGNED NULL,
     blocked_at DATETIME NULL,

@@ -330,6 +330,15 @@ require_once __DIR__ . '/inc/header.php';
             <?php endif; ?>
         </div>
 
+        <div class="form-actions" style="margin-bottom: 12px;">
+            <a class="button" href="/event-report-download.php?id=<?= (int)$id ?>&format=xls">
+                Stáhnout přehled fotek Excel
+            </a>
+            <a class="button button-muted" href="/event-report-download.php?id=<?= (int)$id ?>&format=csv">
+                Stáhnout přehled fotek CSV
+            </a>
+        </div>
+
         <div class="form-actions">
             <form method="post" class="js-confirm-form"
                   data-confirm-title="Vyčistit testovací data?"

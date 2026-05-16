@@ -777,6 +777,191 @@ function events_stats_counts_of_participants(int $eventId): array
     ];
 }
 
+function events_report_rows(int $eventId): array
+{
+    if ($eventId <= 0) {
+        return [];
+    }
+
+    $stmt = db()->prepare("
+        SELECT
+            p.id AS photo_id,
+            p.filename AS source_filename,
+            p.ftp_user,
+            p.status AS source_status,
+            p.captured_at,
+            p.uploaded_at,
+            p.downloaded_at,
+            p.exif_problem,
+            p.exif_problem_note,
+            p.uploaded_by_role,
+            author.user AS author_user,
+            author.jmeno AS author_jmeno,
+            author.prijmeni AS author_prijmeni,
+            editor.user AS editor_user,
+            editor.jmeno AS editor_jmeno,
+            editor.prijmeni AS editor_prijmeni,
+            pp.id AS published_photo_id,
+            pp.filename AS published_filename,
+            pp.published_at,
+            pp.download_count
+        FROM photos p
+        LEFT JOIN users author ON author.id = p.user_id
+        LEFT JOIN users editor ON editor.id = p.downloaded_by_user_id
+        LEFT JOIN published_photos pp
+            ON pp.source_photo_id = p.id
+           AND pp.event_id = p.event_id
+           AND pp.status = 'ready'
+        WHERE p.event_id = :event_id
+        ORDER BY
+            p.captured_at IS NULL,
+            p.captured_at ASC,
+            p.uploaded_at ASC,
+            p.id ASC,
+            pp.published_at ASC,
+            pp.id ASC
+    ");
+    $stmt->execute([
+        ':event_id' => $eventId,
+    ]);
+
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $stmt = db()->prepare("
+        SELECT
+            NULL AS photo_id,
+            '' AS source_filename,
+            '' AS ftp_user,
+            '' AS source_status,
+            pp.captured_at,
+            pp.source_uploaded_at AS uploaded_at,
+            pp.editor_downloaded_at AS downloaded_at,
+            0 AS exif_problem,
+            '' AS exif_problem_note,
+            '' AS uploaded_by_role,
+            pp.author_label AS author_user,
+            '' AS author_jmeno,
+            '' AS author_prijmeni,
+            '' AS editor_user,
+            '' AS editor_jmeno,
+            '' AS editor_prijmeni,
+            pp.id AS published_photo_id,
+            pp.filename AS published_filename,
+            pp.published_at,
+            pp.download_count
+        FROM published_photos pp
+        WHERE pp.event_id = :event_id
+          AND pp.status = 'ready'
+          AND pp.source_photo_id IS NULL
+        ORDER BY
+            pp.captured_at IS NULL,
+            pp.captured_at ASC,
+            pp.published_at ASC,
+            pp.id ASC
+    ");
+    $stmt->execute([
+        ':event_id' => $eventId,
+    ]);
+
+    return array_merge($rows, $stmt->fetchAll(PDO::FETCH_ASSOC));
+}
+
+function events_report_person_label(array $row, string $prefix, string $fallbackKey = ''): string
+{
+    $name = trim(
+        ((string)($row[$prefix . '_jmeno'] ?? '')) . ' ' .
+        ((string)($row[$prefix . '_prijmeni'] ?? ''))
+    );
+
+    if ($name !== '') {
+        return $name;
+    }
+
+    if ($fallbackKey !== '') {
+        return (string)($row[$fallbackKey] ?? '');
+    }
+
+    return (string)($row[$prefix . '_user'] ?? '');
+}
+
+function events_report_download_filename(array $event, string $extension): string
+{
+    $slug = trim((string)($event['slug'] ?? ''));
+    if ($slug === '') {
+        $slug = 'event-' . (int)($event['id'] ?? 0);
+    }
+
+    $slug = preg_replace('~[^a-zA-Z0-9_-]+~', '-', $slug) ?? $slug;
+    $slug = trim($slug, '-_');
+    if ($slug === '') {
+        $slug = 'event';
+    }
+
+    return $slug . '-prehled-fotek.' . $extension;
+}
+
+function events_report_photo_status_label(string $status): string
+{
+    return match ($status) {
+        'uploaded' => 'nahráno',
+        'processing' => 'zpracování',
+        'ready' => 'připraveno',
+        'selected' => 'ke stažení',
+        'locked' => 'zamknuto',
+        'downloaded' => 'staženo',
+        'deleted' => 'smazáno',
+        'error' => 'chyba',
+        default => $status,
+    };
+}
+
+function events_report_table(array $rows): array
+{
+    $header = [
+        'ID fotky',
+        'Původní název',
+        'Autor',
+        'FTP účet autora',
+        'Nahráno',
+        'Stav fotky',
+        'Čas pořízení (EXIF)',
+        'Čas nahrání do press centra',
+        'Čas stažení fotoeditorem',
+        'Fotoeditor',
+        'Čas publikace do galerie',
+        'Název publikované fotky',
+        'Celkový počet stažení z galerie',
+        'EXIF problém',
+        'Poznámka EXIF',
+    ];
+
+    $table = [$header];
+
+    foreach ($rows as $row) {
+        $table[] = [
+            (string)($row['photo_id'] ?? ''),
+            (string)($row['source_filename'] ?? ''),
+            events_report_person_label($row, 'author', 'ftp_user'),
+            (string)($row['ftp_user'] ?? ''),
+            (string)($row['uploaded_by_role'] ?? '') === 'runner' ? 'runner' : 'autor',
+            $row['published_photo_id'] !== null
+                ? 'publikováno'
+                : events_report_photo_status_label((string)($row['source_status'] ?? '')),
+            (string)($row['captured_at'] ?? ''),
+            (string)($row['uploaded_at'] ?? ''),
+            (string)($row['downloaded_at'] ?? ''),
+            events_report_person_label($row, 'editor'),
+            (string)($row['published_at'] ?? ''),
+            (string)($row['published_filename'] ?? ''),
+            $row['published_photo_id'] !== null ? (string)(int)($row['download_count'] ?? 0) : '',
+            !empty($row['exif_problem']) ? 'ano' : 'ne',
+            (string)($row['exif_problem_note'] ?? ''),
+        ];
+    }
+
+    return $table;
+}
+
 function events_slugify(string $value): string
 {
     $value = trim($value);

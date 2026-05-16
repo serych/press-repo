@@ -550,6 +550,7 @@ insert_photo_row() {
     local event_id="$8"
     local event_photographer_allowed="$9"
     local captured_at="${10:-}"
+    local uploaded_by_role="${11:-author}"
 
     mysql -e "
         INSERT INTO photos (
@@ -558,6 +559,7 @@ insert_photo_row() {
             ftp_user,
             user_id,
             event_photographer_allowed,
+            uploaded_by_role,
             captured_at,
             filesize,
             filetype,
@@ -571,6 +573,7 @@ insert_photo_row() {
             '$(sql_escape "$ftp_user")',
             ${user_id:-NULL},
             ${event_photographer_allowed:-1},
+            '$(sql_escape "$uploaded_by_role")',
             $(sql_nullable_string "$captured_at"),
             ${filesize:-NULL},
             '$(sql_escape "$filetype")',
@@ -1041,11 +1044,13 @@ process_file() {
     local author_name
     author_name="$(get_user_author_name "$ftp_user")"
 
+    local uploaded_by_role="author"
     local skip_metadata_write=0
     local exif_problem=0
     local exif_problem_note=""
 
     if [ "$event_id" != "NULL" ] && is_runner_for_event "$ftp_user" "$event_id"; then
+        uploaded_by_role="runner"
         local runner_exif_author_raw
         runner_exif_author_raw="$(read_exif_author "$file")"
 
@@ -1130,7 +1135,7 @@ process_file() {
         photo_id="$existing_id"
         update_photo_captured_at "$photo_id" "$captured_at"
     else
-        insert_photo_row "$filename" "$file" "$ftp_user" "$user_id" "$filesize" "$filetype" "$checksum" "$event_id" "$event_photographer_allowed" "$captured_at"
+        insert_photo_row "$filename" "$file" "$ftp_user" "$user_id" "$filesize" "$filetype" "$checksum" "$event_id" "$event_photographer_allowed" "$captured_at" "$uploaded_by_role"
         photo_id="$(mysql --batch --skip-column-names -e "SELECT id FROM photos WHERE filepath = '$(sql_escape "$file")' ORDER BY id DESC LIMIT 1;" 2>/dev/null)"
 
         if [ -z "$photo_id" ]; then
