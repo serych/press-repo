@@ -152,6 +152,10 @@ function events_create(array $data): int
             starts_at,
             ends_at,
             cav_gallery_url,
+            gps_latitude,
+            gps_latitude_ref,
+            gps_longitude,
+            gps_longitude_ref,
             leader_user_id,
             status,
             is_public,
@@ -164,6 +168,10 @@ function events_create(array $data): int
             :starts_at,
             :ends_at,
             :cav_gallery_url,
+            :gps_latitude,
+            :gps_latitude_ref,
+            :gps_longitude,
+            :gps_longitude_ref,
             :leader_user_id,
             :status,
             :is_public,
@@ -179,6 +187,10 @@ function events_create(array $data): int
         ':starts_at'       => $data['starts_at'] !== '' ? $data['starts_at'] : null,
         ':ends_at'         => $data['ends_at'] !== '' ? $data['ends_at'] : null,
         ':cav_gallery_url' => $data['cav_gallery_url'] !== '' ? $data['cav_gallery_url'] : null,
+        ':gps_latitude'    => $data['gps_latitude'] !== '' ? $data['gps_latitude'] : null,
+        ':gps_latitude_ref' => $data['gps_latitude_ref'] !== '' ? $data['gps_latitude_ref'] : null,
+        ':gps_longitude'   => $data['gps_longitude'] !== '' ? $data['gps_longitude'] : null,
+        ':gps_longitude_ref' => $data['gps_longitude_ref'] !== '' ? $data['gps_longitude_ref'] : null,
         ':leader_user_id'  => $data['leader_user_id'] ?: null,
         ':status'          => $data['status'],
         ':is_public'       => !empty($data['is_public']) ? 1 : 0,
@@ -200,6 +212,10 @@ function events_update(int $id, array $data): void
             starts_at = :starts_at,
             ends_at = :ends_at,
             cav_gallery_url = :cav_gallery_url,
+            gps_latitude = :gps_latitude,
+            gps_latitude_ref = :gps_latitude_ref,
+            gps_longitude = :gps_longitude,
+            gps_longitude_ref = :gps_longitude_ref,
             leader_user_id = :leader_user_id,
             status = :status,
             is_public = :is_public,
@@ -216,11 +232,142 @@ function events_update(int $id, array $data): void
         ':starts_at'       => $data['starts_at'] !== '' ? $data['starts_at'] : null,
         ':ends_at'         => $data['ends_at'] !== '' ? $data['ends_at'] : null,
         ':cav_gallery_url' => $data['cav_gallery_url'] !== '' ? $data['cav_gallery_url'] : null,
+        ':gps_latitude'    => $data['gps_latitude'] !== '' ? $data['gps_latitude'] : null,
+        ':gps_latitude_ref' => $data['gps_latitude_ref'] !== '' ? $data['gps_latitude_ref'] : null,
+        ':gps_longitude'   => $data['gps_longitude'] !== '' ? $data['gps_longitude'] : null,
+        ':gps_longitude_ref' => $data['gps_longitude_ref'] !== '' ? $data['gps_longitude_ref'] : null,
         ':leader_user_id'  => $data['leader_user_id'] ?: null,
         ':status'          => $data['status'],
         ':is_public'       => !empty($data['is_public']) ? 1 : 0,
         ':is_temporary'    => !empty($data['is_temporary']) ? 1 : 0,
     ]);
+}
+
+function events_gps_format_seconds(float $seconds): string
+{
+    $formatted = number_format($seconds, 4, '.', '');
+    return rtrim(rtrim($formatted, '0'), '.');
+}
+
+function events_gps_decimal_to_exif(float $decimal): string
+{
+    $absolute = abs($decimal);
+    $degrees = (int)floor($absolute);
+    $minutesFull = ($absolute - $degrees) * 60;
+    $minutes = (int)floor($minutesFull);
+    $seconds = ($minutesFull - $minutes) * 60;
+
+    return sprintf('%d deg %d\' %s"', $degrees, $minutes, events_gps_format_seconds($seconds));
+}
+
+function events_gps_parse_part(string $value, string $axis): ?array
+{
+    $value = trim($value);
+    if ($value === '') {
+        return null;
+    }
+
+    if (!preg_match('~^([NSEW])?\s*([+-]?\d+(?:\.\d+)?)\s*([NSEW])?$~i', $value, $matches)) {
+        return null;
+    }
+
+    $prefixRef = strtoupper((string)($matches[1] ?? ''));
+    $decimal = (float)$matches[2];
+    $suffixRef = strtoupper((string)($matches[3] ?? ''));
+    $ref = $suffixRef !== '' ? $suffixRef : $prefixRef;
+
+    $validRefs = $axis === 'lat' ? ['N', 'S'] : ['E', 'W'];
+    if ($ref !== '' && !in_array($ref, $validRefs, true)) {
+        return null;
+    }
+
+    if ($ref === '') {
+        $ref = $axis === 'lat'
+            ? ($decimal < 0 ? 'S' : 'N')
+            : ($decimal < 0 ? 'W' : 'E');
+    }
+
+    $absolute = abs($decimal);
+    $max = $axis === 'lat' ? 90 : 180;
+    if ($absolute > $max) {
+        return null;
+    }
+
+    return [
+        'value' => events_gps_decimal_to_exif($absolute),
+        'ref' => $ref,
+    ];
+}
+
+function events_gps_parse_coordinates(string $value): ?array
+{
+    $value = trim($value);
+    if ($value === '') {
+        return [
+            'gps_latitude' => '',
+            'gps_latitude_ref' => '',
+            'gps_longitude' => '',
+            'gps_longitude_ref' => '',
+        ];
+    }
+
+    $parts = preg_split('~\s*[,;]\s*~', $value);
+    if (!is_array($parts) || count($parts) !== 2) {
+        return null;
+    }
+
+    $first = events_gps_parse_part((string)$parts[0], 'lat');
+    $second = events_gps_parse_part((string)$parts[1], 'lon');
+    if (!$first || !$second) {
+        return null;
+    }
+
+    return [
+        'gps_latitude' => $first['value'],
+        'gps_latitude_ref' => $first['ref'],
+        'gps_longitude' => $second['value'],
+        'gps_longitude_ref' => $second['ref'],
+    ];
+}
+
+function events_gps_exif_to_decimal(string $value): ?float
+{
+    if (!preg_match('~^\s*(\d+(?:\.\d+)?)\s*deg\s*(\d+(?:\.\d+)?)\'\s*(\d+(?:\.\d+)?)"?\s*$~i', $value, $matches)) {
+        return null;
+    }
+
+    $degrees = (float)$matches[1];
+    $minutes = (float)$matches[2];
+    $seconds = (float)$matches[3];
+
+    return $degrees + ($minutes / 60) + ($seconds / 3600);
+}
+
+function events_gps_format_decimal(float $value): string
+{
+    $formatted = number_format($value, 7, '.', '');
+    return rtrim(rtrim($formatted, '0'), '.');
+}
+
+function events_gps_coordinates_input(array $event): string
+{
+    $latitude = trim((string)($event['gps_latitude'] ?? ''));
+    $latitudeRef = trim((string)($event['gps_latitude_ref'] ?? ''));
+    $longitude = trim((string)($event['gps_longitude'] ?? ''));
+    $longitudeRef = trim((string)($event['gps_longitude_ref'] ?? ''));
+
+    if ($latitude === '' && $latitudeRef === '' && $longitude === '' && $longitudeRef === '') {
+        return '';
+    }
+
+    $latitudeDecimal = events_gps_exif_to_decimal($latitude);
+    $longitudeDecimal = events_gps_exif_to_decimal($longitude);
+    if ($latitudeDecimal !== null && $longitudeDecimal !== null) {
+        return events_gps_format_decimal($latitudeDecimal) . $latitudeRef . ', '
+            . events_gps_format_decimal($longitudeDecimal) . $longitudeRef;
+    }
+
+    return trim($latitude . $latitudeRef . ', ' . $longitude . $longitudeRef);
 }
 
 function events_delete(int $id): void

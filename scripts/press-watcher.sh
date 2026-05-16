@@ -319,6 +319,25 @@ is_photographer_for_event() {
     [ "$result" = "1" ]
 }
 
+get_event_gps_exif_args() {
+    local event_id="$1"
+
+    if [ -z "$event_id" ] || [ "$event_id" = "NULL" ]; then
+        return 1
+    fi
+
+    mysql --batch --raw --skip-column-names -e "
+        SELECT gps_latitude, gps_latitude_ref, gps_longitude, gps_longitude_ref
+        FROM events
+        WHERE id = ${event_id}
+          AND COALESCE(gps_latitude, '') <> ''
+          AND COALESCE(gps_latitude_ref, '') <> ''
+          AND COALESCE(gps_longitude, '') <> ''
+          AND COALESCE(gps_longitude_ref, '') <> ''
+        LIMIT 1;
+    " 2>/dev/null
+}
+
 read_exif_author() {
     local file="$1"
     local value=""
@@ -371,6 +390,19 @@ read_exif_captured_at() {
     echo ""
 }
 
+has_exif_gps() {
+    local file="$1"
+    local latitude
+    local longitude
+
+    latitude="$(exiftool -s3 -GPSLatitude "$file" 2>> "$LOG_FILE" | head -n 1)"
+    longitude="$(exiftool -s3 -GPSLongitude "$file" 2>> "$LOG_FILE" | head -n 1)"
+    latitude="$(normalize_spaces "$latitude")"
+    longitude="$(normalize_spaces "$longitude")"
+
+    [ -n "$latitude" ] && [ -n "$longitude" ]
+}
+
 find_matching_photographer_for_event_by_exif_author() {
     local event_id="$1"
     local exif_author_raw="$2"
@@ -407,7 +439,11 @@ find_matching_photographer_for_event_by_exif_author() {
         local normalized_candidate
         normalized_candidate="$(normalize_author "$candidate_exif_author")"
 
-        if [ -n "$normalized_candidate" ] && [ "$normalized_candidate" = "$normalized_needle" ]; then
+        if [ -n "$normalized_candidate" ] && {
+            [ "$normalized_candidate" = "$normalized_needle" ] \
+                || [[ "$normalized_needle" == *"$normalized_candidate"* ]] \
+                || [[ "$normalized_candidate" == *"$normalized_needle"* ]]
+        }; then
             printf '%s\t%s\t%s\n' "$user_id" "$candidate_ftp_user" "$author_name"
             return 0
         fi
@@ -647,15 +683,40 @@ is_preview_too_dark() {
 write_press_metadata() {
     local file="$1"
     local author="$2"
+    local event_id="${3:-NULL}"
 
     if [ -z "$author" ]; then
         return 0
     fi
 
-    if exiftool \
-        -q -q \
-        -overwrite_original \
+    local gps_args=()
+    local gps_row=""
+    if ! has_exif_gps "$file"; then
+        gps_row="$(get_event_gps_exif_args "$event_id" || true)"
+        if [ -n "$gps_row" ]; then
+            local gps_latitude
+            local gps_latitude_ref
+            local gps_longitude
+            local gps_longitude_ref
+
+            IFS=$'\t' read -r gps_latitude gps_latitude_ref gps_longitude gps_longitude_ref <<< "$gps_row"
+            if [ -n "$gps_latitude" ] && [ -n "$gps_latitude_ref" ] && [ -n "$gps_longitude" ] && [ -n "$gps_longitude_ref" ]; then
+                gps_args=(
+                    "-GPSLatitude=$gps_latitude"
+                    "-GPSLatitudeRef=$gps_latitude_ref"
+                    "-GPSLongitude=$gps_longitude"
+                    "-GPSLongitudeRef=$gps_longitude_ref"
+                )
+            fi
+        fi
+    fi
+
+    local exif_args=(
+        -q -q
+        -overwrite_original
         -Artist="$author" \
+        -Author="$author" \
+        -Creator="$author" \
         -Copyright="© $author" \
         -XMP-dc:Creator="$author" \
         -XMP-dc:Rights="© $author" \
@@ -663,12 +724,17 @@ write_press_metadata() {
         -IPTC:CopyrightNotice="© $author" \
         -XMP-xmpRights:Marked=True \
         -IPTC:CopyrightFlag=True \
-        -Description="via PressCentrum" \
-        -XMP-dc:Description="via PressCentrum" \
-        -IPTC:Caption-Abstract="via PressCentrum" \
-        "$file" >> "$LOG_FILE" 2>&1; then
+        -Title="via PRESS centrum" \
+        -XMP-dc:Title="via PRESS centrum" \
+        -IPTC:ObjectName="via PRESS centrum"
+    )
+
+    if exiftool "${exif_args[@]}" "${gps_args[@]}" "$file" >> "$LOG_FILE" 2>&1; then
 
         log "Metadata zapsána: $file ($author)"
+        if [ "${#gps_args[@]}" -gt 0 ]; then
+            log "GPS z eventu zapsáno do EXIFu: $file"
+        fi
         return 0
     fi
 
@@ -1062,7 +1128,7 @@ process_file() {
 
     # Zápis metadat jen při prvním zpracování nového souboru
     if [ "$is_new_file" -eq 1 ] && [ "$skip_metadata_write" -ne 1 ]; then
-        write_press_metadata "$file" "$author_name"
+        write_press_metadata "$file" "$author_name" "$event_id"
     fi
 
     local base_no_ext="${filename%.*}"
