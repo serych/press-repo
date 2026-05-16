@@ -123,9 +123,9 @@ Cíl sprintu byl rozšířit presscentrum z jednosměrného vstupu fotek na komp
   - admin/superadmin: `dashboard.php`.
 - `info.php` používá přihlášenou hlavičku a pro žurnalistu ukazuje jeho dostupné menu.
 
-## Sprint 9: drobné opravy, dashboard, galerie, GPS metadata - probíhá
+## Sprint 9: drobné opravy, dashboard, galerie, GPS metadata - ukončeno
 
-Sprint 9 zatím řeší hlavně zpřehlednění žurnalistických a dashboardových obrazovek, zrychlení Galerie a přípravu geotagování fotografií.
+Sprint 9 řešil hlavně zpřehlednění žurnalistických a dashboardových obrazovek, zrychlení Galerie, GPS metadata a bezpečnější správu eventu. Sprint 9 považujeme za uzavřený.
 
 ### Žurnalistické Info
 
@@ -242,12 +242,82 @@ Sprint 9 zatím řeší hlavně zpřehlednění žurnalistických a dashboardov�
 ### Co Zůstává Do Dalších Sprintů
 
 - Ruční párování nespárovaných publikovaných fotek s originálem.
-- Případné reporty/exporty po eventu.
 - Přehled posledních publikovaných fotek na dashboardu.
 - Další ruční nástroje pro práci se soubory a eventem.
 
+## Sprint 10: seznamy použitých fotek a eventové exporty - ukončeno
+
+Cíl sprintu byl doplnit výstupy po eventu: seznam použitých fotografií pro jednotlivé fotografy a celkovou přehledovou tabulku eventu. Sprint 10 považujeme za uzavřený.
+
+### Seznam Použitých Fotek Pro Fotografa
+
+- Na `photos-status.php?scope=mine` byl přidán blok `Použité fotografie`.
+- Fotograf vidí počet svých publikovaných fotek v aktuální galerii.
+- Tlačítko `Generovat seznam použitých fotografií` načte aktuální data z endpointu `api/used-photos.php`.
+- Výstup je čárkou oddělený seznam původních názvů bez přípon, např. `DSC_2654, JSZ_5813`.
+- Seznam obsahuje jen původní FTP uploady, které mají spárovanou publikovanou fotku ve stavu `ready`.
+- Tlačítko `Kopírovat` ukládá seznam do schránky pro vložení do Lightroom filtru.
+- Logika je v `photos_used_original_basenames_for_photographer()`.
+
+### Konzistentní Stavy Fotek
+
+- Statusy fotek byly sjednoceny pro:
+  - `photos.php`,
+  - `photo.php`,
+  - `photos-status.php`,
+  - API feedy.
+- Česká pojmenování stavů:
+  - `uploaded` -> `nahráno`,
+  - `processing` -> `zpracování`,
+  - `ready` -> `připraveno`,
+  - `locked` -> `zamknuto`,
+  - `downloaded` -> `staženo`,
+  - `error` -> `chyba`.
+- Pokud má původní fotka publikovanou verzi v Galerii, zobrazuje se stav `publikováno`.
+- Pro `publikováno` byla přidána samostatná barva `status-published`.
+- Společná logika je v `photos_display_status()`.
+
+### Přehledová Tabulka Eventu
+
+- Na `event-edit.php` byla přidána tlačítka:
+  - `Stáhnout přehled fotek Excel`,
+  - `Stáhnout přehled fotek CSV`.
+- Export obsluhuje endpoint `event-report-download.php`.
+- Excel export je generovaný jako Excel-kompatibilní `.xls` HTML tabulka.
+- CSV export je oddělený středníkem a uložený ve `Windows-1250`, aby ho český Excel otevřel se správnou diakritikou.
+- CSV obsahuje řádek `sep=;`.
+- Přehled obsahuje všechny z databáze známé údaje o fotkách eventu:
+  - ID fotky,
+  - původní název,
+  - autor,
+  - FTP účet autora,
+  - zda nahrál autor nebo runner,
+  - stav fotky,
+  - čas pořízení z EXIFu,
+  - čas nahrání do press centra,
+  - čas stažení fotoeditorem,
+  - jméno fotoeditora,
+  - čas publikace do galerie,
+  - název publikované fotky,
+  - celkový počet stažení z galerie,
+  - EXIF problém,
+  - poznámka EXIF.
+- Pokud má jedna původní fotka více publikovaných verzí, export obsahuje více řádků, aby nezanikly názvy a počty stažení jednotlivých publikovaných fotek.
+- Pokud je publikovaná fotka nespárovaná s originálem, export ji přesto zahrne s dostupnými údaji z `published_photos`.
+- Sloupec `Stav fotky` vypisuje `publikováno`, pokud řádek obsahuje publikovanou fotku.
+- Exportní logika je v `events_report_rows()` a `events_report_table()`.
+
+### Jednoznačné Rozlišení Autor / Runner
+
+- Do tabulky `photos` byl přidán sloupec `uploaded_by_role ENUM('author', 'runner')`.
+- Přidána migrace `sql/sprint10_001_photo_upload_origin.sql`.
+- Watcher nově zapisuje `uploaded_by_role` přímo při ingestu.
+- Běžný FTP upload se ukládá jako `author`.
+- Upload přes runnera se ukládá jako `runner`, i když watcher následně podle EXIF autora přesune soubor do adresáře skutečného fotografa.
+- Starší data byla zpětně doplněna nejlepším dostupným odhadem podle toho, zda byl aktuálně přiřazený fotograf označený jako runner.
+- Přehledový export eventu používá `photos.uploaded_by_role`, nikoliv zpětné hádání přes soupisku eventu.
+
 ## Nápady pro další sprinty
-- seznam publikovaných fotek pro jednotlivé fotografy + skript windows/mac pro označení?
 - menu pro soubory s návody
 - vylepšení chatu (pár jednoduchých smajliků)
 - API do Lightroomu nebo jiného exportního workflow.
