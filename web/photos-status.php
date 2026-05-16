@@ -5,6 +5,7 @@ require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/inc/auth.php';
 require_once __DIR__ . '/inc/functions.php';
 require_once __DIR__ . '/inc/db.php';
+require_once __DIR__ . '/inc/photos.php';
 
 require_login();
 
@@ -58,6 +59,10 @@ $stmt = $pdo->query("
 ");
 $activeEventId = $stmt->fetchColumn();
 $activeEventId = $activeEventId !== false ? (int)$activeEventId : 0;
+$usedPhotoBasenames = $scope === 'mine'
+    ? photos_used_original_basenames_for_photographer($activeEventId, $ftpUser)
+    : [];
+$usedPhotoList = implode(', ', $usedPhotoBasenames);
 
 $sql = "
     SELECT
@@ -119,6 +124,33 @@ require_once __DIR__ . '/inc/header.php';
             <a href="?scope=mine" class="button <?= $scope === 'mine' ? '' : 'button-muted' ?>">Moje</a>
             <a href="?scope=all" class="button <?= $scope === 'all' ? '' : 'button-muted' ?>">Všechny</a>
         </div>
+
+        <?php if ($scope === 'mine'): ?>
+            <div class="used-photos-panel" data-used-photos-panel>
+                <div class="used-photos-summary">
+                    <div>
+                        <strong>Použité fotografie</strong>
+                        <span data-used-photos-count><?= count($usedPhotoBasenames) ?> ks publikovaných v galerii</span>
+                    </div>
+
+                    <button type="button" class="button button-muted" data-used-photos-toggle>
+                        Generovat seznam použitých fotografií
+                    </button>
+                </div>
+
+                <div class="used-photos-output" data-used-photos-output hidden>
+                    <textarea readonly rows="4" data-used-photos-list><?= h($usedPhotoList) ?></textarea>
+                    <div class="used-photos-actions">
+                        <button type="button" class="button" data-used-photos-copy <?= $usedPhotoList === '' ? 'disabled' : '' ?>>
+                            Kopírovat
+                        </button>
+                        <span class="table-subtext" data-used-photos-status>
+                            <?= $usedPhotoList === '' ? 'Zatím není co kopírovat.' : '' ?>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
 
         <div class="ingest-status" id="ingest-status" style="display:none">
             <span class="ingest-pill ingest-uploading">
@@ -267,6 +299,13 @@ document.addEventListener('DOMContentLoaded', function () {
     const processingCountEl = document.getElementById('processing-count');
     const uploadingDotsEl = document.getElementById('uploading-dots');
     const scope = <?= json_encode($scope, JSON_UNESCAPED_UNICODE) ?>;
+    const usedPhotosPanel = document.querySelector('[data-used-photos-panel]');
+    const usedPhotosToggle = document.querySelector('[data-used-photos-toggle]');
+    const usedPhotosOutput = document.querySelector('[data-used-photos-output]');
+    const usedPhotosList = document.querySelector('[data-used-photos-list]');
+    const usedPhotosCopy = document.querySelector('[data-used-photos-copy]');
+    const usedPhotosStatus = document.querySelector('[data-used-photos-status]');
+    const usedPhotosCount = document.querySelector('[data-used-photos-count]');
 
     function escapeHtml(value) {
         return String(value)
@@ -480,6 +519,87 @@ document.addEventListener('DOMContentLoaded', function () {
     if (document.visibilityState === 'visible') {
         refreshStatuses();
         startPolling();
+    }
+
+    async function loadUsedPhotoList() {
+        if (!usedPhotosList || !usedPhotosStatus) {
+            return;
+        }
+
+        usedPhotosStatus.textContent = 'Generuji seznam...';
+
+        try {
+            const response = await fetch('/api/used-photos.php', {
+                cache: 'no-store'
+            });
+
+            if (!response.ok) {
+                usedPhotosStatus.textContent = 'Seznam se nepodařilo vygenerovat.';
+                return;
+            }
+
+            const data = await response.json();
+            const list = data && typeof data.list === 'string' ? data.list : '';
+            const count = Number(data && data.count ? data.count : 0);
+
+            usedPhotosList.value = list;
+            if (usedPhotosCount) {
+                usedPhotosCount.textContent = count + ' ks publikovaných v galerii';
+            }
+            if (usedPhotosCopy) {
+                usedPhotosCopy.disabled = list.trim() === '';
+            }
+            usedPhotosStatus.textContent = list.trim() === ''
+                ? 'Zatím není co kopírovat.'
+                : '';
+            if (list.trim() !== '') {
+                usedPhotosList.focus();
+                usedPhotosList.select();
+            }
+        } catch (e) {
+            usedPhotosStatus.textContent = 'Seznam se nepodařilo vygenerovat.';
+        }
+    }
+
+    if (usedPhotosPanel && usedPhotosToggle && usedPhotosOutput) {
+        usedPhotosToggle.addEventListener('click', function () {
+            const willOpen = usedPhotosOutput.hidden;
+            usedPhotosOutput.hidden = !willOpen;
+            usedPhotosToggle.textContent = willOpen
+                ? 'Skrýt seznam použitých fotografií'
+                : 'Generovat seznam použitých fotografií';
+
+            if (willOpen && usedPhotosList) {
+                usedPhotosList.focus();
+                usedPhotosList.select();
+                loadUsedPhotoList();
+            }
+        });
+    }
+
+    if (usedPhotosCopy && usedPhotosList) {
+        usedPhotosCopy.addEventListener('click', async function () {
+            const value = usedPhotosList.value.trim();
+            if (value === '') {
+                if (usedPhotosStatus) {
+                    usedPhotosStatus.textContent = 'Zatím není co kopírovat.';
+                }
+                return;
+            }
+
+            try {
+                await navigator.clipboard.writeText(value);
+                if (usedPhotosStatus) {
+                    usedPhotosStatus.textContent = 'Zkopírováno.';
+                }
+            } catch (e) {
+                usedPhotosList.focus();
+                usedPhotosList.select();
+                if (usedPhotosStatus) {
+                    usedPhotosStatus.textContent = 'Seznam je označený, zkopíruj ho ručně.';
+                }
+            }
+        });
     }
 });
 </script>

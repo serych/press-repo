@@ -139,6 +139,55 @@ function photos_is_blocked(array $photo): bool
     return !empty($photo['is_blocked']);
 }
 
+function photos_used_original_basenames_for_photographer(int $eventId, string $ftpUser): array
+{
+    $ftpUser = trim($ftpUser);
+    if ($eventId <= 0 || $ftpUser === '') {
+        return [];
+    }
+
+    $stmt = db()->prepare("
+        SELECT DISTINCT
+            p.id,
+            p.filename,
+            p.captured_at,
+            p.uploaded_at
+        FROM published_photos pp
+        INNER JOIN photos p ON p.id = pp.source_photo_id
+        WHERE pp.event_id = :published_event_id
+          AND pp.status = 'ready'
+          AND p.event_id = :photo_event_id
+          AND p.ftp_user = :ftp_user
+          AND p.status <> 'deleted'
+          AND p.event_photographer_allowed = 1
+        ORDER BY
+            p.captured_at IS NULL,
+            p.captured_at ASC,
+            p.uploaded_at ASC,
+            p.id ASC
+    ");
+    $stmt->execute([
+        ':published_event_id' => $eventId,
+        ':photo_event_id' => $eventId,
+        ':ftp_user' => $ftpUser,
+    ]);
+
+    $items = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $filename = trim((string)($row['filename'] ?? ''));
+        if ($filename === '') {
+            continue;
+        }
+
+        $basename = pathinfo($filename, PATHINFO_FILENAME);
+        if ($basename !== '') {
+            $items[] = $basename;
+        }
+    }
+
+    return array_values(array_unique($items));
+}
+
 function photos_build_where(array $filters): array
 {
     $where = [];
