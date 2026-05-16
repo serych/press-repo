@@ -187,22 +187,29 @@ Sprint 9 zatím řeší hlavně zpřehlednění žurnalistických a dashboardov�
   - `gps_latitude`,
   - `gps_latitude_ref`,
   - `gps_longitude`,
-  - `gps_longitude_ref`.
+  - `gps_longitude_ref`,
+  - `gps_altitude`,
+  - `gps_altitude_ref`.
 - Přidána migrace `sql/sprint9_003_event_gps_exif.sql`.
+- Přidána migrace `sql/sprint9_004_event_gps_altitude.sql`.
 - `event-create.php` a `event-edit.php` používají jedno pole `GPS souřadnice`.
 - Formulář přijímá mapový formát, např. `49.1896308N, 16.5751786E`.
+- Nadmořská výška se zadává samostatně v metrech; záporná hodnota se uloží jako hodnota pod hladinou moře.
 - Hodnota se při uložení převádí na EXIF DMS formát:
   - `GPSLatitude`,
   - `GPSLatitudeRef`,
   - `GPSLongitude`,
-  - `GPSLongitudeRef`.
+  - `GPSLongitudeRef`,
+  - `GPSAltitude`,
+  - `GPSAltitudeRef`.
 - Při editaci se uložený EXIF formát převádí zpět na mapový desetinný zápis.
 - Watcher při prvním zpracování nové fotky:
   - přepisuje autora podle uživatele,
   - přepisuje copyright podle uživatele,
   - nastavuje copyright status,
   - zapisuje `Title = via PRESS centrum`,
-  - pokud fotka nemá GPS a event GPS má, doplní GPS do EXIFu.
+  - pokud fotka nemá GPS a event GPS má, doplní GPS do EXIFu,
+  - pokud fotka nemá nadmořskou výšku a event ji má, doplní `GPSAltitude` a `GPSAltitudeRef`.
 - Pokud fotka GPS v EXIFu už má, watcher ji nepřepisuje.
 - Runner workflow bylo zkontrolováno:
   - runner upload hledá autora podle EXIF autora a pole `users.exif_author`,
@@ -241,7 +248,6 @@ Sprint 9 zatím řeší hlavně zpřehlednění žurnalistických a dashboardov�
 
 ## Nápady pro další sprinty
 - seznam publikovaných fotek pro jednotlivé fotografy + skript windows/mac pro označení?
-- případné rozšíření GPS o nadmořskou výšku
 - menu pro soubory s návody
 - vylepšení chatu (pár jednoduchých smajliků)
 - API do Lightroomu nebo jiného exportního workflow.

@@ -327,7 +327,7 @@ get_event_gps_exif_args() {
     fi
 
     mysql --batch --raw --skip-column-names -e "
-        SELECT gps_latitude, gps_latitude_ref, gps_longitude, gps_longitude_ref
+        SELECT gps_latitude, gps_latitude_ref, gps_longitude, gps_longitude_ref, gps_altitude, gps_altitude_ref
         FROM events
         WHERE id = ${event_id}
           AND COALESCE(gps_latitude, '') <> ''
@@ -401,6 +401,16 @@ has_exif_gps() {
     longitude="$(normalize_spaces "$longitude")"
 
     [ -n "$latitude" ] && [ -n "$longitude" ]
+}
+
+has_exif_gps_altitude() {
+    local file="$1"
+    local altitude
+
+    altitude="$(exiftool -s3 -GPSAltitude "$file" 2>> "$LOG_FILE" | head -n 1)"
+    altitude="$(normalize_spaces "$altitude")"
+
+    [ -n "$altitude" ]
 }
 
 find_matching_photographer_for_event_by_exif_author() {
@@ -698,8 +708,10 @@ write_press_metadata() {
             local gps_latitude_ref
             local gps_longitude
             local gps_longitude_ref
+            local gps_altitude
+            local gps_altitude_ref
 
-            IFS=$'\t' read -r gps_latitude gps_latitude_ref gps_longitude gps_longitude_ref <<< "$gps_row"
+            IFS=$'\t' read -r gps_latitude gps_latitude_ref gps_longitude gps_longitude_ref gps_altitude gps_altitude_ref <<< "$gps_row"
             if [ -n "$gps_latitude" ] && [ -n "$gps_latitude_ref" ] && [ -n "$gps_longitude" ] && [ -n "$gps_longitude_ref" ]; then
                 gps_args=(
                     "-GPSLatitude=$gps_latitude"
@@ -707,6 +719,13 @@ write_press_metadata() {
                     "-GPSLongitude=$gps_longitude"
                     "-GPSLongitudeRef=$gps_longitude_ref"
                 )
+
+                if [ -n "$gps_altitude" ] && [ -n "$gps_altitude_ref" ] && ! has_exif_gps_altitude "$file"; then
+                    gps_args+=(
+                        "-GPSAltitude=$gps_altitude"
+                        "-GPSAltitudeRef=$gps_altitude_ref"
+                    )
+                fi
             fi
         fi
     fi

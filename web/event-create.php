@@ -25,6 +25,7 @@ $values = [
     'ends_at'         => '',
     'cav_gallery_url' => '',
     'gps_coordinates' => '',
+    'gps_altitude'    => '',
     'leader_user_id'  => '',
     'status'          => 'planned',
     'is_public'       => '0',
@@ -43,6 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $values['ends_at']         = trim((string)($_POST['ends_at'] ?? ''));
     $values['cav_gallery_url'] = trim((string)($_POST['cav_gallery_url'] ?? ''));
     $values['gps_coordinates'] = trim((string)($_POST['gps_coordinates'] ?? ''));
+    $values['gps_altitude']    = trim((string)($_POST['gps_altitude'] ?? ''));
     $values['leader_user_id']  = trim((string)($_POST['leader_user_id'] ?? ''));
     $values['status']          = trim((string)($_POST['status'] ?? 'planned'));
     $values['is_public']       = !empty($_POST['is_public']) ? '1' : '0';
@@ -74,6 +76,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $gps = events_gps_parse_coordinates($values['gps_coordinates']);
     if ($gps === null) {
         $errors[] = 'GPS souřadnice zadej ve formátu například 49.1896308N, 16.5751786E.';
+    }
+
+    $gpsAltitude = events_gps_parse_altitude($values['gps_altitude']);
+    if ($gpsAltitude === null) {
+        $errors[] = 'Nadmořskou výšku zadej jako číslo v metrech.';
     }
 
     if ($values['status'] === 'active' && events_other_active_regular_exists()) {
@@ -124,6 +131,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'gps_latitude_ref' => $gps['gps_latitude_ref'],
             'gps_longitude'   => $gps['gps_longitude'],
             'gps_longitude_ref' => $gps['gps_longitude_ref'],
+            'gps_altitude'    => $gpsAltitude['gps_altitude'],
+            'gps_altitude_ref' => $gpsAltitude['gps_altitude_ref'],
             'leader_user_id'  => $leaderUserId > 0 ? $leaderUserId : null,
             'status'          => $values['status'],
             'is_public'       => $values['is_public'] === '1' ? 1 : 0,
@@ -215,6 +224,11 @@ require_once __DIR__ . '/inc/header.php';
                 <div>
                     <label for="gps_coordinates">GPS souřadnice</label>
                     <input type="text" name="gps_coordinates" id="gps_coordinates" value="<?= h($values['gps_coordinates']) ?>" placeholder="49.1896308N, 16.5751786E">
+                </div>
+
+                <div>
+                    <label for="gps_altitude">Nadmořská výška GPS (m)</label>
+                    <input type="text" name="gps_altitude" id="gps_altitude" value="<?= h($values['gps_altitude']) ?>" placeholder="250">
                 </div>
 
                 <div class="form-grid-span-2">

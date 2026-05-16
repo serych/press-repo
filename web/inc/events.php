@@ -156,6 +156,8 @@ function events_create(array $data): int
             gps_latitude_ref,
             gps_longitude,
             gps_longitude_ref,
+            gps_altitude,
+            gps_altitude_ref,
             leader_user_id,
             status,
             is_public,
@@ -172,6 +174,8 @@ function events_create(array $data): int
             :gps_latitude_ref,
             :gps_longitude,
             :gps_longitude_ref,
+            :gps_altitude,
+            :gps_altitude_ref,
             :leader_user_id,
             :status,
             :is_public,
@@ -191,6 +195,8 @@ function events_create(array $data): int
         ':gps_latitude_ref' => $data['gps_latitude_ref'] !== '' ? $data['gps_latitude_ref'] : null,
         ':gps_longitude'   => $data['gps_longitude'] !== '' ? $data['gps_longitude'] : null,
         ':gps_longitude_ref' => $data['gps_longitude_ref'] !== '' ? $data['gps_longitude_ref'] : null,
+        ':gps_altitude'    => $data['gps_altitude'] !== '' ? $data['gps_altitude'] : null,
+        ':gps_altitude_ref' => $data['gps_altitude_ref'] !== '' ? $data['gps_altitude_ref'] : null,
         ':leader_user_id'  => $data['leader_user_id'] ?: null,
         ':status'          => $data['status'],
         ':is_public'       => !empty($data['is_public']) ? 1 : 0,
@@ -216,6 +222,8 @@ function events_update(int $id, array $data): void
             gps_latitude_ref = :gps_latitude_ref,
             gps_longitude = :gps_longitude,
             gps_longitude_ref = :gps_longitude_ref,
+            gps_altitude = :gps_altitude,
+            gps_altitude_ref = :gps_altitude_ref,
             leader_user_id = :leader_user_id,
             status = :status,
             is_public = :is_public,
@@ -236,6 +244,8 @@ function events_update(int $id, array $data): void
         ':gps_latitude_ref' => $data['gps_latitude_ref'] !== '' ? $data['gps_latitude_ref'] : null,
         ':gps_longitude'   => $data['gps_longitude'] !== '' ? $data['gps_longitude'] : null,
         ':gps_longitude_ref' => $data['gps_longitude_ref'] !== '' ? $data['gps_longitude_ref'] : null,
+        ':gps_altitude'    => $data['gps_altitude'] !== '' ? $data['gps_altitude'] : null,
+        ':gps_altitude_ref' => $data['gps_altitude_ref'] !== '' ? $data['gps_altitude_ref'] : null,
         ':leader_user_id'  => $data['leader_user_id'] ?: null,
         ':status'          => $data['status'],
         ':is_public'       => !empty($data['is_public']) ? 1 : 0,
@@ -368,6 +378,50 @@ function events_gps_coordinates_input(array $event): string
     }
 
     return trim($latitude . $latitudeRef . ', ' . $longitude . $longitudeRef);
+}
+
+function events_gps_format_altitude(float $altitude): string
+{
+    $formatted = number_format(abs($altitude), 2, '.', '');
+    return rtrim(rtrim($formatted, '0'), '.');
+}
+
+function events_gps_parse_altitude(string $value): ?array
+{
+    $value = trim($value);
+    if ($value === '') {
+        return [
+            'gps_altitude' => '',
+            'gps_altitude_ref' => '',
+        ];
+    }
+
+    $value = str_replace(',', '.', $value);
+    $value = preg_replace('~\s*m$~i', '', $value) ?? $value;
+    $value = trim($value);
+
+    if (!preg_match('~^[+-]?\d+(?:\.\d+)?$~', $value)) {
+        return null;
+    }
+
+    $altitude = (float)$value;
+    return [
+        'gps_altitude' => events_gps_format_altitude($altitude),
+        'gps_altitude_ref' => $altitude < 0 ? '1' : '0',
+    ];
+}
+
+function events_gps_altitude_input(array $event): string
+{
+    $altitude = trim((string)($event['gps_altitude'] ?? ''));
+    if ($altitude === '') {
+        return '';
+    }
+
+    $ref = trim((string)($event['gps_altitude_ref'] ?? '0'));
+    $prefix = $ref === '1' ? '-' : '';
+
+    return $prefix . $altitude;
 }
 
 function events_delete(int $id): void
