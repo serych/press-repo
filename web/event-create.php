@@ -16,6 +16,8 @@ if (!has_permission('users.manage')) {
 
 $allUsers = events_users_for_picker();
 $editorUsers = events_users_for_picker('editor');
+$timezones = events_timezone_identifiers();
+$defaultTimezone = events_default_timezone();
 
 $values = [
     'title'           => '',
@@ -23,6 +25,7 @@ $values = [
     'description'     => '',
     'starts_at'       => '',
     'ends_at'         => '',
+    'timezone'        => $defaultTimezone,
     'cav_gallery_url' => '',
     'gps_coordinates' => '',
     'gps_altitude'    => '',
@@ -42,6 +45,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $values['description']     = trim((string)($_POST['description'] ?? ''));
     $values['starts_at']       = trim((string)($_POST['starts_at'] ?? ''));
     $values['ends_at']         = trim((string)($_POST['ends_at'] ?? ''));
+    $values['timezone']        = !empty($_POST['use_custom_timezone'])
+        ? events_normalize_timezone((string)($_POST['timezone'] ?? ''))
+        : $defaultTimezone;
     $values['cav_gallery_url'] = trim((string)($_POST['cav_gallery_url'] ?? ''));
     $values['gps_coordinates'] = trim((string)($_POST['gps_coordinates'] ?? ''));
     $values['gps_altitude']    = trim((string)($_POST['gps_altitude'] ?? ''));
@@ -95,6 +101,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'Neplatný datum/čas konce.';
     }
 
+    if (!events_timezone_is_valid($values['timezone'])) {
+        $errors[] = 'Neplatné časové pásmo eventu.';
+    }
+
     if ($values['starts_at'] !== '' && $values['ends_at'] !== '') {
         if (strtotime($values['ends_at']) < strtotime($values['starts_at'])) {
             $errors[] = 'Konec eventu nesmí být dříve než začátek.';
@@ -126,6 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'description'     => $values['description'],
             'starts_at'       => $values['starts_at'],
             'ends_at'         => $values['ends_at'],
+            'timezone'        => $values['timezone'],
             'cav_gallery_url' => $values['cav_gallery_url'],
             'gps_latitude'    => $gps['gps_latitude'],
             'gps_latitude_ref' => $gps['gps_latitude_ref'],
@@ -190,6 +201,27 @@ require_once __DIR__ . '/inc/header.php';
                 <div>
                     <label for="ends_at">Konec</label>
                     <input type="datetime-local" name="ends_at" id="ends_at" value="<?= h($values['ends_at']) ?>">
+                </div>
+
+                <div class="form-grid-span-2 event-timezone-field">
+                    <label class="checkbox-line">
+                        <input
+                            type="checkbox"
+                            name="use_custom_timezone"
+                            value="1"
+                            id="use_custom_timezone"
+                            <?= $values['timezone'] !== $defaultTimezone ? 'checked' : '' ?>
+                        >
+                        <span>Jiné časové pásmo</span>
+                    </label>
+
+                    <select name="timezone" id="timezone" <?= $values['timezone'] === $defaultTimezone ? 'disabled' : '' ?>>
+                        <?php foreach ($timezones as $timezone): ?>
+                            <option value="<?= h($timezone) ?>" <?= $values['timezone'] === $timezone ? 'selected' : '' ?>>
+                                <?= h($timezone) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
 
                 <div>
@@ -297,6 +329,8 @@ require_once __DIR__ . '/inc/header.php';
 document.addEventListener('DOMContentLoaded', function () {
     const titleInput = document.getElementById('title');
     const slugInput = document.getElementById('slug');
+    const customTimezoneToggle = document.getElementById('use_custom_timezone');
+    const timezoneSelect = document.getElementById('timezone');
 
     function slugify(value) {
         return value
@@ -332,6 +366,19 @@ document.addEventListener('DOMContentLoaded', function () {
         slugInput.dataset.autofill = '1';
     } else {
         slugInput.dataset.autofill = '0';
+    }
+
+    function syncTimezoneSelect() {
+        if (!customTimezoneToggle || !timezoneSelect) {
+            return;
+        }
+
+        timezoneSelect.disabled = !customTimezoneToggle.checked;
+    }
+
+    if (customTimezoneToggle) {
+        customTimezoneToggle.addEventListener('change', syncTimezoneSelect);
+        syncTimezoneSelect();
     }
 
     function escapeHtml(value) {

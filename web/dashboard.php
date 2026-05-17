@@ -16,11 +16,19 @@ $participantCounts = null;
 $photographers = [];
 $editors = [];
 $serverNow = microtime(true);
-$serverMsToday = ((int)date('G', (int)$serverNow) * 3600 + (int)date('i', (int)$serverNow) * 60 + (int)date('s', (int)$serverNow)) * 1000
-    + (int)(($serverNow - floor($serverNow)) * 1000);
+$eventTimezone = events_default_timezone();
+$serverMsToday = 0;
 
 if ($dashboardEvent) {
     $eventId = (int)$dashboardEvent['id'];
+    $eventTimezone = events_normalize_timezone((string)($dashboardEvent['timezone'] ?? ''));
+    $eventNow = (new DateTimeImmutable('@' . (string)(int)$serverNow))
+        ->setTimezone(new DateTimeZone($eventTimezone));
+    $serverMsToday = (
+        (int)$eventNow->format('G') * 3600
+        + (int)$eventNow->format('i') * 60
+        + (int)$eventNow->format('s')
+    ) * 1000 + (int)(($serverNow - floor($serverNow)) * 1000);
 
     $summary = events_stats_summary($eventId);
     $participantCounts = events_stats_counts_of_participants($eventId);
@@ -76,6 +84,7 @@ require_once __DIR__ . '/inc/header.php';
                             <?= h($statusLabel) ?>
                         </span>
                         <div class="dashboard-clock" id="dashboard-clock" data-server-ms="<?= $serverMsToday ?>">--:--:--</div>
+                        <div class="dashboard-clock-zone"><?= h($eventTimezone) ?></div>
                         <label class="dashboard-beep-toggle">
                             <input type="checkbox" id="dashboard-beep-toggle">
                             <span>Pípat</span>

@@ -81,6 +81,8 @@ if (!$event) {
 
 $allUsers = events_users_for_picker();
 $editorUsers = events_users_for_picker('editor');
+$timezones = events_timezone_identifiers();
+$defaultTimezone = events_default_timezone();
 
 $flashMessage = '';
 $flashType = 'info';
@@ -155,6 +157,7 @@ $values = [
     'description'     => (string)($event['description'] ?? ''),
     'starts_at'       => !empty($event['starts_at']) ? date('Y-m-d\TH:i', strtotime((string)$event['starts_at'])) : '',
     'ends_at'         => !empty($event['ends_at']) ? date('Y-m-d\TH:i', strtotime((string)$event['ends_at'])) : '',
+    'timezone'        => events_normalize_timezone((string)($event['timezone'] ?? '')),
     'cav_gallery_url' => (string)($event['cav_gallery_url'] ?? ''),
     'gps_coordinates' => events_gps_coordinates_input($event),
     'gps_altitude'    => events_gps_altitude_input($event),
@@ -176,6 +179,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['cleanup_action']) &&
     $values['description']     = trim((string)($_POST['description'] ?? ''));
     $values['starts_at']       = trim((string)($_POST['starts_at'] ?? ''));
     $values['ends_at']         = trim((string)($_POST['ends_at'] ?? ''));
+    $values['timezone']        = !empty($_POST['use_custom_timezone'])
+        ? events_normalize_timezone((string)($_POST['timezone'] ?? ''))
+        : $defaultTimezone;
     $values['cav_gallery_url'] = trim((string)($_POST['cav_gallery_url'] ?? ''));
     $values['gps_coordinates'] = trim((string)($_POST['gps_coordinates'] ?? ''));
     $values['gps_altitude']    = trim((string)($_POST['gps_altitude'] ?? ''));
@@ -236,6 +242,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['cleanup_action']) &&
         $errors[] = 'Neplatný datum/čas konce.';
     }
 
+    if (!events_timezone_is_valid($values['timezone'])) {
+        $errors[] = 'Neplatné časové pásmo eventu.';
+    }
+
     if ($values['starts_at'] !== '' && $values['ends_at'] !== '') {
         if (strtotime($values['ends_at']) < strtotime($values['starts_at'])) {
             $errors[] = 'Konec eventu nesmí být dříve než začátek.';
@@ -271,6 +281,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['cleanup_action']) &&
             'description'     => $values['description'],
             'starts_at'       => $values['starts_at'],
             'ends_at'         => $values['ends_at'],
+            'timezone'        => $values['timezone'],
             'cav_gallery_url' => $values['cav_gallery_url'],
             'gps_latitude'    => $gps['gps_latitude'],
             'gps_latitude_ref' => $gps['gps_latitude_ref'],
@@ -404,6 +415,27 @@ require_once __DIR__ . '/inc/header.php';
                     <input type="datetime-local" name="ends_at" id="ends_at" value="<?= h($values['ends_at']) ?>">
                 </div>
 
+                <div class="form-grid-span-2 event-timezone-field">
+                    <label class="checkbox-line">
+                        <input
+                            type="checkbox"
+                            name="use_custom_timezone"
+                            value="1"
+                            id="use_custom_timezone"
+                            <?= $values['timezone'] !== $defaultTimezone ? 'checked' : '' ?>
+                        >
+                        <span>Jiné časové pásmo</span>
+                    </label>
+
+                    <select name="timezone" id="timezone" <?= $values['timezone'] === $defaultTimezone ? 'disabled' : '' ?>>
+                        <?php foreach ($timezones as $timezone): ?>
+                            <option value="<?= h($timezone) ?>" <?= $values['timezone'] === $timezone ? 'selected' : '' ?>>
+                                <?= h($timezone) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
                 <div>
                     <label for="leader_user_id">Vedoucí eventu</label>
                     <select name="leader_user_id" id="leader_user_id">
@@ -533,6 +565,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const statusSelect = document.getElementById('status');
     const form = document.getElementById('event-edit-form');
     const confirmedStatusChange = document.getElementById('confirmed_status_change');
+    const customTimezoneToggle = document.getElementById('use_custom_timezone');
+    const timezoneSelect = document.getElementById('timezone');
 
     const confirmModal = document.getElementById('confirm-modal');
     const confirmTitle = document.getElementById('confirm-modal-title');
@@ -626,6 +660,19 @@ document.addEventListener('DOMContentLoaded', function () {
         slugInput.dataset.autofill = '1';
     } else {
         slugInput.dataset.autofill = '0';
+    }
+
+    function syncTimezoneSelect() {
+        if (!customTimezoneToggle || !timezoneSelect) {
+            return;
+        }
+
+        timezoneSelect.disabled = !customTimezoneToggle.checked;
+    }
+
+    if (customTimezoneToggle) {
+        customTimezoneToggle.addEventListener('change', syncTimezoneSelect);
+        syncTimezoneSelect();
     }
 
     document.querySelectorAll('.js-confirm-form').forEach(function (confirmForm) {

@@ -3,6 +3,29 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/db.php';
 
+const EVENTS_DEFAULT_TIMEZONE = 'Europe/Prague';
+
+function events_default_timezone(): string
+{
+    return EVENTS_DEFAULT_TIMEZONE;
+}
+
+function events_timezone_identifiers(): array
+{
+    return DateTimeZone::listIdentifiers();
+}
+
+function events_timezone_is_valid(string $timezone): bool
+{
+    return in_array($timezone, events_timezone_identifiers(), true);
+}
+
+function events_normalize_timezone(?string $timezone): string
+{
+    $timezone = trim((string)$timezone);
+    return events_timezone_is_valid($timezone) ? $timezone : events_default_timezone();
+}
+
 function events_list(): array
 {
     $sql = "
@@ -151,6 +174,7 @@ function events_create(array $data): int
             description,
             starts_at,
             ends_at,
+            timezone,
             cav_gallery_url,
             gps_latitude,
             gps_latitude_ref,
@@ -169,6 +193,7 @@ function events_create(array $data): int
             :description,
             :starts_at,
             :ends_at,
+            :timezone,
             :cav_gallery_url,
             :gps_latitude,
             :gps_latitude_ref,
@@ -190,6 +215,7 @@ function events_create(array $data): int
         ':description'     => $data['description'] !== '' ? $data['description'] : null,
         ':starts_at'       => $data['starts_at'] !== '' ? $data['starts_at'] : null,
         ':ends_at'         => $data['ends_at'] !== '' ? $data['ends_at'] : null,
+        ':timezone'        => events_normalize_timezone($data['timezone'] ?? ''),
         ':cav_gallery_url' => $data['cav_gallery_url'] !== '' ? $data['cav_gallery_url'] : null,
         ':gps_latitude'    => $data['gps_latitude'] !== '' ? $data['gps_latitude'] : null,
         ':gps_latitude_ref' => $data['gps_latitude_ref'] !== '' ? $data['gps_latitude_ref'] : null,
@@ -217,6 +243,7 @@ function events_update(int $id, array $data): void
             description = :description,
             starts_at = :starts_at,
             ends_at = :ends_at,
+            timezone = :timezone,
             cav_gallery_url = :cav_gallery_url,
             gps_latitude = :gps_latitude,
             gps_latitude_ref = :gps_latitude_ref,
@@ -239,6 +266,7 @@ function events_update(int $id, array $data): void
         ':description'     => $data['description'] !== '' ? $data['description'] : null,
         ':starts_at'       => $data['starts_at'] !== '' ? $data['starts_at'] : null,
         ':ends_at'         => $data['ends_at'] !== '' ? $data['ends_at'] : null,
+        ':timezone'        => events_normalize_timezone($data['timezone'] ?? ''),
         ':cav_gallery_url' => $data['cav_gallery_url'] !== '' ? $data['cav_gallery_url'] : null,
         ':gps_latitude'    => $data['gps_latitude'] !== '' ? $data['gps_latitude'] : null,
         ':gps_latitude_ref' => $data['gps_latitude_ref'] !== '' ? $data['gps_latitude_ref'] : null,

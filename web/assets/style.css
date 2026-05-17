@@ -1313,6 +1313,16 @@ h1 {
     gap: 10px;
 }
 
+.event-timezone-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.event-timezone-field select:disabled {
+    opacity: 0.55;
+}
+
 .participant-pickers {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1415,6 +1425,12 @@ h1 {
     line-height: 1;
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
+}
+
+.dashboard-clock-zone {
+    margin-top: -8px;
+    color: var(--text-muted);
+    font-size: 12px;
 }
 
 .dashboard-beep-toggle {
