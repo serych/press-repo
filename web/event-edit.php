@@ -172,6 +172,7 @@ $selectedEditors = events_participants_get_ids_by_role($id, 'editor');
 $selectedRunnerUserIds = events_participants_get_runner_user_ids($id);
 
 $errors = [];
+$otherActiveEvent = events_get_other_active($id);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['cleanup_action']) && (string)($_POST['action'] ?? '') !== 'delete_chat') {
     $values['title']           = trim((string)($_POST['title'] ?? ''));
@@ -230,8 +231,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['cleanup_action']) &&
         }
     }
 
-    if ($values['status'] === 'active' && empty($event['is_temporary']) && events_other_active_regular_exists($id)) {
-        $errors[] = 'Už existuje jiný aktivní běžný event. Nejprve ho ukonči nebo přepni.';
+    $otherActiveEvent = events_get_other_active($id);
+    if ($values['status'] === 'active' && $otherActiveEvent && empty($_POST['deactivate_other_active'])) {
+        $errors[] = 'V současnosti je aktivní event ' . (string)$otherActiveEvent['title'] . '. Potvrď jeho deaktivaci.';
     }
 
     if ($values['starts_at'] !== '' && strtotime($values['starts_at']) === false) {
@@ -275,6 +277,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['cleanup_action']) &&
     }
 
     if (!$errors) {
+        if ($values['status'] === 'active' && !empty($_POST['deactivate_other_active'])) {
+            events_deactivate_other_active($id);
+        }
+
         events_update($id, [
             'title'           => $values['title'],
             'slug'            => $values['slug'],
@@ -393,6 +399,7 @@ require_once __DIR__ . '/inc/header.php';
         <form method="post" class="form event-form" autocomplete="off" id="event-edit-form">
             <input type="hidden" name="id" value="<?= (int)$id ?>">
             <input type="hidden" name="confirmed_status_change" id="confirmed_status_change" value="0">
+            <input type="hidden" name="deactivate_other_active" id="deactivate_other_active" value="0">
 
             <div class="form-grid">
                 <div>
@@ -565,8 +572,10 @@ document.addEventListener('DOMContentLoaded', function () {
     const statusSelect = document.getElementById('status');
     const form = document.getElementById('event-edit-form');
     const confirmedStatusChange = document.getElementById('confirmed_status_change');
+    const deactivateOtherActive = document.getElementById('deactivate_other_active');
     const customTimezoneToggle = document.getElementById('use_custom_timezone');
     const timezoneSelect = document.getElementById('timezone');
+    const otherActiveEventTitle = <?= json_encode($otherActiveEvent ? (string)$otherActiveEvent['title'] : '', JSON_UNESCAPED_UNICODE) ?>;
 
     const confirmModal = document.getElementById('confirm-modal');
     const confirmTitle = document.getElementById('confirm-modal-title');
@@ -694,6 +703,28 @@ document.addEventListener('DOMContentLoaded', function () {
     form.addEventListener('submit', async function (event) {
         const originalStatus = statusSelect.dataset.originalStatus || '';
         const newStatus = statusSelect.value || '';
+
+        if (newStatus === 'active' && otherActiveEventTitle !== '' && deactivateOtherActive.value !== '1') {
+            event.preventDefault();
+
+            const ok = await showConfirmDialog(
+                'Deaktivovat současný aktivní event?',
+                'V současnosti je aktivní event ' + otherActiveEventTitle + '. Mám ho deaktivovat?',
+                'Ano, deaktivovat'
+            );
+
+            if (!ok) {
+                return;
+            }
+
+            deactivateOtherActive.value = '1';
+            if (typeof form.requestSubmit === 'function') {
+                form.requestSubmit();
+            } else {
+                form.submit();
+            }
+            return;
+        }
 
         if (originalStatus === 'finished' && newStatus !== 'finished') {
             event.preventDefault();

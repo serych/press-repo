@@ -38,6 +38,7 @@ $selectedPhotographers = [];
 $selectedEditors = [];
 $selectedRunnerUserIds = [];
 $errors = [];
+$otherActiveEvent = events_get_other_active();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $values['title']           = trim((string)($_POST['title'] ?? ''));
@@ -89,8 +90,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'Nadmořskou výšku zadej jako číslo v metrech.';
     }
 
-    if ($values['status'] === 'active' && events_other_active_regular_exists()) {
-        $errors[] = 'Už existuje jiný aktivní běžný event. Nejprve ho ukonči nebo přepni.';
+    $otherActiveEvent = events_get_other_active();
+    if ($values['status'] === 'active' && $otherActiveEvent && empty($_POST['deactivate_other_active'])) {
+        $errors[] = 'V současnosti je aktivní event ' . (string)$otherActiveEvent['title'] . '. Potvrď jeho deaktivaci.';
     }
 
     if ($values['starts_at'] !== '' && strtotime($values['starts_at']) === false) {
@@ -130,6 +132,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (!$errors) {
+        if ($values['status'] === 'active' && !empty($_POST['deactivate_other_active'])) {
+            events_deactivate_other_active();
+        }
+
         $eventId = events_create([
             'title'           => $values['title'],
             'slug'            => $values['slug'],
@@ -181,7 +187,8 @@ require_once __DIR__ . '/inc/header.php';
     <?php endif; ?>
 
     <div class="card">
-        <form method="post" class="form event-form" autocomplete="off">
+        <form method="post" class="form event-form" autocomplete="off" id="event-create-form">
+            <input type="hidden" name="deactivate_other_active" id="deactivate_other_active" value="0">
             <div class="form-grid">
                 <div>
                     <label for="title">Název eventu</label>
@@ -329,8 +336,12 @@ require_once __DIR__ . '/inc/header.php';
 document.addEventListener('DOMContentLoaded', function () {
     const titleInput = document.getElementById('title');
     const slugInput = document.getElementById('slug');
+    const form = document.getElementById('event-create-form');
+    const statusSelect = document.getElementById('status');
+    const deactivateOtherActive = document.getElementById('deactivate_other_active');
     const customTimezoneToggle = document.getElementById('use_custom_timezone');
     const timezoneSelect = document.getElementById('timezone');
+    const otherActiveEventTitle = <?= json_encode($otherActiveEvent ? (string)$otherActiveEvent['title'] : '', JSON_UNESCAPED_UNICODE) ?>;
 
     function slugify(value) {
         return value
@@ -379,6 +390,24 @@ document.addEventListener('DOMContentLoaded', function () {
     if (customTimezoneToggle) {
         customTimezoneToggle.addEventListener('change', syncTimezoneSelect);
         syncTimezoneSelect();
+    }
+
+    if (form && statusSelect && deactivateOtherActive && otherActiveEventTitle !== '') {
+        form.addEventListener('submit', function (event) {
+            if (statusSelect.value !== 'active' || deactivateOtherActive.value === '1') {
+                return;
+            }
+
+            event.preventDefault();
+
+            const ok = window.confirm('V současnosti je aktivní event ' + otherActiveEventTitle + '. Mám ho deaktivovat?');
+            if (!ok) {
+                return;
+            }
+
+            deactivateOtherActive.value = '1';
+            form.submit();
+        });
     }
 
     function escapeHtml(value) {

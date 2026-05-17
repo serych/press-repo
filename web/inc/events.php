@@ -165,6 +165,52 @@ function events_other_active_regular_exists(?int $excludeId = null): bool
     return (int)$stmt->fetchColumn() > 0;
 }
 
+function events_get_other_active(?int $excludeId = null): ?array
+{
+    $sql = "
+        SELECT *
+        FROM events
+        WHERE status = 'active'
+    ";
+    $params = [];
+
+    if ($excludeId !== null) {
+        $sql .= " AND id <> ?";
+        $params[] = $excludeId;
+    }
+
+    $sql .= "
+        ORDER BY is_temporary ASC, id DESC
+        LIMIT 1
+    ";
+
+    $stmt = db()->prepare($sql);
+    $stmt->execute($params);
+
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $row ?: null;
+}
+
+function events_deactivate_other_active(?int $excludeId = null): int
+{
+    $sql = "
+        UPDATE events
+        SET status = 'finished'
+        WHERE status = 'active'
+    ";
+    $params = [];
+
+    if ($excludeId !== null) {
+        $sql .= " AND id <> ?";
+        $params[] = $excludeId;
+    }
+
+    $stmt = db()->prepare($sql);
+    $stmt->execute($params);
+
+    return $stmt->rowCount();
+}
+
 function events_create(array $data): int
 {
     $stmt = db()->prepare("
