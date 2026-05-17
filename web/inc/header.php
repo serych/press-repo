@@ -13,6 +13,7 @@ $dashboardUrl = '/dashboard.php';
 $showPhotographerOverview = false;
 $showPhotoEditing = false;
 $showAdminItems = false;
+$showHelp = false;
 $showChat = false;
 $displayName = '';
 $currentPath = (string)(parse_url((string)($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH) ?: '');
@@ -25,6 +26,7 @@ if ($user) {
     $showPhotographerOverview = $roleCode !== 'journalist';
     $showPhotoEditing = in_array($roleCode, ['press_operator', 'admin', 'superadmin'], true);
     $showAdminItems = in_array($roleCode, ['admin', 'superadmin'], true);
+    $showHelp = $roleCode !== 'journalist';
     $showChat = can_access_chat($user);
     $displayName = trim((string)($user['jmeno'] ?? '') . ' ' . (string)($user['prijmeni'] ?? ''));
 
@@ -92,6 +94,10 @@ $styleVersion = is_file($styleFile) ? (string)filemtime($styleFile) : '1';
                 <?php if ($showAdminItems): ?>
                     <a href="/users.php" class="<?= in_array($currentPath, ['/users.php', '/user-create.php', '/user-edit.php'], true) ? 'is-active' : '' ?>">Uživatelé</a>
                     <a href="/events.php" class="<?= in_array($currentPath, ['/events.php', '/event-create.php', '/event-edit.php'], true) ? 'is-active' : '' ?>">Eventy</a>
+                <?php endif; ?>
+
+                <?php if ($showHelp): ?>
+                    <a href="/help.php" class="<?= in_array($currentPath, ['/help.php', '/help-download.php'], true) ? 'is-active' : '' ?>">Nápověda</a>
                 <?php endif; ?>
 
                 <a href="/logout.php" class="nav-logout">
