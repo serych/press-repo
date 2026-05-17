@@ -317,9 +317,52 @@ Cíl sprintu byl doplnit výstupy po eventu: seznam použitých fotografií pro 
 - Starší data byla zpětně doplněna nejlepším dostupným odhadem podle toho, zda byl aktuálně přiřazený fotograf označený jako runner.
 - Přehledový export eventu používá `photos.uploaded_by_role`, nikoliv zpětné hádání přes soupisku eventu.
 
+### Časové Pásmo Eventu
+
+- Do tabulky `events` byl přidán sloupec `timezone`.
+- Přidána migrace `sql/sprint10_002_event_timezone.sql`.
+- Výchozí časové pásmo je `Europe/Prague`.
+- `event-create.php` a `event-edit.php` mají volbu `Jiné časové pásmo` s výběrem ze světových PHP timezone identifikátorů.
+- Dashboardové hodiny se inicializují podle časového pásma nastaveného u aktuálního eventu.
+- Na dashboardu je časové pásmo zobrazené u hodin, aby bylo jasné, podle čeho se seřizují foťáky.
+
+### Jeden Aktivní Event
+
+- Při zakládání nebo editaci eventu se kontroluje, zda už není aktivní jiný běžný event.
+- Pokud jiný aktivní event existuje, formulář zobrazí potvrzení:
+  - `V současnosti je aktivní event ... Mám ho deaktivovat?`
+- Po potvrzení se původní aktivní event nastaví na `finished` a ukládaný event se může stát aktivním.
+- Společná logika je v:
+  - `events_get_other_active()`,
+  - `events_deactivate_other_active()`.
+
+### Nápověda
+
+- Přidán jednoduchý systém PDF nápovědy bez redakčního systému.
+- Přidána migrace `sql/sprint10_003_help_documents.sql`.
+- PDF soubory se ukládají mimo webroot do `/var/www/press/help`.
+- Metadata dokumentů jsou v tabulce `help_documents`.
+- Tabulka obsahuje i `sort_order`, podle kterého se řídí pořadí zobrazení.
+- Stránka `help.php` je dostupná v menu jako `Nápověda`.
+- Nápověda je viditelná všem přihlášeným rolím kromě `journalist`.
+- Správa nápovědy je dostupná adminům přes oprávnění `users.manage`.
+- Admin může:
+  - přidat PDF,
+  - přejmenovat záznam,
+  - nahradit PDF novou verzí,
+  - smazat dokument,
+  - posunout dokument nahoru/dolů.
+- Uživatelé mohou PDF:
+  - zobrazit v browseru přes `Content-Disposition: inline`,
+  - stáhnout přes `Content-Disposition: attachment`.
+- Stahování i zobrazování obsluhuje `help-download.php`, takže soubory zůstávají chráněné mimo webroot.
+
 ## Nápady pro další sprinty
-- menu pro soubory s návody
+
+- Ruční párování nespárovaných publikovaných fotek s originálem.
+- Přehled posledních publikovaných fotek na dashboardu.
+- Další ruční nástroje pro práci se soubory a eventem.
+- Zpřesnit produkční instalační/migrační postup tak, aby `schema.sql` a všechny sprintové migrace byly jednoznačně sladěné pro čistou instalaci.
 - vylepšení chatu (pár jednoduchých smajliků)
 - API do Lightroomu nebo jiného exportního workflow.
-- Tabulka akcí, název, odkazy na galerie, výběr fotografů a fotoeditorů, statistika.
 - vyčištění kódu, dokumentace 
