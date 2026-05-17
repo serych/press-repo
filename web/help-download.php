@@ -14,6 +14,7 @@ if (!help_can_view($user)) {
 }
 
 $id = max(0, (int)($_GET['id'] ?? 0));
+$inline = (string)($_GET['mode'] ?? '') === 'view';
 $document = $id > 0 ? help_document_get($id) : null;
 
 if (!$document || empty($document['filepath']) || !is_file((string)$document['filepath'])) {
@@ -29,7 +30,7 @@ if ($filename === '') {
 
 header('Content-Description: File Transfer');
 header('Content-Type: application/pdf');
-header('Content-Disposition: attachment; filename="' . rawurlencode($filename) . '"');
+header('Content-Disposition: ' . ($inline ? 'inline' : 'attachment') . '; filename="' . rawurlencode($filename) . '"');
 header('Content-Length: ' . (string)filesize($filepath));
 header('Content-Transfer-Encoding: binary');
 header('Cache-Control: no-store, no-cache, must-revalidate');

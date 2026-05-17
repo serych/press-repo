@@ -136,6 +136,7 @@ require_once __DIR__ . '/inc/header.php';
                                 <td><?= h((string)$document['updated_at']) ?></td>
                                 <td>
                                     <div class="help-actions">
+                                        <a class="button button-muted button-small" href="/help-download.php?id=<?= $id ?>&amp;mode=view" target="_blank" rel="noopener">Zobrazit</a>
                                         <a class="button button-small" href="/help-download.php?id=<?= $id ?>">Stáhnout</a>
 
                                         <?php if ($canManageHelp): ?>
