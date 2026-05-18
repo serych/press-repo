@@ -814,20 +814,46 @@ function events_stats_photographers(int $eventId): array
             u.user,
             u.ftp_user,
             eu.runner,
-            COUNT(p.id) AS uploaded_count,
-            SUM(CASE WHEN p.status = 'downloaded' THEN 1 ELSE 0 END) AS downloaded_count
+            COALESCE(uploaded.uploaded_count, 0) AS uploaded_count,
+            COALESCE(published.published_count, 0) AS published_count
         FROM event_users eu
         INNER JOIN users u ON u.id = eu.user_id
-        LEFT JOIN photos p
-            ON p.event_id = eu.event_id
-           AND p.user_id = eu.user_id
+        LEFT JOIN (
+            SELECT
+                user_id,
+                COUNT(*) AS uploaded_count
+            FROM photos
+            WHERE event_id = ?
+              AND user_id IS NOT NULL
+            GROUP BY user_id
+        ) uploaded ON uploaded.user_id = eu.user_id
+        LEFT JOIN (
+            SELECT
+                p.user_id,
+                COUNT(pp.id) AS published_count
+            FROM published_photos pp
+            INNER JOIN photos p ON p.id = pp.source_photo_id
+            WHERE pp.event_id = ?
+              AND pp.status = 'ready'
+              AND p.event_id = ?
+              AND p.user_id IS NOT NULL
+            GROUP BY p.user_id
+        ) published ON published.user_id = eu.user_id
         WHERE eu.event_id = ?
           AND eu.role_in_event = 'photographer'
         GROUP BY
-            u.id, u.jmeno, u.prijmeni, u.mobile, u.user, u.ftp_user, eu.runner
+            u.id,
+            u.jmeno,
+            u.prijmeni,
+            u.mobile,
+            u.user,
+            u.ftp_user,
+            eu.runner,
+            uploaded.uploaded_count,
+            published.published_count
         ORDER BY u.prijmeni, u.jmeno, u.user
     ");
-    $stmt->execute([$eventId]);
+    $stmt->execute([$eventId, $eventId, $eventId, $eventId]);
 
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }

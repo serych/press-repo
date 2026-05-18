@@ -162,8 +162,8 @@ require_once __DIR__ . '/inc/header.php';
                                 <tr>
                                     <th>Jméno</th>
                                     <th>Mobil</th>
-                                    <th>Upload</th>
-                                    <th>Použito</th>
+                                    <th>Nahráno</th>
+                                    <th>Publikováno</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -187,7 +187,7 @@ require_once __DIR__ . '/inc/header.php';
                                             <?= (int)($p['uploaded_count'] ?? 0) ?>
                                         </td>
                                         <td class="dashboard-num-cell">
-                                            <?= (int)($p['downloaded_count'] ?? 0) ?>
+                                            <?= (int)($p['published_count'] ?? 0) ?>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
