@@ -24,6 +24,7 @@ Webova aplikace a serverove skripty pro press centrum Clovek a Vira. System pokr
 - Kontrola, aby byl aktivni nejvyse jeden bezny event.
 - Dashboard aktivniho eventu se statistikami, workflow casy a hodinami v casovem pasmu eventu.
 - FTP watcher s EXIF ctenim, zapisovanim autora/copyrightu/GPS a generovanim detailnich i malych nahledu.
+- HTTPS nahrada FTP uploadu na `ftp.php` pro vsechny prihlasene role mimo zurnalisty, ktera predava zdrojove fotky do stejneho watcher workflow.
 - Runner workflow s dohledanim autora podle EXIF autora.
 - Fotoeditacni prehled `photos.php`, detail `photo.php`, blokace fotek a hromadne stahovani.
 - Fotograficky prehled `photos-status.php` se stavy a seznamem pouzitych fotek pro Lightroom.
@@ -53,6 +54,7 @@ Na serveru se pouzivaji hlavne:
 ```text
 /var/www/press/web           zivy webroot
 /var/www/press/ftp           FTP uploady
+/var/www/press/upload-tmp    docasne soubory HTTPS nahrady FTP uploadu
 /var/www/press/previews      nahledy originálu
 /var/www/press/published     hotove fotky galerie
 /var/www/press/help          PDF napoveda mimo webroot

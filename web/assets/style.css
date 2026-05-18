@@ -2972,6 +2972,55 @@ body::after {
     color: #fcd34d;
 }
 
+.ftp-replacement-panel .page-head {
+    border-bottom: 1px solid rgba(45, 212, 191, 0.28);
+}
+
+.ftp-replacement-intro {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 10px 12px;
+    margin-bottom: 16px;
+    padding: 14px;
+    border: 1px solid rgba(45, 212, 191, 0.25);
+    border-radius: 8px;
+    background: #102220;
+}
+
+.ftp-replacement-intro > div {
+    flex: 1 1 280px;
+}
+
+.ftp-replacement-intro p {
+    margin: 4px 0 0;
+    color: var(--text-muted);
+}
+
+.ftp-replacement-card {
+    border-color: rgba(45, 212, 191, 0.28);
+}
+
+.ftp-replacement-dropzone {
+    border-color: #2dd4bf;
+    background: #0d1f1d;
+}
+
+.ftp-replacement-dropzone:hover,
+.ftp-replacement-dropzone.is-dragover {
+    border-color: #5eead4;
+    background: #12312d;
+}
+
+.ftp-replacement-progress-bar {
+    background: #2dd4bf;
+}
+
+.ftp-upload-result-ok {
+    background: #12312d;
+    color: #99f6e4;
+}
+
 .published-time {
     margin-top: 6px;
     color: #fcd34d;

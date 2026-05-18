@@ -357,6 +357,21 @@ Cíl sprintu byl doplnit výstupy po eventu: seznam použitých fotografií pro 
   - stáhnout přes `Content-Disposition: attachment`.
 - Stahování i zobrazování obsluhuje `help-download.php`, takže soubory zůstávají chráněné mimo webroot.
 
+### Náhrada FTP Uploadu Přes HTTPS
+
+- Přidána stránka `ftp.php` s názvem `Náhrada FTP uploadu`.
+- Stránka je dostupná všem přihlášeným rolím mimo žurnalisty; role `press_operator` má nově doplněné i oprávnění `ftp.upload`.
+- Upload je graficky odlišený od uploadu hotových fotek do galerie.
+- Podporuje stejné zdrojové formáty jako watcher:
+  - RAW formáty `CR2`, `CR3`, `NEF`, `NRW`, `ARW`, `SR2`, `SRF`, `RAF`, `RW2`, `ORF`, `DNG`, `PEF`, `IIQ`, `3FR`,
+  - `JPG` a `JPEG`.
+- Soubory se nejdřív ukládají do `/var/www/press/upload-tmp`.
+- Po dokončení uploadu se soubor atomicky přesune do FTP adresáře aktuálního uživatele.
+- Watcher pak soubor zpracuje stejnou cestou jako běžný FTP upload.
+- Pokud je uživatel v aktuálním eventu označený jako runner, zůstává zachovaná runner logika watcheru.
+- Společná logika je ve `web/inc/ftp_replacement.php`.
+- Implementace je připravená tak, aby šlo později nahradit jednoduchý POST upload chunkovaným uploadem bez změny watcher workflow.
+
 ## Nápady pro další sprinty
 
 - Ruční párování nespárovaných publikovaných fotek s originálem.

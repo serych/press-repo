@@ -12,6 +12,7 @@ $roleCode = '';
 $dashboardUrl = '/dashboard.php';
 $showPhotographerOverview = false;
 $showPhotoEditing = false;
+$showFtpReplacement = false;
 $showAdminItems = false;
 $showHelp = false;
 $showChat = false;
@@ -25,6 +26,7 @@ if ($user) {
     $dashboardUrl = $roleCode === 'journalist' ? '/info.php' : '/dashboard.php';
     $showPhotographerOverview = $roleCode !== 'journalist';
     $showPhotoEditing = in_array($roleCode, ['press_operator', 'admin', 'superadmin'], true);
+    $showFtpReplacement = $roleCode !== 'journalist';
     $showAdminItems = in_array($roleCode, ['admin', 'superadmin'], true);
     $showHelp = $roleCode !== 'journalist';
     $showChat = can_access_chat($user);
@@ -85,6 +87,10 @@ $styleVersion = is_file($styleFile) ? (string)filemtime($styleFile) : '1';
 
                 <?php if ($showPhotographerOverview): ?>
                     <a href="/photos-status.php" class="<?= $currentPath === '/photos-status.php' ? 'is-active' : '' ?>">Fotograf přehled</a>
+                <?php endif; ?>
+
+                <?php if ($showFtpReplacement): ?>
+                    <a href="/ftp.php" class="<?= $currentPath === '/ftp.php' ? 'is-active' : '' ?>">NeFTP upload</a>
                 <?php endif; ?>
 
                 <?php if ($showPhotoEditing): ?>
