@@ -178,6 +178,7 @@ require_once __DIR__ . '/inc/header.php';
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    const maxFileBytes = <?= $effectiveMaxBytes === PHP_INT_MAX ? '0' : (int)$effectiveMaxBytes ?>;
     const form = document.getElementById('ftp-replacement-form');
     const fileInput = document.getElementById('photos');
     const dropzone = document.getElementById('ftp-replacement-dropzone');
@@ -213,21 +214,25 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    function currentFileCounter(percent) {
-        const total = fileInput.files ? fileInput.files.length : 0;
-        if (total === 0) {
-            return '0/0';
+    function formatBytes(bytes) {
+        const value = Number(bytes || 0);
+        if (value >= 1024 * 1024 * 1024) {
+            return (value / 1024 / 1024 / 1024).toFixed(1).replace('.', ',') + ' GB';
         }
-
-        const current = Math.max(1, Math.min(total, Math.ceil((percent / 100) * total)));
-        return current + '/' + total;
+        if (value >= 1024 * 1024) {
+            return Math.round(value / 1024 / 1024) + ' MB';
+        }
+        if (value >= 1024) {
+            return Math.round(value / 1024) + ' kB';
+        }
+        return value + ' B';
     }
 
-    function setProgress(percent, label) {
+    function setProgress(percent, label, counterText) {
         const clean = Math.max(0, Math.min(100, Math.round(percent)));
         progress.hidden = false;
         progressBar.style.width = clean + '%';
-        progressFileCount.textContent = currentFileCounter(clean);
+        progressFileCount.textContent = counterText || '0/0';
         progressPercent.textContent = clean + ' %';
         progressLabel.textContent = label;
     }
@@ -257,6 +262,66 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         messages.innerHTML = html;
+    }
+
+    function uploadSingleFile(file, fileIndex, totalFiles) {
+        return new Promise(function (resolve) {
+            if (maxFileBytes > 0 && file.size > maxFileBytes) {
+                resolve({
+                    ok: false,
+                    errors: [
+                        file.name + ': Soubor je větší než serverový limit ' + formatBytes(maxFileBytes) + '.'
+                    ],
+                    uploaded: []
+                });
+                return;
+            }
+
+            const xhr = new XMLHttpRequest();
+            const formData = new FormData();
+            const counterText = (fileIndex + 1) + '/' + totalFiles;
+
+            formData.append('photos[]', file, file.name);
+
+            xhr.upload.addEventListener('progress', function (event) {
+                if (event.lengthComputable) {
+                    const fileProgress = event.loaded / event.total;
+                    const overallProgress = ((fileIndex + fileProgress) / totalFiles) * 100;
+                    setProgress(overallProgress, 'Nahrávám ' + file.name + '...', counterText);
+                } else {
+                    setProgress((fileIndex / totalFiles) * 100, 'Nahrávám ' + file.name + '...', counterText);
+                }
+            });
+
+            xhr.addEventListener('load', function () {
+                try {
+                    const data = JSON.parse(xhr.responseText || '{}');
+                    resolve({
+                        ok: xhr.status >= 200 && xhr.status < 300 && data.ok === true,
+                        errors: Array.isArray(data.errors) ? data.errors : [],
+                        uploaded: Array.isArray(data.uploaded) ? data.uploaded : []
+                    });
+                } catch (e) {
+                    resolve({
+                        ok: false,
+                        errors: [file.name + ': Server vrátil nečitelnou odpověď.'],
+                        uploaded: []
+                    });
+                }
+            });
+
+            xhr.addEventListener('error', function () {
+                resolve({
+                    ok: false,
+                    errors: [file.name + ': Upload se nepodařilo dokončit.'],
+                    uploaded: []
+                });
+            });
+
+            xhr.open('POST', form.action || window.location.href);
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+            xhr.send(formData);
+        });
     }
 
     fileInput.addEventListener('change', updateFileSummary);
@@ -289,58 +354,46 @@ document.addEventListener('DOMContentLoaded', function () {
 
         event.preventDefault();
 
-        const xhr = new XMLHttpRequest();
-        const formData = new FormData(form);
+        const files = Array.from(fileInput.files);
         const submitButton = form.querySelector('button[type="submit"]');
+        const results = {
+            ok: true,
+            errors: [],
+            uploaded: []
+        };
 
         messages.innerHTML = '';
-        setProgress(0, 'Připravuji upload...');
+        setProgress(0, 'Připravuji upload...', '0/' + files.length);
         if (submitButton) {
             submitButton.disabled = true;
         }
 
-        xhr.upload.addEventListener('progress', function (event) {
-            if (event.lengthComputable) {
-                setProgress((event.loaded / event.total) * 100, 'Nahrávám zdrojové fotky...');
-            } else {
-                progress.hidden = false;
-                progressLabel.textContent = 'Nahrávám zdrojové fotky...';
-                progressFileCount.textContent = currentFileCounter(0);
-            }
-        });
+        (async function () {
+            for (let i = 0; i < files.length; i++) {
+                const result = await uploadSingleFile(files[i], i, files.length);
 
-        xhr.addEventListener('load', function () {
-            if (submitButton) {
-                submitButton.disabled = false;
-            }
-
-            setProgress(100, 'Předávám watcheru...');
-
-            try {
-                const data = JSON.parse(xhr.responseText || '{}');
-                renderResults(data);
-                progressLabel.textContent = data.ok ? 'Předáno ke zpracování' : 'Dokončeno s chybou';
-                if (data.ok) {
-                    form.reset();
-                    updateFileSummary();
+                if (!result.ok || result.errors.length > 0) {
+                    results.ok = false;
                 }
-            } catch (e) {
-                messages.innerHTML = '<div class="alert-error upload-result-box">Server vrátil nečitelnou odpověď.</div>';
-                progressLabel.textContent = 'Chyba';
-            }
-        });
 
-        xhr.addEventListener('error', function () {
+                results.errors = results.errors.concat(result.errors);
+                results.uploaded = results.uploaded.concat(result.uploaded);
+                renderResults(results);
+            }
+
+            setProgress(100, 'Předávám watcheru...', files.length + '/' + files.length);
+            renderResults(results);
+            progressLabel.textContent = results.ok ? 'Předáno ke zpracování' : 'Dokončeno s chybou';
+
             if (submitButton) {
                 submitButton.disabled = false;
             }
-            messages.innerHTML = '<div class="alert-error upload-result-box">Upload se nepodařilo dokončit.</div>';
-            progressLabel.textContent = 'Chyba';
-        });
 
-        xhr.open('POST', form.action || window.location.href);
-        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-        xhr.send(formData);
+            if (results.ok) {
+                form.reset();
+                updateFileSummary();
+            }
+        })();
     });
 
     updateFileSummary();
