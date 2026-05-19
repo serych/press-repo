@@ -20,6 +20,7 @@ $sort = (string)($_GET['sort'] ?? 'uploaded');
 if (!in_array($sort, ['uploaded', 'captured'], true)) {
     $sort = 'uploaded';
 }
+$reverseSort = (string)($_GET['reverse'] ?? '') === '1';
 
 if ($id <= 0) {
     http_response_code(404);
@@ -49,7 +50,7 @@ $contextFilters = [
     'ftp_user' => $ftpUser,
     'status' => $status,
 ];
-$contextPhotos = photos_list($contextFilters, null, 0, $sort);
+$contextPhotos = photos_list($contextFilters, null, 0, $sort, $reverseSort);
 $prevPhotoId = null;
 $nextPhotoId = null;
 
@@ -72,6 +73,7 @@ $contextQuery = array_filter([
     'ftp_user' => $ftpUser,
     'status' => $status,
     'sort' => $sort !== 'uploaded' ? $sort : '',
+    'reverse' => $reverseSort ? '1' : '',
 ], static fn(string $value): bool => $value !== '');
 
 $photosBackUrl = '/photos.php' . ($contextQuery ? '?' . http_build_query($contextQuery) : '');

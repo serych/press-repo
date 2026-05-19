@@ -142,6 +142,8 @@ h1 {
 
 .filters {
     display: flex;
+    flex-wrap: wrap;
+    align-items: center;
     gap: 10px;
     margin-bottom: 20px;
 }
@@ -161,6 +163,21 @@ h1 {
     border-radius: 6px;
     cursor: pointer;
     font-weight: bold;
+}
+
+.filter-checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 0 8px;
+    color: var(--text-main);
+    white-space: nowrap;
+}
+
+.filter-checkbox input {
+    width: 16px;
+    height: 16px;
 }
 
 /* GRID */

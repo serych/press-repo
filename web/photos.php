@@ -19,6 +19,7 @@ $sort = (string)($_GET['sort'] ?? 'uploaded');
 if (!in_array($sort, ['uploaded', 'captured'], true)) {
     $sort = 'uploaded';
 }
+$reverseSort = (string)($_GET['reverse'] ?? '') === '1';
 $currentEvent = photos_get_current_event();
 $currentEventId = !empty($currentEvent['id']) ? (int)$currentEvent['id'] : 0;
 
@@ -33,12 +34,13 @@ $filters = [
 
 $totalFiltered = photos_count($filters);
 $totalAll = photos_count(['event_id' => $currentEventId]);
-$photos = photos_list($filters, null, 0, $sort);
+$photos = photos_list($filters, null, 0, $sort, $reverseSort);
 $photographers = photos_get_photographers(['event_id' => $currentEventId]);
 $photoContextQuery = array_filter([
     'ftp_user' => $ftpUser,
     'status' => $status,
     'sort' => $sort !== 'uploaded' ? $sort : '',
+    'reverse' => $reverseSort ? '1' : '',
 ], static fn(string $value): bool => $value !== '');
 
 $user = current_user();
@@ -96,6 +98,11 @@ require_once __DIR__ . '/inc/header.php';
                     <option value="uploaded" <?= $sort === 'uploaded' ? 'selected' : '' ?>>řadit podle uploadu</option>
                     <option value="captured" <?= $sort === 'captured' ? 'selected' : '' ?>>řadit podle pořízení</option>
                 </select>
+
+                <label class="filter-checkbox">
+                    <input type="checkbox" name="reverse" value="1" <?= $reverseSort ? 'checked' : '' ?>>
+                    <span>reverzně (nejnovější dole)</span>
+                </label>
 
                 <button type="submit">Filtrovat</button>
             </form>
@@ -486,7 +493,7 @@ function renderPhotoCard(item, currentUserId, canSelect) {
     const currentParams = new URL(window.location.href).searchParams;
     detailUrl.searchParams.set('id', item.id);
 
-    ['ftp_user', 'status', 'sort'].forEach(function (key) {
+    ['ftp_user', 'status', 'sort', 'reverse'].forEach(function (key) {
         if (currentParams.get(key)) {
             detailUrl.searchParams.set(key, currentParams.get(key));
         }
@@ -808,6 +815,9 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         if (current.searchParams.get('sort')) {
             url.searchParams.set('sort', current.searchParams.get('sort'));
+        }
+        if (current.searchParams.get('reverse')) {
+            url.searchParams.set('reverse', current.searchParams.get('reverse'));
         }
 
         try {

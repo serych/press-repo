@@ -55,10 +55,10 @@ function photos_count(array $filters): int
     return (int)$stmt->fetchColumn();
 }
 
-function photos_list(array $filters, ?int $limit = null, int $offset = 0, string $sort = 'uploaded'): array
+function photos_list(array $filters, ?int $limit = null, int $offset = 0, string $sort = 'uploaded', bool $reverse = false): array
 {
     [$where, $params] = photos_build_where($filters);
-    $orderBy = photos_order_by($sort);
+    $orderBy = photos_order_by($sort, $reverse);
     $limitSql = '';
 
     if ($limit !== null) {
@@ -115,17 +115,22 @@ function photos_list(array $filters, ?int $limit = null, int $offset = 0, string
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-function photos_feed(array $filters, ?int $limit = null, int $offset = 0, string $sort = 'uploaded'): array
+function photos_feed(array $filters, ?int $limit = null, int $offset = 0, string $sort = 'uploaded', bool $reverse = false): array
 {
-    return photos_list($filters, $limit, $offset, $sort);
+    return photos_list($filters, $limit, $offset, $sort, $reverse);
 }
 
-function photos_order_by(string $sort): string
+function photos_order_by(string $sort, bool $reverse = false): string
 {
-    return match ($sort) {
-        'captured' => 'ORDER BY p.captured_at IS NULL, p.captured_at ASC, p.uploaded_at ASC, p.id ASC',
-        default => 'ORDER BY p.uploaded_at DESC, p.id DESC',
-    };
+    if ($sort === 'captured') {
+        return $reverse
+            ? 'ORDER BY p.captured_at IS NULL, p.captured_at ASC, p.uploaded_at ASC, p.id ASC'
+            : 'ORDER BY p.captured_at IS NULL, p.captured_at DESC, p.uploaded_at DESC, p.id DESC';
+    }
+
+    return $reverse
+        ? 'ORDER BY p.uploaded_at ASC, p.id ASC'
+        : 'ORDER BY p.uploaded_at DESC, p.id DESC';
 }
 
 function photos_is_event_photographer_allowed(array $photo): bool

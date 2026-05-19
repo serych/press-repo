@@ -130,6 +130,7 @@ $sort = (string)($_GET['sort'] ?? 'uploaded');
 if (!in_array($sort, ['uploaded', 'captured'], true)) {
     $sort = 'uploaded';
 }
+$reverseSort = (string)($_GET['reverse'] ?? '') === '1';
 $currentEvent = photos_get_current_event();
 $currentEventId = !empty($currentEvent['id']) ? (int)$currentEvent['id'] : 0;
 
@@ -141,7 +142,7 @@ $filters = [
 
 $totalFiltered = photos_count($filters);
 $totalAll = photos_count(['event_id' => $currentEventId]);
-$photos = photos_feed($filters, null, 0, $sort);
+$photos = photos_feed($filters, null, 0, $sort, $reverseSort);
 
 $currentUser = current_user();
 $currentUserId = (int)$currentUser['id'];
