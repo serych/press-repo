@@ -803,6 +803,37 @@ h1 {
     font-size: 12px;
 }
 
+.field-feedback {
+    min-height: 18px;
+    margin-top: 6px;
+    font-size: 12px;
+}
+
+.field-feedback-error {
+    color: #fca5a5;
+}
+
+.field-feedback-ok {
+    color: #86efac;
+}
+
+.field-feedback-muted {
+    color: var(--text-muted);
+}
+
+.form input.field-invalid {
+    border-color: #ef4444;
+    color: #fecaca;
+}
+
+.form input.field-valid {
+    border-color: #22c55e;
+}
+
+.form input.field-checking {
+    border-color: #f59e0b;
+}
+
 .btn-danger {
     background: #7f1d1d;
     color: #fecaca;

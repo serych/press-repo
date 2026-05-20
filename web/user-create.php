@@ -122,7 +122,7 @@ require_once __DIR__ . '/inc/header.php';
     <?php endif; ?>
 
     <div class="card">
-        <form method="post" class="form user-form" autocomplete="off">
+        <form method="post" class="form user-form" autocomplete="off" id="user-create-form">
             <div class="form-grid">
                 <div>
                     <label for="jmeno">Jméno</label>
@@ -136,13 +136,34 @@ require_once __DIR__ . '/inc/header.php';
 
                 <div>
                     <label for="user">Login</label>
-                    <input type="text" name="user" id="user" value="<?= h($values['user']) ?>" required>
+                    <input
+                        type="text"
+                        name="user"
+                        id="user"
+                        value="<?= h($values['user']) ?>"
+                        required
+                        autocomplete="off"
+                        autocapitalize="off"
+                        spellcheck="false"
+                        data-lpignore="true"
+                        data-1p-ignore
+                    >
+                    <div class="field-feedback" id="user-login-feedback" aria-live="polite"></div>
                 </div>
 
                 <div>
                     <label for="password">Webové heslo</label>
                     <div class="password-wrap">
-                        <input type="password" name="password" id="password" value="<?= h($values['password']) ?>" required>
+                        <input
+                            type="password"
+                            name="password"
+                            id="password"
+                            value=""
+                            required
+                            autocomplete="new-password"
+                            data-lpignore="true"
+                            data-1p-ignore
+                        >
                         <button type="button" class="password-toggle" data-target="password" aria-label="Zobrazit nebo skrýt heslo">👁</button>
                     </div>
                 </div>
@@ -155,7 +176,16 @@ require_once __DIR__ . '/inc/header.php';
                 <div>
                     <label for="ftp_password">FTP heslo</label>
                     <div class="password-wrap">
-                        <input type="password" name="ftp_password" id="ftp_password" value="<?= h($values['ftp_password']) ?>" required>
+                        <input
+                            type="password"
+                            name="ftp_password"
+                            id="ftp_password"
+                            value=""
+                            required
+                            autocomplete="new-password"
+                            data-lpignore="true"
+                            data-1p-ignore
+                        >
                         <button type="button" class="password-toggle" data-target="ftp_password" aria-label="Zobrazit nebo skrýt heslo">👁</button>
                     </div>
                 </div>
@@ -219,6 +249,10 @@ document.addEventListener('DOMContentLoaded', function () {
     const ftpLoginInput = document.getElementById('ftp_user');
     const ftpPasswordInput = document.getElementById('ftp_password');
     const homedirInput = document.getElementById('homedir');
+    const mobileInput = document.getElementById('mobile');
+    const loginFeedback = document.getElementById('user-login-feedback');
+    let loginCheckTimer = null;
+    let loginCheckController = null;
 
     function slugify(value) {
         return value.trim().replace(/\s+/g, '');
@@ -238,6 +272,110 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    function setLoginState(state, message) {
+        loginInput.classList.remove('field-valid', 'field-invalid', 'field-checking');
+        if (state) {
+            loginInput.classList.add(state);
+        }
+        if (loginFeedback) {
+            loginFeedback.textContent = message || '';
+            loginFeedback.className = 'field-feedback';
+            if (state === 'field-invalid') {
+                loginFeedback.classList.add('field-feedback-error');
+            } else if (state === 'field-valid') {
+                loginFeedback.classList.add('field-feedback-ok');
+            } else if (state === 'field-checking') {
+                loginFeedback.classList.add('field-feedback-muted');
+            }
+        }
+    }
+
+    function checkLoginAvailability() {
+        const login = loginInput.value.trim();
+
+        if (login === '') {
+            setLoginState('', '');
+            return;
+        }
+
+        if (/\s/.test(login)) {
+            setLoginState('field-invalid', 'Login nesmí obsahovat mezery.');
+            return;
+        }
+
+        if (loginCheckController) {
+            loginCheckController.abort();
+        }
+
+        loginCheckController = new AbortController();
+        setLoginState('field-checking', 'Kontroluji login...');
+
+        fetch('/api/user-login-check.php?login=' + encodeURIComponent(login), {
+            cache: 'no-store',
+            signal: loginCheckController.signal
+        })
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error('HTTP ' + response.status);
+                }
+                return response.json();
+            })
+            .then(function (data) {
+                if (loginInput.value.trim() !== login) {
+                    return;
+                }
+
+                if (data.exists) {
+                    setLoginState('field-invalid', 'Tento login už existuje.');
+                } else {
+                    setLoginState('field-valid', 'Login je volný.');
+                }
+            })
+            .catch(function (error) {
+                if (error.name === 'AbortError') {
+                    return;
+                }
+                setLoginState('', '');
+            });
+    }
+
+    function scheduleLoginCheck() {
+        window.clearTimeout(loginCheckTimer);
+        loginCheckTimer = window.setTimeout(checkLoginAvailability, 250);
+    }
+
+    function formatMobile(value) {
+        const trimmed = value.trim();
+        if (trimmed === '') {
+            return '';
+        }
+
+        const hasPlus = trimmed.startsWith('+');
+        const digits = trimmed.replace(/\D/g, '');
+
+        if (digits === '') {
+            return hasPlus ? '+' : '';
+        }
+
+        if (hasPlus) {
+            const prefixLength = digits.length > 9 ? digits.length - 9 : Math.min(3, digits.length);
+            const prefix = digits.slice(0, prefixLength);
+            const rest = digits.slice(prefixLength);
+            const groups = rest.match(/.{1,3}/g) || [];
+            return '+' + prefix + (groups.length ? ' ' + groups.join(' ') : '');
+        }
+
+        return (digits.match(/.{1,3}/g) || []).join(' ');
+    }
+
+    function syncMobileFormat() {
+        if (!mobileInput) {
+            return;
+        }
+
+        mobileInput.value = formatMobile(mobileInput.value);
+    }
+
     function syncFtpPassword() {
         if (ftpPasswordInput.value === '' || ftpPasswordInput.dataset.autofill === '1') {
             ftpPasswordInput.value = passwordInput.value;
@@ -245,8 +383,18 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    loginInput.addEventListener('input', syncDefaults);
+    loginInput.addEventListener('input', function () {
+        syncDefaults();
+        scheduleLoginCheck();
+    });
     passwordInput.addEventListener('input', syncFtpPassword);
+    loginInput.addEventListener('blur', checkLoginAvailability);
+
+    if (mobileInput) {
+        mobileInput.addEventListener('input', syncMobileFormat);
+        mobileInput.addEventListener('blur', syncMobileFormat);
+        syncMobileFormat();
+    }
 
     ftpLoginInput.addEventListener('input', function () {
         ftpLoginInput.dataset.autofill = '0';
