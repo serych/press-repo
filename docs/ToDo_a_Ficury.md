@@ -371,6 +371,32 @@ Cíl sprintu byl doplnit výstupy po eventu: seznam použitých fotografií pro 
 - Pokud je uživatel v aktuálním eventu označený jako runner, zůstává zachovaná runner logika watcheru.
 - Společná logika je ve `web/inc/ftp_replacement.php`.
 - Implementace je připravená tak, aby šlo později nahradit jednoduchý POST upload chunkovaným uploadem bez změny watcher workflow.
+- Položka v menu se jmenuje `NeFTP upload`, aby bylo jasné, že nejde o klasický FTP protokol.
+- Vícenásobný upload se v browseru posílá postupně po jednom souboru, takže limit se vztahuje na jednotlivou fotku a ne na součet celé dávky.
+- Produkční upload limity byly nastaveny na:
+  - `upload_max_filesize = 96M`,
+  - `post_max_size = 120M`.
+
+### Drobné Provozní Úpravy Po Sprintu 10
+
+- Dashboard `dashboard.php`:
+  - u tabulky fotografů byly sloupce přejmenovány na `Nahráno` a `Publikováno`,
+  - `Nahráno` počítá fotky autora v daném eventu včetně fotek nahraných přes runnera,
+  - `Publikováno` počítá hotové fotky ve stavu `ready` napojené na originály daného fotografa.
+- Přehled fotek `photos.php`:
+  - řazení podle uploadu i podle času pořízení má jako výchozí nejnovější fotky nahoře,
+  - přidán přepínač `reverzně (nejnovější dole)`,
+  - reverzní řazení se drží i v AJAX feedu a v detailu `photo.php` pro předchozí/následující fotku.
+- Editace eventu `event-edit.php`:
+  - hlavní nadpis je nově `<název eventu> - úprava`,
+  - při odchodu ze stránky s neuloženými změnami se zobrazí potvrzení `Odejít bez uložení změn?`,
+  - při zavření nebo reloadu panelu funguje standardní browserové upozornění.
+- Zakládání uživatele `user-create.php`:
+  - hesla se po chybě formuláře nevrací do HTML hodnoty pole,
+  - citlivá pole mají potlačené autocomplete pro nové přihlašovací údaje,
+  - přidán endpoint `api/user-login-check.php` pro průběžnou kontrolu obsazenosti loginu,
+  - login se při psaní barevně označuje podle dostupnosti,
+  - mobilní číslo se při psaní automaticky zpřehledňuje mezerami bez automatického doplňování `+420`.
 
 ## Nápady pro další sprinty
 
