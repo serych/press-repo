@@ -318,7 +318,7 @@ require_once __DIR__ . '/inc/header.php';
 
 <section class="panel">
     <div class="page-head">
-        <h1>Upravit event</h1>
+        <h1><?= h((string)$event['title']) ?> - úprava</h1>
         <a href="/events.php" class="button">Zpět na eventy</a>
     </div>
 
@@ -611,12 +611,13 @@ document.addEventListener('DOMContentLoaded', function () {
             .replaceAll("'", '&#039;');
     }
 
-    function showConfirmDialog(title, message, submitLabel) {
+    function showConfirmDialog(title, message, submitLabel, cancelLabel) {
         return new Promise(function (resolve) {
             confirmResolve = resolve;
             confirmTitle.textContent = title || 'Potvrzení';
             confirmMessage.textContent = message || '';
             confirmSubmitBtn.textContent = submitLabel || 'Pokračovat';
+            confirmCancelBtn.textContent = cancelLabel || 'Zrušit';
             confirmModal.hidden = false;
             document.body.classList.add('modal-open');
             confirmSubmitBtn.focus();
@@ -718,6 +719,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             deactivateOtherActive.value = '1';
+            isSubmittingEventForm = true;
             if (typeof form.requestSubmit === 'function') {
                 form.requestSubmit();
             } else {
@@ -740,11 +742,13 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             confirmedStatusChange.value = '1';
+            isSubmittingEventForm = true;
             form.submit();
             return;
         }
 
         confirmedStatusChange.value = '0';
+        isSubmittingEventForm = true;
     });
 
     function buildLabel(user) {
@@ -980,6 +984,65 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     document.querySelectorAll('.participant-picker').forEach(initParticipantPicker);
+
+    let formInitialState = '';
+    let isSubmittingEventForm = false;
+
+    function serializeEventForm() {
+        if (!form) {
+            return '';
+        }
+
+        return new URLSearchParams(new FormData(form)).toString();
+    }
+
+    function eventFormIsDirty() {
+        return formInitialState !== '' && serializeEventForm() !== formInitialState;
+    }
+
+    formInitialState = serializeEventForm();
+
+    window.addEventListener('beforeunload', function (event) {
+        if (isSubmittingEventForm || !eventFormIsDirty()) {
+            return;
+        }
+
+        event.preventDefault();
+        event.returnValue = '';
+    });
+
+    document.addEventListener('click', async function (event) {
+        if (!(event.target instanceof Element)) {
+            return;
+        }
+
+        const link = event.target.closest('a[href]');
+        if (!link || isSubmittingEventForm || !eventFormIsDirty()) {
+            return;
+        }
+
+        if (link.target && link.target !== '_self') {
+            return;
+        }
+
+        const href = link.getAttribute('href') || '';
+        if (href === '' || href.startsWith('#') || href.startsWith('javascript:')) {
+            return;
+        }
+
+        event.preventDefault();
+
+        const ok = await showConfirmDialog(
+            'Odejít bez uložení změn?',
+            'Ve formuláři jsou neuložené změny.',
+            'Ano',
+            'Zpět na formulář'
+        );
+
+        if (ok) {
+            window.location.href = link.href;
+        }
+    });
 });
 </script>
 
