@@ -437,7 +437,7 @@ Cílem Sprintu 11 je zjednodušit přístup žurnalistů k hotové galerii konkr
   - nastavit počet dní po eventu,
   - zobrazit URL,
   - zobrazit nebo stáhnout QR kód.
-- QR kód generuje server pomocí nástroje `qrencode`.
+- QR kód generuje server pomocí nástroje `qrencode` jako vysoké PNG rozlišení vhodné pro tisk kartiček.
 
 ### Session A Statistiky Žurnalistů
 

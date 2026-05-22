@@ -25,8 +25,10 @@ if (!$event || !$access || empty($access['token'])) {
 
 $url = gallery_access_url($access);
 $download = !empty($_GET['download']);
-$filename = 'galerie-' . preg_replace('~[^a-z0-9_-]+~i', '-', (string)$event['slug']) . '-' . (string)$access['token'] . '.png';
-$cmd = 'qrencode -t PNG -s 8 -m 2 -o - ' . escapeshellarg($url);
+$filename = 'galerie-' . preg_replace('~[^a-z0-9_-]+~i', '-', (string)$event['slug']) . '-' . (string)$access['token'] . '-print.png';
+
+// Vysoké rozlišení pro tisk kartiček. CSS v administraci si obrázek jen zmenší pro náhled.
+$cmd = 'qrencode -t PNG -s 32 -m 4 -o - ' . escapeshellarg($url);
 $png = shell_exec($cmd);
 
 if (!is_string($png) || $png === '') {
