@@ -402,6 +402,7 @@ function published_photos_in_editor_work_count(int $eventId): int
         ) pp ON pp.source_photo_id = p.id
         WHERE p.event_id = ?
           AND p.downloaded_at IS NOT NULL
+          AND p.downloaded_at >= DATE_SUB(NOW(), INTERVAL 15 MINUTE)
           AND p.status <> 'deleted'
           AND COALESCE(pp.published_count, 0) = 0
     ");

@@ -32,9 +32,10 @@ require_once __DIR__ . '/inc/header.php';
             <a href="https://www.clovekavira.cz/licencni-podminky" target="_blank" rel="noopener noreferrer">Licenční podmínky</a>
         </p>
 
-        <?php if ($event): ?>
+        <?php if ($event && $inEditorWorkCount > 0): ?>
             <p class="published-work-note">
-                Fotoeditoři právě pracují na <?= (int)$inEditorWorkCount ?> fotografiích.
+                Fotoeditoři právě pracují na <strong><?= (int)$inEditorWorkCount ?></strong>
+                <?= $inEditorWorkCount === 1 ? 'fotografii' : 'fotografiích' ?>.
             </p>
         <?php endif; ?>
     </div>
