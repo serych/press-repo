@@ -736,9 +736,10 @@ write_press_metadata() {
     local exif_args=(
         -q -q
         -overwrite_original
+        -XMP-dc:Creator=
+        -IPTC:By-line=
         -Artist="$author" \
         -Author="$author" \
-        -Creator="$author" \
         -Copyright="© $author" \
         -XMP-dc:Creator="$author" \
         -XMP-dc:Rights="© $author" \
