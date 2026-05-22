@@ -4,8 +4,10 @@ declare(strict_types=1);
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/functions.php';
 require_once __DIR__ . '/photos.php';
+require_once __DIR__ . '/gallery_access.php';
 
 $user = current_user();
+$publicGalleryAccess = gallery_access_current_public_access();
 $currentEvent = null;
 $currentEventId = 0;
 $roleCode = '';
@@ -35,6 +37,12 @@ if ($user) {
     if ($displayName === '') {
         $displayName = (string)($user['user'] ?? '');
     }
+} elseif ($publicGalleryAccess) {
+    $currentEvent = events_get((int)$publicGalleryAccess['event_id']);
+    $currentEventId = !empty($currentEvent['id']) ? (int)$currentEvent['id'] : 0;
+    $roleCode = 'journalist';
+    $dashboardUrl = '/info.php';
+    $displayName = 'Žurnalista';
 }
 
 if ($currentPath === '') {
@@ -74,7 +82,7 @@ $styleVersion = is_file($styleFile) ? (string)filemtime($styleFile) : '1';
             <?php endif; ?>
         </div>
 
-        <?php if ($user): ?>
+        <?php if ($user || $publicGalleryAccess): ?>
             <button class="nav-toggle" type="button" aria-label="Otevřít menu" aria-expanded="false" aria-controls="top-nav">
                 <span></span>
                 <span></span>
@@ -83,7 +91,7 @@ $styleVersion = is_file($styleFile) ? (string)filemtime($styleFile) : '1';
 
             <nav class="top-nav" id="top-nav">
                 <a href="<?= h($dashboardUrl) ?>" class="<?= $currentPath === $dashboardUrl ? 'is-active' : '' ?>">Dashboard</a>
-                <a href="/galerie.php" class="<?= $currentPath === '/galerie.php' ? 'is-active' : '' ?>">Galerie</a>
+                <a href="/galerie.php" class="<?= in_array($currentPath, ['/galerie.php', '/published-photo.php'], true) ? 'is-active' : '' ?>">Galerie</a>
 
                 <?php if ($showPhotographerOverview): ?>
                     <a href="/photos-status.php" class="<?= $currentPath === '/photos-status.php' ? 'is-active' : '' ?>">Fotograf přehled</a>
@@ -106,12 +114,14 @@ $styleVersion = is_file($styleFile) ? (string)filemtime($styleFile) : '1';
                     <a href="/help.php" class="<?= in_array($currentPath, ['/help.php', '/help-download.php'], true) ? 'is-active' : '' ?>">Nápověda</a>
                 <?php endif; ?>
 
-                <a href="/logout.php" class="nav-logout">
-                    Odhlásit
-                    <?php if ($displayName !== ''): ?>
-                        <span class="nav-logout-tooltip" role="tooltip"><?= h($displayName) ?></span>
-                    <?php endif; ?>
-                </a>
+                <?php if ($user): ?>
+                    <a href="/logout.php" class="nav-logout">
+                        Odhlásit
+                        <?php if ($displayName !== ''): ?>
+                            <span class="nav-logout-tooltip" role="tooltip"><?= h($displayName) ?></span>
+                        <?php endif; ?>
+                    </a>
+                <?php endif; ?>
             </nav>
         <?php endif; ?>
     </div>
@@ -119,7 +129,7 @@ $styleVersion = is_file($styleFile) ? (string)filemtime($styleFile) : '1';
 
 <main class="wrap">
 
-<?php if ($user): ?>
+<?php if ($user || $publicGalleryAccess): ?>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const btn = document.querySelector('.nav-toggle');

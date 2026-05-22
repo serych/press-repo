@@ -5,16 +5,17 @@ require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/inc/auth.php';
 require_once __DIR__ . '/inc/functions.php';
 require_once __DIR__ . '/inc/events.php';
+require_once __DIR__ . '/inc/gallery_access.php';
 require_once __DIR__ . '/inc/users.php';
 
-require_login();
+$galleryAccess = gallery_access_require_login_or_public_access();
 
-$infoEvent = events_get_current_dashboard_event();
+$infoEvent = $galleryAccess ? events_get((int)$galleryAccess['event_id']) : events_get_current_dashboard_event();
 
 $summary = null;
 $participantCounts = null;
 
-if ($infoEvent && !empty($infoEvent['is_public'])) {
+if ($infoEvent && ($galleryAccess || !empty($infoEvent['is_public']))) {
     $eventId = (int)$infoEvent['id'];
     $summary = events_stats_summary($eventId);
     $participantCounts = events_stats_counts_of_participants($eventId);

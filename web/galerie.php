@@ -4,13 +4,15 @@ declare(strict_types=1);
 require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/inc/auth.php';
 require_once __DIR__ . '/inc/functions.php';
+require_once __DIR__ . '/inc/gallery_access.php';
 require_once __DIR__ . '/inc/published_photos.php';
 
-require_login();
+$galleryAccess = gallery_access_require_login_or_public_access();
 
-$event = published_photos_current_event();
+$event = $galleryAccess ? events_get((int)$galleryAccess['event_id']) : published_photos_current_event();
 $eventId = !empty($event['id']) ? (int)$event['id'] : 0;
 $photos = $eventId > 0 ? published_photos_list_ready($eventId) : [];
+$inEditorWorkCount = $eventId > 0 ? published_photos_in_editor_work_count($eventId) : 0;
 
 require_once __DIR__ . '/inc/header.php';
 ?>
@@ -29,6 +31,12 @@ require_once __DIR__ . '/inc/header.php';
             Při použití fotografie uveďte jméno autora/Člověk a Víra, tak jak je uvedeno u každé fotografie.
             <a href="https://www.clovekavira.cz/licencni-podminky" target="_blank" rel="noopener noreferrer">Licenční podmínky</a>
         </p>
+
+        <?php if ($event): ?>
+            <p class="published-work-note">
+                Fotoeditoři právě pracují na <?= (int)$inEditorWorkCount ?> fotografiích.
+            </p>
+        <?php endif; ?>
     </div>
 
     <?php if (!$event): ?>

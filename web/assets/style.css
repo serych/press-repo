@@ -3526,6 +3526,13 @@ body::after {
     color: var(--accent-hover);
 }
 
+.published-work-note {
+    margin: 8px 0 0;
+    color: var(--text-muted);
+    font-size: 14px;
+    line-height: 1.45;
+}
+
 .published-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));

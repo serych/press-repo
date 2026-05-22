@@ -388,6 +388,28 @@ function published_photos_list_ready(int $eventId): array
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
+function published_photos_in_editor_work_count(int $eventId): int
+{
+    $stmt = db()->prepare("
+        SELECT COUNT(*)
+        FROM photos p
+        LEFT JOIN (
+            SELECT source_photo_id, COUNT(*) AS published_count
+            FROM published_photos
+            WHERE source_photo_id IS NOT NULL
+              AND status = 'ready'
+            GROUP BY source_photo_id
+        ) pp ON pp.source_photo_id = p.id
+        WHERE p.event_id = ?
+          AND p.downloaded_at IS NOT NULL
+          AND p.status <> 'deleted'
+          AND COALESCE(pp.published_count, 0) = 0
+    ");
+    $stmt->execute([$eventId]);
+
+    return (int)$stmt->fetchColumn();
+}
+
 function published_photos_get_ready(int $id): ?array
 {
     $stmt = db()->prepare("

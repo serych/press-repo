@@ -460,8 +460,15 @@ Cílem Sprintu 11 je zjednodušit přístup žurnalistů k hotové galerii konkr
   - pokud token neexistuje, je vypnutý nebo expirovaný, zobrazí se jednoduchá informace o nedostupné galerii,
   - pokud je nastavený PIN/heslo, zobrazí se minimalistický formulář pouze pro jeho zadání,
   - pokud PIN/heslo nastavené není, galerie se otevře rovnou,
-  - galerie používá samostatné veřejné endpointy `g.php`, `g-photo.php`, `g-preview.php` a `g-download.php`.
-- Veřejná galerie umí přehled, detail, náhledy, individuální stažení a hromadné stažení přes výběr fotek.
+  - po ověření tokenu/PINu krátký vstup nastaví anonymní žurnalistickou session a přesměruje na běžnou `galerie.php`.
+- Krátký žurnalistický přístup používá stejné stránky jako klasická galerie:
+  - `galerie.php`,
+  - `published-photo.php`,
+  - `published-preview.php`,
+  - `published-download.php`.
+- Veřejná žurnalistická session má v hlavičce malé menu `Dashboard` a `Galerie`.
+- Kompatibilitní endpointy `g-photo.php`, `g-preview.php` a `g-download.php` už jen přesměrovávají na standardní stránky.
+- Galerie umí přehled, detail, náhledy, individuální stažení a hromadné stažení přes výběr fotek.
 - Stažení přes krátký galerijní přístup zvyšuje `published_photos.download_count` a zároveň zapisuje session statistiku do `journalist_gallery_sessions` a log do `journalist_gallery_downloads`.
 - Stránka je maximálně jednoduchá a použitelná na mobilu.
 

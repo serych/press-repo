@@ -46,6 +46,29 @@ function gallery_access_find_by_token(string $token): ?array
     return $row ?: null;
 }
 
+function gallery_access_find_by_id(int $id): ?array
+{
+    if ($id <= 0) {
+        return null;
+    }
+
+    $stmt = db()->prepare("
+        SELECT
+            ga.*,
+            e.title AS event_title,
+            e.description AS event_description,
+            e.status AS event_status
+        FROM event_gallery_access ga
+        INNER JOIN events e ON e.id = ga.event_id
+        WHERE ga.id = ?
+        LIMIT 1
+    ");
+    $stmt->execute([$id]);
+
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $row ?: null;
+}
+
 function gallery_access_unavailable_reason(?array $access): ?string
 {
     if (!$access) {
@@ -101,6 +124,11 @@ function gallery_access_session_key(int $accessId): string
     return 'journalist_gallery_access_' . $accessId;
 }
 
+function gallery_access_active_session_key(): string
+{
+    return 'journalist_gallery_active_access_id';
+}
+
 function gallery_access_current_session(array $access): ?array
 {
     start_session_if_needed();
@@ -138,6 +166,7 @@ function gallery_access_start_public_session(array $access): array
             WHERE id = ?
         ")->execute([(int)$existing['id']]);
 
+        $_SESSION[gallery_access_active_session_key()] = (int)$access['id'];
         return $existing;
     }
 
@@ -171,6 +200,7 @@ function gallery_access_start_public_session(array $access): array
     ]);
 
     $_SESSION[gallery_access_session_key((int)$access['id'])] = $sessionToken;
+    $_SESSION[gallery_access_active_session_key()] = (int)$access['id'];
 
     return gallery_access_current_session($access) ?: [];
 }
@@ -187,6 +217,47 @@ function gallery_access_is_public_session_allowed(array $access): bool
     }
 
     return gallery_access_current_session($access) !== null;
+}
+
+function gallery_access_current_public_access(): ?array
+{
+    start_session_if_needed();
+
+    $accessId = (int)($_SESSION[gallery_access_active_session_key()] ?? 0);
+    if ($accessId <= 0) {
+        return null;
+    }
+
+    $access = gallery_access_find_by_id($accessId);
+    if (!$access || gallery_access_unavailable_reason($access) !== null || !gallery_access_current_session($access)) {
+        unset($_SESSION[gallery_access_active_session_key()]);
+        return null;
+    }
+
+    return $access;
+}
+
+function gallery_access_require_login_or_public_access(): ?array
+{
+    if (is_logged_in()) {
+        return null;
+    }
+
+    $access = gallery_access_current_public_access();
+    if ($access) {
+        return $access;
+    }
+
+    redirect('/login.php');
+}
+
+function gallery_access_public_access_allows_photo(?array $access, ?array $photo): bool
+{
+    if (!$access || !$photo) {
+        return false;
+    }
+
+    return (int)($photo['event_id'] ?? 0) === (int)$access['event_id'];
 }
 
 function gallery_access_record_download(array $access, int $publishedPhotoId): void

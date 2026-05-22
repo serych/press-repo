@@ -16,6 +16,9 @@ if (!$access || !gallery_access_is_public_session_allowed($access)) {
 }
 
 $id = (int)($_GET['id'] ?? 0);
+header('Location: /published-photo.php?id=' . $id);
+exit;
+
 $photo = $id > 0 ? published_photos_get_ready($id) : null;
 
 if (!$photo || (int)$photo['event_id'] !== (int)$access['event_id'] || empty($photo['filepath']) || !is_file((string)$photo['filepath'])) {
