@@ -8,6 +8,7 @@ require_once __DIR__ . '/inc/events.php';
 require_once __DIR__ . '/inc/users.php';
 require_once __DIR__ . '/inc/chat.php';
 require_once __DIR__ . '/inc/db.php';
+require_once __DIR__ . '/inc/gallery_access.php';
 
 require_login();
 
@@ -86,13 +87,20 @@ $defaultTimezone = events_default_timezone();
 
 $flashMessage = '';
 $flashType = 'info';
+$postAction = (string)($_POST['action'] ?? '');
 
 if (!empty($_GET['chat_deleted'])) {
     $flashMessage = 'Chat eventu byl smazán.';
     $flashType = 'success';
+} elseif (!empty($_GET['gallery_access_saved'])) {
+    $flashMessage = 'Přístup pro žurnalisty byl uložen.';
+    $flashType = 'success';
+} elseif (!empty($_GET['gallery_access_regenerated'])) {
+    $flashMessage = 'Krátký odkaz pro žurnalisty byl přegenerován.';
+    $flashType = 'success';
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string)($_POST['action'] ?? '') === 'delete_chat') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $postAction === 'delete_chat') {
     if (!has_permission('users.manage') && !has_permission('photos.select')) {
         http_response_code(403);
         exit('Přístup odepřen.');
@@ -102,6 +110,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string)($_POST['action'] ?? '') ==
 
     header('Location: /event-edit.php?id=' . $id . '&chat_deleted=1');
     exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $postAction === 'gallery_access_save') {
+    try {
+        gallery_access_save($id, $event, [
+            'is_enabled' => !empty($_POST['gallery_access_enabled']),
+            'pin' => (string)($_POST['gallery_access_pin'] ?? ''),
+            'close_days_after_event' => $_POST['gallery_access_close_days'] ?? GALLERY_ACCESS_DEFAULT_CLOSE_DAYS,
+        ], (int)(current_user()['id'] ?? 0));
+
+        header('Location: /event-edit.php?id=' . $id . '&gallery_access_saved=1');
+        exit;
+    } catch (Throwable $e) {
+        $flashMessage = 'Přístup pro žurnalisty se nepodařilo uložit: ' . $e->getMessage();
+        $flashType = 'error';
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $postAction === 'gallery_access_regenerate') {
+    try {
+        gallery_access_regenerate_token($id, (int)(current_user()['id'] ?? 0));
+
+        header('Location: /event-edit.php?id=' . $id . '&gallery_access_regenerated=1');
+        exit;
+    } catch (Throwable $e) {
+        $flashMessage = 'Krátký odkaz se nepodařilo přegenerovat: ' . $e->getMessage();
+        $flashType = 'error';
+    }
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cleanup_action'])) {
@@ -174,7 +210,7 @@ $selectedRunnerUserIds = events_participants_get_runner_user_ids($id);
 $errors = [];
 $otherActiveEvent = events_get_other_active($id);
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['cleanup_action']) && (string)($_POST['action'] ?? '') !== 'delete_chat') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['cleanup_action']) && $postAction === '') {
     $values['title']           = trim((string)($_POST['title'] ?? ''));
     $values['slug']            = trim((string)($_POST['slug'] ?? ''));
     $values['description']     = trim((string)($_POST['description'] ?? ''));
@@ -336,7 +372,12 @@ require_once __DIR__ . '/inc/header.php';
         </div>
     <?php endif; ?>
 
-    <?php $summary = events_stats_summary($id); ?>
+    <?php
+    $summary = events_stats_summary($id);
+    $galleryAccess = gallery_access_get($id);
+    $galleryAccessStats = gallery_access_stats($id);
+    $galleryAccessUrl = $galleryAccess ? gallery_access_url($galleryAccess) : '';
+    ?>
 
     <div class="card" style="margin-bottom: 16px;">
         <h2 style="margin-top: 0;">Úklid press centra</h2>
@@ -393,6 +434,95 @@ require_once __DIR__ . '/inc/header.php';
                 <button type="submit" class="btn-danger">Smazat chat</button>
             </form>
         </div>
+    </div>
+
+    <div class="card gallery-access-card">
+        <h2 style="margin-top: 0;">Přístup do galerie pro žurnalisty</h2>
+        <form method="post" class="form gallery-access-form" autocomplete="off">
+            <input type="hidden" name="id" value="<?= (int)$id ?>">
+            <input type="hidden" name="action" value="gallery_access_save">
+
+            <div class="form-grid">
+                <div class="form-grid-span-2">
+                    <label class="checkbox-line">
+                        <input
+                            type="checkbox"
+                            name="gallery_access_enabled"
+                            value="1"
+                            <?= !empty($galleryAccess['is_enabled']) ? 'checked' : '' ?>
+                        >
+                        <span>Povolit krátký přístup do galerie</span>
+                    </label>
+                </div>
+
+                <div>
+                    <label for="gallery_access_pin">PIN / heslo</label>
+                    <input
+                        type="text"
+                        name="gallery_access_pin"
+                        id="gallery_access_pin"
+                        value=""
+                        placeholder="<?= !empty($galleryAccess['pin_hash']) ? 'PIN je nastavený' : 'bez PINu' ?>"
+                        autocomplete="new-password"
+                    >
+                    <span class="form-help">Prázdné pole znamená přístup bez PINu. Při uložení se případný stávající PIN odstraní.</span>
+                </div>
+
+                <div>
+                    <label for="gallery_access_close_days">Uzavřít po eventu za dní</label>
+                    <input
+                        type="number"
+                        name="gallery_access_close_days"
+                        id="gallery_access_close_days"
+                        min="0"
+                        max="365"
+                        value="<?= h((string)($galleryAccess['close_days_after_event'] ?? GALLERY_ACCESS_DEFAULT_CLOSE_DAYS)) ?>"
+                    >
+                    <span class="form-help">Výchozí hodnota jsou 3 dny po konci eventu.</span>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit">Uložit přístup</button>
+            </div>
+        </form>
+
+        <?php if ($galleryAccess): ?>
+            <div class="gallery-access-output">
+                <div>
+                    <div class="dashboard-label">Krátký odkaz</div>
+                    <div class="gallery-access-url">
+                        <input type="text" readonly value="<?= h($galleryAccessUrl) ?>" onclick="this.select();">
+                        <a class="button button-muted" href="<?= h($galleryAccessUrl) ?>" target="_blank" rel="noopener">Otevřít</a>
+                    </div>
+                    <div class="table-subtext">
+                        Stav: <strong><?= !empty($galleryAccess['is_enabled']) ? 'povoleno' : 'vypnuto' ?></strong>
+                        · PIN: <strong><?= !empty($galleryAccess['pin_hash']) ? 'nastaven' : 'bez PINu' ?></strong>
+                        · Expirace: <strong><?= !empty($galleryAccess['expires_at']) ? h((string)$galleryAccess['expires_at']) : 'bez pevné expirace' ?></strong>
+                    </div>
+                    <div class="table-subtext">
+                        Session se stažením: <?= (int)$galleryAccessStats['sessions_with_download'] ?>,
+                        stažení celkem: <?= (int)$galleryAccessStats['downloads_total'] ?>.
+                    </div>
+                </div>
+
+                <div class="gallery-access-qr">
+                    <img src="/gallery-access-qr.php?event_id=<?= (int)$id ?>" alt="QR kód pro galerii">
+                    <a class="button button-muted" href="/gallery-access-qr.php?event_id=<?= (int)$id ?>&amp;download=1">Stáhnout QR</a>
+                </div>
+            </div>
+
+            <form method="post" class="js-confirm-form gallery-access-regenerate-form"
+                  data-confirm-title="Přegenerovat krátký odkaz?"
+                  data-confirm-message="Původní vytištěný odkaz a QR kód přestanou fungovat."
+                  data-confirm-submit="Ano, přegenerovat">
+                <input type="hidden" name="id" value="<?= (int)$id ?>">
+                <input type="hidden" name="action" value="gallery_access_regenerate">
+                <button type="submit" class="button button-muted">Přegenerovat odkaz</button>
+            </form>
+        <?php else: ?>
+            <p class="table-subtext gallery-access-empty">Krátký odkaz a QR kód vzniknou při prvním uložení této sekce.</p>
+        <?php endif; ?>
     </div>
 
     <div class="card">

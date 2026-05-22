@@ -1,5 +1,8 @@
 Options -Indexes
 
+RewriteEngine On
+RewriteRule ^g/([a-z0-9]{3})/?$ /g.php?token=$1 [L,QSA]
+
 php_value upload_max_filesize 96M
 php_value post_max_size 120M
 php_value max_file_uploads 50

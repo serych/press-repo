@@ -398,20 +398,21 @@ Cíl sprintu byl doplnit výstupy po eventu: seznam použitých fotografií pro 
   - login se při psaní barevně označuje podle dostupnosti,
   - mobilní číslo se při psaní automaticky zpřehledňuje mezerami bez automatického doplňování `+420`.
 
-## Sprint 11: krátký přístup do galerie a zabezpečení press centra - plán
+## Sprint 11: krátký přístup do galerie a zabezpečení press centra - otevřený
 
-Cílem Sprintu 11 je zjednodušit přístup žurnalistů k hotové galerii konkrétního eventu a zároveň připravit další vrstvu provozního zabezpečení press centra. Sprint 11 je nově otevřený.
+Cílem Sprintu 11 je zjednodušit přístup žurnalistů k hotové galerii konkrétního eventu a zároveň připravit další vrstvu provozního zabezpečení press centra. Sprint 11 je otevřený a první část krátkého galerijního přístupu je implementovaná.
 
 ### Krátký Přístup Pro Žurnalisty
 
 - Zachovat roli `journalist`, ale změnit praktický způsob přístupu pro lidi na eventu.
 - Předpoklad: v systému bude jeden sdílený interní účet žurnalisty, ale běžní žurnalisté nebudou opisovat klasický login/heslo.
-- Pro každý event půjde vygenerovat krátký galerijní odkaz ve tvaru:
+- Pro každý event lze vygenerovat krátký galerijní odkaz ve tvaru:
   - `https://press.clovekavira.cz/g/a7c`
 - Prefix `/g/` znamená galerie.
 - Token má mít 3 znaky z malé abecedy a číslic.
 - Počet kombinací je pro provozní potřeby press centra dostatečný; při generování se musí hlídat unikátnost aktivních tokenů.
-- Odkaz bude určený pro vytištění, opsání a QR kód.
+- Odkaz je určený pro vytištění, opsání a QR kód.
+- Na serveru byl zapnutý Apache modul `rewrite`, aby krátká URL `/g/<token>` fungovala přímo.
 
 ### Databáze Pro Galerijní Přístupy
 
@@ -428,36 +429,41 @@ Cílem Sprintu 11 je zjednodušit přístup žurnalistů k hotové galerii konkr
 - Vytvořena tabulka `journalist_gallery_sessions` pro samostatnou evidenci žurnalistických návštěv galerie.
 - Vytvořena tabulka `journalist_gallery_downloads` pro log stažení publikovaných fotek přes krátký galerijní přístup.
 - Výchozí uzavření galerie nastavit na 3 dny po skončení eventu.
-- V editaci eventu přidat jednoduchou správu:
+- V editaci eventu je přidaná jednoduchá správa:
   - zapnout/vypnout žurnalistický přístup,
-  - vygenerovat/přegenerovat krátký odkaz,
-  - nastavit PIN/heslo,
+  - vygenerovat krátký odkaz při prvním uložení,
+  - přegenerovat krátký odkaz,
+  - nastavit PIN/heslo nebo nechat přístup bez PINu,
   - nastavit počet dní po eventu,
   - zobrazit URL,
   - zobrazit nebo stáhnout QR kód.
+- QR kód generuje server pomocí nástroje `qrencode`.
 
 ### Session A Statistiky Žurnalistů
 
-- Přístup přes `/g/<token>` vytvoří speciální žurnalistickou session svázanou s konkrétním eventem.
-- Galerie a detail publikované fotky musí u takové session zobrazovat galerii eventu z tokenu, ne nutně aktuálně aktivní event.
+- Přístup přes `/g/<token>` vytváří speciální žurnalistickou session svázanou s konkrétním eventem.
+- Galerie a detail publikované fotky u takové session zobrazují galerii eventu z tokenu, ne nutně aktuálně aktivní event.
 - Po eventu budeme chtít statistiky:
   - počet žurnalistických sessionů, které si stáhly alespoň jednu fotku,
   - celkový počet stažení fotek žurnalisty z dané galerie.
-- Bude potřeba evidovat žurnalistické sessiony samostatně, aby šlo poznat:
+- Žurnalistické sessiony se evidují samostatně, aby šlo poznat:
   - kdy session vznikla,
   - ke kterému eventu patřila,
   - zda stáhla alespoň jednu fotku,
   - kolik stažení v ní proběhlo.
 - Stávající `published_photos.download_count` zůstává jako počet stažení konkrétní fotky.
-- Nová session statistika doplní pohled na reálný počet aktivních žurnalistických návštěv.
+- Nová session statistika doplňuje pohled na reálný počet aktivních žurnalistických návštěv.
 
 ### Přístupová Obrazovka
 
 - Po otevření `/g/<token>`:
-  - pokud token neexistuje, je vypnutý nebo expirovaný, zobrazit jednoduchou informaci o nedostupné galerii,
-  - pokud je nastavený PIN/heslo, zobrazit minimalistický formulář pouze pro jeho zadání,
-  - po úspěšném zadání přesměrovat rovnou do galerie daného eventu.
-- Stránka má být maximálně jednoduchá a použitelná na mobilu.
+  - pokud token neexistuje, je vypnutý nebo expirovaný, zobrazí se jednoduchá informace o nedostupné galerii,
+  - pokud je nastavený PIN/heslo, zobrazí se minimalistický formulář pouze pro jeho zadání,
+  - pokud PIN/heslo nastavené není, galerie se otevře rovnou,
+  - galerie používá samostatné veřejné endpointy `g.php`, `g-photo.php`, `g-preview.php` a `g-download.php`.
+- Veřejná galerie umí přehled, detail, náhledy, individuální stažení a hromadné stažení přes výběr fotek.
+- Stažení přes krátký galerijní přístup zvyšuje `published_photos.download_count` a zároveň zapisuje session statistiku do `journalist_gallery_sessions` a log do `journalist_gallery_downloads`.
+- Stránka je maximálně jednoduchá a použitelná na mobilu.
 
 ### Další Zabezpečení Press Centra
 
