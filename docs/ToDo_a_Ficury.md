@@ -398,6 +398,78 @@ Cíl sprintu byl doplnit výstupy po eventu: seznam použitých fotografií pro 
   - login se při psaní barevně označuje podle dostupnosti,
   - mobilní číslo se při psaní automaticky zpřehledňuje mezerami bez automatického doplňování `+420`.
 
+## Sprint 11: krátký přístup do galerie a zabezpečení press centra - plán
+
+Cílem Sprintu 11 je zjednodušit přístup žurnalistů k hotové galerii konkrétního eventu a zároveň připravit další vrstvu provozního zabezpečení press centra. Sprint 11 je nově otevřený.
+
+### Krátký Přístup Pro Žurnalisty
+
+- Zachovat roli `journalist`, ale změnit praktický způsob přístupu pro lidi na eventu.
+- Předpoklad: v systému bude jeden sdílený interní účet žurnalisty, ale běžní žurnalisté nebudou opisovat klasický login/heslo.
+- Pro každý event půjde vygenerovat krátký galerijní odkaz ve tvaru:
+  - `https://press.clovekavira.cz/g/a7c`
+- Prefix `/g/` znamená galerie.
+- Token má mít 3 znaky z malé abecedy a číslic.
+- Počet kombinací je pro provozní potřeby press centra dostatečný; při generování se musí hlídat unikátnost aktivních tokenů.
+- Odkaz bude určený pro vytištění, opsání a QR kód.
+
+### Databáze Pro Galerijní Přístupy
+
+- Pro přístupy vytvořit samostatnou tabulku, nikoliv jen další sloupce v `events`.
+- Připravena migrace `sql/sprint11_001_gallery_access.sql`.
+- Vytvořena tabulka `event_gallery_access`, která uchovává:
+  - `event_id`,
+  - krátký `token`,
+  - zda je přístup povolený,
+  - volitelný PIN/heslo uložené jako hash,
+  - počet dní po eventu, kdy se galerie automaticky uzavře,
+  - datum/čas expirace,
+  - metadata vytvoření a poslední změny.
+- Vytvořena tabulka `journalist_gallery_sessions` pro samostatnou evidenci žurnalistických návštěv galerie.
+- Vytvořena tabulka `journalist_gallery_downloads` pro log stažení publikovaných fotek přes krátký galerijní přístup.
+- Výchozí uzavření galerie nastavit na 3 dny po skončení eventu.
+- V editaci eventu přidat jednoduchou správu:
+  - zapnout/vypnout žurnalistický přístup,
+  - vygenerovat/přegenerovat krátký odkaz,
+  - nastavit PIN/heslo,
+  - nastavit počet dní po eventu,
+  - zobrazit URL,
+  - zobrazit nebo stáhnout QR kód.
+
+### Session A Statistiky Žurnalistů
+
+- Přístup přes `/g/<token>` vytvoří speciální žurnalistickou session svázanou s konkrétním eventem.
+- Galerie a detail publikované fotky musí u takové session zobrazovat galerii eventu z tokenu, ne nutně aktuálně aktivní event.
+- Po eventu budeme chtít statistiky:
+  - počet žurnalistických sessionů, které si stáhly alespoň jednu fotku,
+  - celkový počet stažení fotek žurnalisty z dané galerie.
+- Bude potřeba evidovat žurnalistické sessiony samostatně, aby šlo poznat:
+  - kdy session vznikla,
+  - ke kterému eventu patřila,
+  - zda stáhla alespoň jednu fotku,
+  - kolik stažení v ní proběhlo.
+- Stávající `published_photos.download_count` zůstává jako počet stažení konkrétní fotky.
+- Nová session statistika doplní pohled na reálný počet aktivních žurnalistických návštěv.
+
+### Přístupová Obrazovka
+
+- Po otevření `/g/<token>`:
+  - pokud token neexistuje, je vypnutý nebo expirovaný, zobrazit jednoduchou informaci o nedostupné galerii,
+  - pokud je nastavený PIN/heslo, zobrazit minimalistický formulář pouze pro jeho zadání,
+  - po úspěšném zadání přesměrovat rovnou do galerie daného eventu.
+- Stránka má být maximálně jednoduchá a použitelná na mobilu.
+
+### Další Zabezpečení Press Centra
+
+- Druhá část Sprintu 11 bude celkové provozní zabezpečení press centra.
+- Cíl: možnost centrálně zapínat/vypínat dostupnost press centra prostřednictvím API pfSense.
+- Potřebné ještě upřesnit:
+  - jestli se bude vypínat celý web, jen neveřejné části, FTP/NeFTP upload, nebo kombinace,
+  - jak bude vypadat bezpečné volání pfSense API,
+  - kde budou uloženy API údaje,
+  - kdo v administraci bude mít právo akci spustit,
+  - jak zobrazit uživatelům stav při vypnutém press centru.
+
 ## Nápady pro další sprinty
 
 - Ruční párování nespárovaných publikovaných fotek s originálem.
