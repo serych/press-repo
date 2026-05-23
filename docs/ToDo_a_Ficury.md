@@ -409,27 +409,26 @@ Cíl sprintu byl doplnit výstupy po eventu: seznam použitých fotografií pro 
   - login se při psaní barevně označuje podle dostupnosti,
   - mobilní číslo se při psaní automaticky zpřehledňuje mezerami bez automatického doplňování `+420`.
 
-## Sprint 11: krátký přístup do galerie a zabezpečení press centra - otevřený
+## Sprint 11: krátký přístup do galerie a zabezpečení press centra - ukončeno
 
-Cílem Sprintu 11 je zjednodušit přístup žurnalistů k hotové galerii konkrétního eventu a zároveň připravit další vrstvu provozního zabezpečení press centra. Sprint 11 je otevřený a první část krátkého galerijního přístupu je implementovaná.
+Cílem Sprintu 11 bylo zjednodušit přístup žurnalistů k hotové galerii konkrétního eventu a doplnit provozní vypínač FTP části press centra přes pfSense. Sprint 11 považujeme za uzavřený.
 
 ### Krátký Přístup Pro Žurnalisty
 
-- Zachovat roli `journalist`, ale změnit praktický způsob přístupu pro lidi na eventu.
-- Předpoklad: v systému bude jeden sdílený interní účet žurnalisty, ale běžní žurnalisté nebudou opisovat klasický login/heslo.
+- Role `journalist` zůstává zachovaná, ale praktický provozní přístup pro lidi na eventu nově řeší krátký eventový odkaz.
+- V systému může zůstat jeden běžný uživatel s rolí `journalist` jako fallback klasického loginu.
 - Pro každý event lze vygenerovat krátký galerijní odkaz ve tvaru:
   - `https://press.clovekavira.cz/g/a7c`
 - Prefix `/g/` znamená galerie.
-- Token má mít 3 znaky z malé abecedy a číslic.
-- Počet kombinací je pro provozní potřeby press centra dostatečný; při generování se musí hlídat unikátnost aktivních tokenů.
+- Token má 3 znaky z malé abecedy a číslic.
+- Generování hlídá unikátnost tokenu.
 - Odkaz je určený pro vytištění, opsání a QR kód.
 - Na serveru byl zapnutý Apache modul `rewrite`, aby krátká URL `/g/<token>` fungovala přímo.
-- Jeden běžný uživatel s rolí `journalist` zůstává v systému jako fallback klasického loginu, ale provozní cesta pro žurnalisty je krátký eventový odkaz.
 
 ### Databáze Pro Galerijní Přístupy
 
-- Pro přístupy vytvořit samostatnou tabulku, nikoliv jen další sloupce v `events`.
-- Připravena migrace `sql/sprint11_001_gallery_access.sql`.
+- Přístupy mají samostatnou tabulku, nikoliv jen další sloupce v `events`.
+- Přidána a aplikována migrace `sql/sprint11_001_gallery_access.sql`.
 - Vytvořena tabulka `event_gallery_access`, která uchovává:
   - `event_id`,
   - krátký `token`,
@@ -440,22 +439,23 @@ Cílem Sprintu 11 je zjednodušit přístup žurnalistů k hotové galerii konkr
   - metadata vytvoření a poslední změny.
 - Vytvořena tabulka `journalist_gallery_sessions` pro samostatnou evidenci žurnalistických návštěv galerie.
 - Vytvořena tabulka `journalist_gallery_downloads` pro log stažení publikovaných fotek přes krátký galerijní přístup.
-- Výchozí uzavření galerie nastavit na 3 dny po skončení eventu.
-- V editaci eventu je přidaná jednoduchá správa:
+- Výchozí uzavření galerie je 3 dny po skončení eventu.
+- V editaci eventu je jednoduchá správa:
   - zapnout/vypnout žurnalistický přístup,
   - vygenerovat krátký odkaz při prvním uložení,
   - přegenerovat krátký odkaz,
   - nastavit PIN/heslo nebo nechat přístup bez PINu,
   - nastavit počet dní po eventu,
   - zobrazit URL,
-  - zobrazit nebo stáhnout QR kód.
+  - zobrazit nebo stáhnout QR kód,
+  - zobrazit základní statistiky krátkého přístupu.
 - QR kód generuje server pomocí nástroje `qrencode` jako vysoké PNG rozlišení vhodné pro tisk kartiček.
 
 ### Session A Statistiky Žurnalistů
 
 - Přístup přes `/g/<token>` vytváří speciální žurnalistickou session svázanou s konkrétním eventem.
 - Galerie a detail publikované fotky u takové session zobrazují galerii eventu z tokenu, ne nutně aktuálně aktivní event.
-- Po eventu budeme chtít statistiky:
+- Implementované statistiky umožňují po eventu sledovat:
   - počet žurnalistických sessionů, které si stáhly alespoň jednu fotku,
   - celkový počet stažení fotek žurnalisty z dané galerie.
 - Žurnalistické sessiony se evidují samostatně, aby šlo poznat:
@@ -501,32 +501,39 @@ Cílem Sprintu 11 je zjednodušit přístup žurnalistů k hotové galerii konkr
 - Server byl rebootován a běží na kernelu `6.1.0-48-amd64`.
 - Starší kernel `6.1.0-44-amd64` zůstává jako fallback.
 
-### Další Zabezpečení Press Centra
+### Vypínač FTP Přístupu Přes pfSense
 
-- Druhá část Sprintu 11 bude celkové provozní zabezpečení press centra.
-- Cíl: možnost centrálně zapínat/vypínat dostupnost press centra prostřednictvím API pfSense.
-- Na `events.php` je připravený horní panel `Vypínač press centra`:
+- Druhá část Sprintu 11 doplnila provozní zabezpečení FTP přístupu přes pfSense firewall.
+- Cíl: možnost centrálně zapínat/vypínat dostupnost FTP části press centra prostřednictvím API pfSense.
+- Na `events.php` je přidaný horní panel `Vypínač press centra`:
   - čte reálný stav FTP pravidel přes pfSense REST API,
   - zobrazuje stav `FTP přístup je zapnutý` / `FTP přístup je vypnutý` / chybový nebo nejednotný stav,
   - nabízí potvrzovací tlačítko `Vypnout FTP` nebo `Zapnout FTP`,
-  - samotné přepnutí zatím nebylo záměrně otestováno na živém provozu.
+  - reálné vypnutí i zapnutí bylo otestováno na živém provozu.
 - pfSense REST API je dostupné na `https://192.168.50.1:10443/api/v2`.
 - Lokální konfigurace API je v ignorovaném souboru `web/config/pfsense.local.php`; v repozitáři je jen šablona `web/config/pfsense.local.example.php`.
-- Ovládání FTP pracuje s pravidly podle popisu, ne podle proměnlivých číselných ID:
+- Ovládání FTP pracuje s pravidly podle popisu, ne podle proměnlivých číselných ID.
+- Přepínají se čtyři firewall rules:
   - firewall rule `FTP control press centrum`,
   - firewall rule `FTP passive press centrum`,
-  - NAT port forward `FTP control press centrum`,
-  - NAT port forward `FTP passive press centrum`.
-- Stav v kombinovaném seznamu firewall rules zároveň hlídá auto pravidla:
-  - `NAT FTP control press centrum`,
-  - `NAT FTP passive press centrum`.
-- Přepnutí je připravené přes `PATCH` singular endpointů pfSense REST API a následné `POST /firewall/apply`.
+  - auto rule `NAT FTP control press centrum`,
+  - auto rule `NAT FTP passive press centrum`.
+- Stav v kombinovaném seznamu firewall rules hlídá všechna čtyři pravidla.
+- Kód záměrně nepřepisuje NAT port-forward objekty, protože pfSense REST API při jejich PATCH přegenerovalo pasivní auto pravidlo jen pro port `40000`.
+- Přepínač nově přepíná pouze firewall rules a u pasivních pravidel zároveň hlídá rozsah:
+  - `40000:40100`.
+- Ověřený výsledný zapnutý stav:
+  - `FTP passive press centrum` enabled, port `40000:40100`,
+  - `FTP control press centrum` enabled, port `21`,
+  - `NAT FTP control press centrum` enabled, port `21`,
+  - `NAT FTP passive press centrum` enabled, port `40000:40100`.
+- Přepnutí probíhá přes `PATCH /firewall/rule` a následné `POST /firewall/apply`.
 - V přehledu eventů `events.php` byl za sloupec `Staženo` přidán sloupec `Vystaveno`.
 - `Vystaveno` ukazuje `published_total`, tedy počet publikovaných hotových fotek ve stavu `ready`.
-- Potřebné ještě upřesnit:
-  - zda po přepnutí mazat existující FTP states na firewallu,
-  - zda vypínač později rozšířit i na NeFTP upload/webové části,
-  - jak zobrazit uživatelům stav při vypnutém press centru.
+- Stav `FTP přístup je vypnutý` je na `events.php` zobrazený červeně.
+- Při vypnutém FTP se globální hlavička systému přepne na červené pozadí a text značky se změní na `PRESS centrum vypnuto`.
+- Při zapnutém FTP se hlavička vrátí do běžného vzhledu `PRESS centrum ČaV`.
+- Vypínač zatím řeší FTP protokol; NeFTP upload a webová galerie zůstávají dostupné.
 
 ## Nápady pro další sprinty
 
