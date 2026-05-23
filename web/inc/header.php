@@ -5,6 +5,7 @@ require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/functions.php';
 require_once __DIR__ . '/photos.php';
 require_once __DIR__ . '/gallery_access.php';
+require_once __DIR__ . '/pfsense.php';
 
 $user = current_user();
 $publicGalleryAccess = gallery_access_current_public_access();
@@ -20,6 +21,7 @@ $showHelp = false;
 $showChat = false;
 $displayName = '';
 $currentPath = (string)(parse_url((string)($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH) ?: '');
+$pressCenterFtpDisabled = false;
 
 if ($user) {
     $currentEvent = photos_get_current_event();
@@ -49,6 +51,14 @@ if ($currentPath === '') {
     $currentPath = (string)($_SERVER['SCRIPT_NAME'] ?? '');
 }
 
+if ($user || $publicGalleryAccess) {
+    if (isset($pfsenseFtpStatus) && is_array($pfsenseFtpStatus)) {
+        $pressCenterFtpDisabled = (string)($pfsenseFtpStatus['state'] ?? '') === 'disabled';
+    } elseif (pfsense_is_configured()) {
+        $pressCenterFtpDisabled = (string)(pfsense_ftp_status()['state'] ?? '') === 'disabled';
+    }
+}
+
 $chatUrl = '/chat.php';
 if ($currentEventId > 0) {
     $chatUrl = '/chat.php?event_id=' . $currentEventId;
@@ -66,12 +76,12 @@ $styleVersion = is_file($styleFile) ? (string)filemtime($styleFile) : '1';
     <link rel="stylesheet" href="/assets/style.css?v=<?= h($styleVersion) ?>">
 </head>
 <body>
-<header class="site-header">
+<header class="site-header<?= $pressCenterFtpDisabled ? ' is-ftp-disabled' : '' ?>">
     <div class="wrap header-row">
         <div class="brand">
             <a href="/" class="brand-link">
                 <img src="/assets/logo-cs.svg" alt="PRESS centrum Člověk a Víra" class="brand-logo">
-                <span class="brand-text">PRESS centrum ČaV</span>
+                <span class="brand-text"><?= $pressCenterFtpDisabled ? 'PRESS centrum vypnuto' : 'PRESS centrum ČaV' ?></span>
             </a>
 
             <?php if ($user && $showChat): ?>

@@ -44,6 +44,11 @@ body {
     border-bottom: 1px solid #111;
 }
 
+.site-header.is-ftp-disabled {
+    background: #b91c1c;
+    border-bottom-color: #7f1d1d;
+}
+
 .site-header .wrap {
     display: flex;
     justify-content: space-between;
@@ -1001,6 +1006,23 @@ h1 {
     font-size: 18px;
 }
 
+.site-header.is-ftp-disabled .brand-text {
+    color: #ffffff;
+}
+
+.site-header.is-ftp-disabled .top-nav a {
+    color: #fee2e2;
+}
+
+.site-header.is-ftp-disabled .top-nav a:hover,
+.site-header.is-ftp-disabled .top-nav a.is-active {
+    color: #ffffff;
+}
+
+.site-header.is-ftp-disabled .top-nav a.is-active {
+    background: rgba(255, 255, 255, 0.16);
+}
+
 .login-page {
     min-height: 100vh;
 }
@@ -1280,6 +1302,38 @@ h1 {
     border-bottom: 0;
 }
 
+.firewall-switch-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.firewall-switch-card h2 {
+    margin: 0 0 4px;
+    font-size: 18px;
+}
+
+.firewall-switch-state {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+@media (max-width: 720px) {
+    .firewall-switch-card {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .firewall-switch-state {
+        justify-content: flex-start;
+    }
+}
+
 .event-title-main {
     font-weight: 600;
     color: var(--text-main);
@@ -1316,6 +1370,12 @@ h1 {
     color: #fcd34d;
     border-color: rgba(245, 158, 11, 0.35);
     background: rgba(245, 158, 11, 0.10);
+}
+
+.badge-danger {
+    color: #fecaca;
+    border-color: rgba(239, 68, 68, 0.60);
+    background: rgba(185, 28, 28, 0.35);
 }
 
 .badge-muted {

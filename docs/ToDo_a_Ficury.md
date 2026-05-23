@@ -505,11 +505,27 @@ Cílem Sprintu 11 je zjednodušit přístup žurnalistů k hotové galerii konkr
 
 - Druhá část Sprintu 11 bude celkové provozní zabezpečení press centra.
 - Cíl: možnost centrálně zapínat/vypínat dostupnost press centra prostřednictvím API pfSense.
+- Na `events.php` je připravený horní panel `Vypínač press centra`:
+  - čte reálný stav FTP pravidel přes pfSense REST API,
+  - zobrazuje stav `FTP přístup je zapnutý` / `FTP přístup je vypnutý` / chybový nebo nejednotný stav,
+  - nabízí potvrzovací tlačítko `Vypnout FTP` nebo `Zapnout FTP`,
+  - samotné přepnutí zatím nebylo záměrně otestováno na živém provozu.
+- pfSense REST API je dostupné na `https://192.168.50.1:10443/api/v2`.
+- Lokální konfigurace API je v ignorovaném souboru `web/config/pfsense.local.php`; v repozitáři je jen šablona `web/config/pfsense.local.example.php`.
+- Ovládání FTP pracuje s pravidly podle popisu, ne podle proměnlivých číselných ID:
+  - firewall rule `FTP control press centrum`,
+  - firewall rule `FTP passive press centrum`,
+  - NAT port forward `FTP control press centrum`,
+  - NAT port forward `FTP passive press centrum`.
+- Stav v kombinovaném seznamu firewall rules zároveň hlídá auto pravidla:
+  - `NAT FTP control press centrum`,
+  - `NAT FTP passive press centrum`.
+- Přepnutí je připravené přes `PATCH` singular endpointů pfSense REST API a následné `POST /firewall/apply`.
+- V přehledu eventů `events.php` byl za sloupec `Staženo` přidán sloupec `Vystaveno`.
+- `Vystaveno` ukazuje `published_total`, tedy počet publikovaných hotových fotek ve stavu `ready`.
 - Potřebné ještě upřesnit:
-  - jestli se bude vypínat celý web, jen neveřejné části, FTP/NeFTP upload, nebo kombinace,
-  - jak bude vypadat bezpečné volání pfSense API,
-  - kde budou uloženy API údaje,
-  - kdo v administraci bude mít právo akci spustit,
+  - zda po přepnutí mazat existující FTP states na firewallu,
+  - zda vypínač později rozšířit i na NeFTP upload/webové části,
   - jak zobrazit uživatelům stav při vypnutém press centru.
 
 ## Nápady pro další sprinty
