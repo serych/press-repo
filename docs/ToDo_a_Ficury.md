@@ -87,6 +87,13 @@ Cíl sprintu byl rozšířit presscentrum z jednosměrného vstupu fotek na komp
 - Fotky jsou řazené podle času pořízení z EXIFu.
 - U každé fotky se zobrazuje autor ve formátu `autor / Člověk a Víra`.
 - Autor publikované fotky je uložený v `published_photos.author_label`, aby Galerie při vykreslení nespouštěla `exiftool` pro každou fotku.
+- Galerie nezobrazuje pracovní stavy RAW uploadu/zpracování z editor části systému.
+- V záhlaví Galerie se zobrazuje výrazná informační věta `Fotoeditoři právě pracují na X fotografiích`, ale jen pokud je `X > 0`.
+- `X` znamená počet zdrojových RAW/JPG fotek, které:
+  - si fotoeditor stáhl,
+  - ještě k nim není publikované hotové JPG ve stavu `ready`,
+  - stažení proběhlo během posledních 15 minut.
+- Pro jednu fotku se používá tvar `Fotoeditoři právě pracují na 1 fotografii`.
 - Individuální stažení je hotové.
 - Hromadné stažení je hotové jako postupné spuštění individuálních downloadů.
 - Tlačítko `Stáhnout vše` bylo odstraněno; používá se `Vybrat vše` + `Stáhnout vybrané`.
@@ -211,6 +218,10 @@ Sprint 9 řešil hlavně zpřehlednění žurnalistických a dashboardových obr
   - pokud fotka nemá GPS a event GPS má, doplní GPS do EXIFu,
   - pokud fotka nemá nadmořskou výšku a event ji má, doplní `GPSAltitude` a `GPSAltitudeRef`.
 - Pokud fotka GPS v EXIFu už má, watcher ji nepřepisuje.
+- Opravena duplikace autora v EXIF/XMP:
+  - watcher už nezapisuje autora současně přes obecný `Creator` i `XMP-dc:Creator`,
+  - před zápisem čistí listová pole `XMP-dc:Creator` a `IPTC:By-line`,
+  - nové a znovu zpracované soubory tak nedostanou autora ve tvaru `Autor; Autor`.
 - Runner workflow bylo zkontrolováno:
   - runner upload hledá autora podle EXIF autora a pole `users.exif_author`,
   - po nalezení autora přesune soubor z adresáře runnera do FTP adresáře autora,
@@ -413,6 +424,7 @@ Cílem Sprintu 11 je zjednodušit přístup žurnalistů k hotové galerii konkr
 - Počet kombinací je pro provozní potřeby press centra dostatečný; při generování se musí hlídat unikátnost aktivních tokenů.
 - Odkaz je určený pro vytištění, opsání a QR kód.
 - Na serveru byl zapnutý Apache modul `rewrite`, aby krátká URL `/g/<token>` fungovala přímo.
+- Jeden běžný uživatel s rolí `journalist` zůstává v systému jako fallback klasického loginu, ale provozní cesta pro žurnalisty je krátký eventový odkaz.
 
 ### Databáze Pro Galerijní Přístupy
 
@@ -467,10 +479,27 @@ Cílem Sprintu 11 je zjednodušit přístup žurnalistů k hotové galerii konkr
   - `published-preview.php`,
   - `published-download.php`.
 - Veřejná žurnalistická session má v hlavičce malé menu `Dashboard` a `Galerie`.
+- `Dashboard` pro krátkou session vede na `info.php` a zobrazuje event z tokenu, i když není běžně veřejný přes `is_public`.
 - Kompatibilitní endpointy `g-photo.php`, `g-preview.php` a `g-download.php` už jen přesměrovávají na standardní stránky.
 - Galerie umí přehled, detail, náhledy, individuální stažení a hromadné stažení přes výběr fotek.
 - Stažení přes krátký galerijní přístup zvyšuje `published_photos.download_count` a zároveň zapisuje session statistiku do `journalist_gallery_sessions` a log do `journalist_gallery_downloads`.
 - Stránka je maximálně jednoduchá a použitelná na mobilu.
+
+### Provozní Úklid Serveru Během Sprintu 11
+
+- Kořenový disk serveru byl vyčištěn z kritického stavu:
+  - původně měl `/` přibližně 265 MB volných a využití kolem 94 %,
+  - po úklidu má `/` přibližně 1.6 GB volných a využití kolem 63-64 %.
+- Vyčištěno ve `/root/.vscode-server`:
+  - staré nepoužívané verze VS Code serveru,
+  - cache stažených VSIX balíčků,
+  - stará duplicitní verze rozšíření GitHub Pull Request.
+- Proveden standardní systémový úklid:
+  - `apt autoremove` odstranil starou kernel meziverzi,
+  - `apt clean`,
+  - purge zbytků balíků ve stavu `rc`.
+- Server byl rebootován a běží na kernelu `6.1.0-48-amd64`.
+- Starší kernel `6.1.0-44-amd64` zůstává jako fallback.
 
 ### Další Zabezpečení Press Centra
 
