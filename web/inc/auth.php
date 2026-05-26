@@ -4,12 +4,16 @@ declare(strict_types=1);
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/functions.php';
 
+const SESSION_LIFETIME_SECONDS = 60 * 60 * 24;
+
 function start_session_if_needed(): void
 {
     if (session_status() === PHP_SESSION_NONE) {
+        ini_set('session.gc_maxlifetime', (string)SESSION_LIFETIME_SECONDS);
         session_name(SESSION_NAME);
+        $hasSessionCookie = isset($_COOKIE[SESSION_NAME]);
         session_set_cookie_params([
-            'lifetime' => 60 * 60 * 24, // 1 den
+            'lifetime' => SESSION_LIFETIME_SECONDS,
             'path' => '/',
             'domain' => '',
             'secure' => !empty($_SERVER['HTTPS']),
@@ -17,7 +21,27 @@ function start_session_if_needed(): void
             'samesite' => 'Lax',
         ]);
         session_start();
+        if ($hasSessionCookie) {
+            refresh_session_cookie();
+        }
     }
+}
+
+function refresh_session_cookie(): void
+{
+    if (!ini_get('session.use_cookies') || session_id() === '') {
+        return;
+    }
+
+    $params = session_get_cookie_params();
+    setcookie(session_name(), session_id(), [
+        'expires' => time() + SESSION_LIFETIME_SECONDS,
+        'path' => (string)$params['path'],
+        'domain' => (string)$params['domain'],
+        'secure' => (bool)$params['secure'],
+        'httponly' => (bool)$params['httponly'],
+        'samesite' => (string)($params['samesite'] ?? 'Lax'),
+    ]);
 }
 
 function login_user(string $username, string $password): bool

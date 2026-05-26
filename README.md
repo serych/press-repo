@@ -99,6 +99,7 @@ Pri rucnim nasazovani jednotlivych uprav se v produkci typicky pouziva `install 
 ## Provozni poznamky
 
 - Watcher je systemd sluzba `press-watcher`.
+- Prihlasovaci session ve webu ma klouzavou platnost 24 hodin od posledniho pozadavku. V Apache PHP konfiguraci musi byt `session.gc_maxlifetime = 86400`; Debian `sessionclean` jinak odstrani session soubory drive nez aplikace.
 - Log watcheru je `/var/log/press-watcher.log`.
 - PDF napoveda je ukladana mimo webroot do `/var/www/press/help`.
 - CSV exporty jsou kvuli ceskemu Excelu ve Windows-1250 a obsahuji radek `sep=;`.
