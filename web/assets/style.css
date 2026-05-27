@@ -3567,6 +3567,13 @@ body::after {
     margin-bottom: 8px;
 }
 
+.published-event-title {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
 .published-event-description {
     color: var(--text-muted);
     font-size: 14px;

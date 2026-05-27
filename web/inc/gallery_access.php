@@ -239,13 +239,13 @@ function gallery_access_current_public_access(): ?array
 
 function gallery_access_require_login_or_public_access(): ?array
 {
-    if (is_logged_in()) {
-        return null;
-    }
-
     $access = gallery_access_current_public_access();
     if ($access) {
         return $access;
+    }
+
+    if (is_logged_in()) {
+        return null;
     }
 
     redirect('/login.php');

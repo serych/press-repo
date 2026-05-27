@@ -13,13 +13,34 @@ $event = $galleryAccess ? events_get((int)$galleryAccess['event_id']) : publishe
 $eventId = !empty($event['id']) ? (int)$event['id'] : 0;
 $photos = $eventId > 0 ? published_photos_list_ready($eventId) : [];
 $inEditorWorkCount = $eventId > 0 ? published_photos_in_editor_work_count($eventId) : 0;
+$eventStatusLabel = null;
+$eventStatusClass = 'badge-muted';
+
+if ($event) {
+    $eventStatusLabel = match ((string)$event['status']) {
+        'active' => 'Aktivní',
+        'planned' => 'Plánovaný',
+        'finished' => 'Ukončený',
+        default => (string)$event['status'],
+    };
+    $eventStatusClass = match ((string)$event['status']) {
+        'active' => 'badge-success',
+        'planned' => 'badge-warning',
+        default => 'badge-muted',
+    };
+}
 
 require_once __DIR__ . '/inc/header.php';
 ?>
 
 <section class="panel">
     <div class="published-page-head">
-        <h1>Galerie<?= $event ? ' - ' . h((string)$event['title']) : '' ?></h1>
+        <div class="published-event-title">
+            <h1>Galerie<?= $event ? ' - ' . h((string)$event['title']) : '' ?></h1>
+            <?php if ($eventStatusLabel !== null): ?>
+                <span class="badge <?= h($eventStatusClass) ?>"><?= h($eventStatusLabel) ?></span>
+            <?php endif; ?>
+        </div>
 
         <?php if ($event && !empty($event['description'])): ?>
             <div class="published-event-description">
