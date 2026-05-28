@@ -535,6 +535,54 @@ Cílem Sprintu 11 bylo zjednodušit přístup žurnalistů k hotové galerii kon
 - Při zapnutém FTP se hlavička vrátí do běžného vzhledu `PRESS centrum ČaV`.
 - Vypínač zatím řeší FTP protokol; NeFTP upload a webová galerie zůstávají dostupné.
 
+## Debugging a opravy před B+D
+
+Tato sekce shrnuje provozní chyby a drobné opravy vyřešené během přípravy před B+D.
+
+### Session a dlouhé přihlášení
+
+- Přihlášení v press centru je nastavené jako klouzavá session s cílem udržet uživatele přihlášené 24 hodin i při delší nečinnosti.
+- Oprava cílila hlavně na mobilní použití fotografů, kde docházelo k rychlému odhlašování.
+- Požadované chování: aktivní login má vydržet přibližně 24 hodin a session se při běžném používání prodlužuje.
+
+### Krátké odkazy na galerii
+
+- Opraveno chování krátkých odkazů na galerii:
+  - krátký odkaz už neotevírá galerii právě aktivního eventu,
+  - vždy otevírá event, pro který byl daný odkaz vygenerován,
+  - funguje i pro event, který ještě není aktivní.
+- Galerie nově zobrazuje stav daného eventu, například `Plánovaný`, aby bylo jasné, proč se obsah může lišit od aktivního eventu.
+
+### Našeptávače účastníků eventu
+
+- U výběru fotoeditorů v `event-create.php` a `event-edit.php` už našeptávač neschovává uživatele s rolí `Fotograf` úplně potichu.
+- Pokud hledanému textu odpovídá fotograf, zobrazí se na konci návrhů červeně jako nepřidatelný s vysvětlením, že je nutné nejdřív změnit roli uživatele.
+- U výběru fotografů je stejným způsobem ošetřený uživatel s rolí `Žurnalista`.
+- Nepřidatelné položky nejdou kliknutím vybrat.
+- Serverová validace zároveň brání obejití UI ručně upraveným POSTem:
+  - fotograf nesmí být uložen jako fotoeditor,
+  - žurnalista nesmí být uložen jako fotograf eventu.
+
+### CSS úklid
+
+- Proveden první konzervativní refaktoring `web/assets/style.css`.
+- Soubor byl zmenšen zhruba o 271 řádků odstraněním duplicit, přepsaných pravidel a nepoužívaných starších stylů.
+- Úklid byl ověřen screenshotovým porovnáním vybraných desktopových a mobilních stránek.
+- Záměrně nešlo o velké přeskupení CSS, ale o bezpečnou první etapu bez změny vzhledu.
+
+### Provozní úklid serveru
+
+- Kořenový disk byl vyčištěn z kriticky zaplněného stavu a následně byl serverový disk navýšen.
+- Odstraněno bylo zejména:
+  - Chromium použité pouze pro vizuální testování,
+  - starý neběžící kernel,
+  - osiřelé balíčky po Chromiu,
+  - dočasná screenshotová data,
+  - apt cache,
+  - neaktivní historické kopie VS Code serveru a rozšíření.
+- Po aktualizaci VS Code byla provedena ještě jedna kontrola a odstraněny nové historické kopie VS Code serveru a cache.
+- Produkční služby Apache a MariaDB byly po úklidu ověřené jako běžící.
+
 ## Nápady pro další sprinty
 
 - Ruční párování nespárovaných publikovaných fotek s originálem.
