@@ -15,7 +15,7 @@ if (!has_permission('users.manage')) {
 }
 
 $allUsers = events_users_for_picker();
-$editorUsers = events_users_for_picker('editor');
+$editorUsers = events_users_for_picker();
 $timezones = events_timezone_identifiers();
 $defaultTimezone = events_default_timezone();
 
@@ -127,7 +127,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'Runner musí být vybraný i mezi fotografy.';
     }
 
-    if (events_filter_editor_ids($selectedEditors) !== $selectedEditors) {
+    $allowedPhotographerIds = events_filter_photographer_ids($selectedPhotographers);
+    $invalidPhotographerIds = array_values(array_diff($selectedPhotographers, $allowedPhotographerIds));
+
+    if ($invalidPhotographerIds !== []) {
+        $errors[] = 'Fotografem eventu se nesmí stát žurnalista.';
+    }
+
+    $allowedEditorIds = events_filter_editor_ids($selectedEditors);
+    $invalidEditorIds = array_values(array_diff($selectedEditors, $allowedEditorIds));
+
+    if ($invalidEditorIds !== []) {
         $errors[] = 'Fotoeditorem se nesmí stát fotograf.';
     }
 
@@ -480,6 +490,18 @@ document.addEventListener('DOMContentLoaded', function () {
             return hidden;
         }
 
+        function userCannotBeAdded(user) {
+            if (mode === 'editor' && user.role_code === 'photographer') {
+                return 'Má roli Fotograf - nejdřív změň roli uživatele.';
+            }
+
+            if (mode === 'photographer' && user.role_code === 'journalist') {
+                return 'Má roli Žurnalista - nejdřív změň roli uživatele.';
+            }
+
+            return '';
+        }
+
         function renderSelected() {
             selectedBody.innerHTML = '';
 
@@ -607,6 +629,21 @@ document.addEventListener('DOMContentLoaded', function () {
                 ].filter(Boolean).join(' '));
 
                 return haystack.includes(term);
+            }).map(function (user) {
+                return {
+                    user,
+                    cannotAddReason: userCannotBeAdded(user)
+                };
+            }).sort(function (a, b) {
+                if (a.cannotAddReason && !b.cannotAddReason) {
+                    return 1;
+                }
+
+                if (!a.cannotAddReason && b.cannotAddReason) {
+                    return -1;
+                }
+
+                return 0;
             }).slice(0, 8);
 
             suggestList.innerHTML = '';
@@ -616,16 +653,22 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
-            results.forEach(function (user) {
+            results.forEach(function (result) {
+                const user = result.user;
                 const label = buildLabel(user);
                 const button = document.createElement('button');
                 button.type = 'button';
-                button.className = 'participant-suggest-item';
+                button.className = 'participant-suggest-item' + (result.cannotAddReason ? ' is-disabled' : '');
+                button.disabled = Boolean(result.cannotAddReason);
                 button.innerHTML = `
                     <strong>${escapeHtml(label.fullName)}</strong>
-                    <small>${escapeHtml([label.roleText, label.phoneText].filter(Boolean).join(' · '))}</small>
+                    <small>${escapeHtml([label.roleText, label.phoneText, result.cannotAddReason].filter(Boolean).join(' · '))}</small>
                 `;
                 button.addEventListener('click', function () {
+                    if (result.cannotAddReason) {
+                        return;
+                    }
+
                     selected.add(Number(user.id));
                     input.value = '';
                     renderSelected();

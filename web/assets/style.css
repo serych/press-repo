@@ -2142,6 +2142,13 @@ button.button-small {
     background: rgba(255,255,255,0.04);
 }
 
+.participant-suggest-item.is-disabled,
+.participant-suggest-item.is-disabled:hover {
+    background: rgba(239, 68, 68, 0.08);
+    color: #fca5a5;
+    cursor: not-allowed;
+}
+
 .participant-suggest-item strong {
     display: block;
     color: var(--text-main);
@@ -2153,6 +2160,11 @@ button.button-small {
     margin-top: 3px;
     color: var(--text-muted);
     font-size: 12px;
+}
+
+.participant-suggest-item.is-disabled strong,
+.participant-suggest-item.is-disabled small {
+    color: #fca5a5;
 }
 
 .participant-table-wrap {

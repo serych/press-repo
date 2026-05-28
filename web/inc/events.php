@@ -620,13 +620,35 @@ function events_filter_editor_ids(array $userIds): array
     return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
 }
 
+function events_filter_photographer_ids(array $userIds): array
+{
+    $userIds = array_values(array_unique(array_map('intval', $userIds)));
+    $userIds = array_values(array_filter($userIds, static fn(int $id): bool => $id > 0));
+
+    if ($userIds === []) {
+        return [];
+    }
+
+    $placeholders = implode(',', array_fill(0, count($userIds), '?'));
+
+    $stmt = db()->prepare("
+        SELECT u.id
+        FROM users u
+        INNER JOIN roles r ON r.id = u.role_id
+        WHERE u.id IN ($placeholders)
+          AND u.is_active = 1
+          AND r.code <> 'journalist'
+    ");
+    $stmt->execute($userIds);
+
+    return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+}
+
 function events_participants_save(int $eventId, array $photographerIds, array $editorIds, array $runnerUserIds = []): void
 {
     $pdo = db();
 
-    $photographerIds = array_values(array_unique(array_map('intval', $photographerIds)));
-    $photographerIds = array_values(array_filter($photographerIds, static fn(int $id): bool => $id > 0));
-
+    $photographerIds = events_filter_photographer_ids($photographerIds);
     $editorIds = events_filter_editor_ids($editorIds);
 
     $runnerUserIds = array_values(array_unique(array_map('intval', $runnerUserIds)));
