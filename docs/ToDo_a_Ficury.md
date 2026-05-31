@@ -583,6 +583,77 @@ Tato sekce shrnuje provozní chyby a drobné opravy vyřešené během příprav
 - Po aktualizaci VS Code byla provedena ještě jedna kontrola a odstraněny nové historické kopie VS Code serveru a cache.
 - Produkční služby Apache a MariaDB byly po úklidu ověřené jako běžící.
 
+## Opravy po Noci kostelů
+
+Tato sekce shrnuje opravy a drobná vylepšení realizované po provozní zkušenosti z Noci kostelů.
+
+### Chat a nepřečtené zprávy
+
+- Opraveno číslo nepřečtených zpráv u ikonky chatu v hlavičce.
+- Počet nepřečtených zpráv se nově počítá pro aktuální event, ne napříč staršími eventy.
+- Endpoint pro počet nepřečtených zpráv posílá no-cache hlavičky, aby v hlavičce nezůstávalo zamrzlé staré číslo.
+- Oprava řeší hlavně situace při přepínání eventů.
+
+### Upload hotových JPG do galerie
+
+- Hromadný upload hotových JPG ve `photos.php` a `published-upload.php` se posílá postupně po jednotlivých souborech.
+- Serverový datový limit se tak vztahuje na jednu fotku, ne na součet celé dávky.
+- Při výběru nebo přetažení souborů se upload tlačítko opticky rozsvítí; bez souborů je ztlumené a neaktivní.
+- Po doběhnutí uploadu na 100 % se zobrazuje stav `Tvořím náhledy a páruji fotky...`, aby nebylo matoucí ticho během serverového zpracování.
+- Po dokončení se progress bar resetuje a upload okno se vrací do čistého stavu.
+- Informace o spárování se po úspěšném uploadu automaticky schová po krátké prodlevě.
+- Při odchodu ze stránky během uploadu se zobrazí varování, že odchod upload přeruší.
+
+### NeFTP upload
+
+- Stejné UX chování bylo doplněno i na `ftp.php`:
+  - ztlumené/aktivní upload tlačítko podle vybraných souborů,
+  - reset progress baru po dokončení,
+  - varování při pokusu odejít ze stránky během uploadu,
+  - automatické schování seznamu úspěšně nahraných souborů po krátké prodlevě.
+- Zůstává zachované blokování uploadu v situaci, kdy není připravené úložiště.
+
+### Dashboard
+
+- V tabulce fotoeditorů na `dashboard.php` byly doplněny statistiky:
+  - kolik fotek si každý fotoeditor stáhl,
+  - kolik hotových fotek publikoval.
+- Statistiky navazují na již existující podobný přehled u fotografů.
+
+### Hromadné stažení zamčených fotek
+
+- Tlačítko `Hromadné stažení zamčených` na `photos.php` je nově stylované konzistentně se zbytkem webu.
+- Pokud uživatel nemá v aktuálním přehledu žádné své zamčené fotky, tlačítko je neaktivní a nejde omylem spustit.
+- Opravena stránka `bulk-download-create.php`:
+  - texty jsou v UTF-8,
+  - fallback hláška používá běžnou hlavičku/patičku a zapadá do vzhledu webu.
+
+### Galerie
+
+- V `galerie.php` se vedle nadpisu galerie zobrazuje počet právě publikovaných fotek.
+- Počet vychází ze stejného seznamu publikovaných fotek, který se na stránce vykresluje.
+- Funguje i pro žurnalistický přístup přes krátký odkaz, protože po token/PIN vstupu se používá stejná `galerie.php`.
+
+### Filtry ve fotoeditaci
+
+- Opraven filtr `připraveno` na `photos.php`, aby nezobrazoval fotky, které už mají publikovanou hotovou verzi v galerii.
+- Stavové filtry zároveň nevrací vyřazené fotky ani fotky od fotografa nepřiřazeného k eventu.
+- Přidán nový filtr `ke zpracování`, který ukazuje pracovní fotky ve všech stavech mimo:
+  - publikované,
+  - zablokované/vyřazené,
+  - smazané.
+- Stejná logika se používá při prvotním načtení stránky i při AJAX obnovování feedu.
+
+### Dlouhý seznam fotek bez odskakování
+
+- Na `photos.php` už kliknutí na stav `připraveno` / `ke stažení` nepřenačítá celou stránku.
+- Zamknutí a odemknutí fotky probíhá přes AJAX volání `select.php`.
+- `select.php` zůstává zpětně kompatibilní:
+  - běžný odkaz dál přesměrovává jako dřív,
+  - AJAX požadavek vrací JSON.
+- Při automatickém obnovování dlouhého seznamu si stránka pamatuje fotku u horní části viewportu a po překreslení vrátí uživatele na stejné místo.
+- Oprava řeší i případ, kdy někdo nahraje nové fotky a ty se objeví výše v seznamu.
+
 ## Nápady pro další sprinty
 
 - Ruční párování nespárovaných publikovaných fotek s originálem.

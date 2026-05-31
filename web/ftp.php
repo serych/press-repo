@@ -194,6 +194,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const submitButton = form ? form.querySelector('button[type="submit"]') : null;
     const storageReady = storageReadyInput ? storageReadyInput.value === '1' : false;
     let uploadInProgress = false;
+    let clearMessagesTimer = null;
 
     if (!form || !fileInput || !dropzone || !fileSummary || !progress || !progressBar || !progressFileCount || !progressPercent || !progressLabel || !messages) {
         return;
@@ -257,6 +258,11 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function renderResults(data) {
+        if (clearMessagesTimer !== null) {
+            window.clearTimeout(clearMessagesTimer);
+            clearMessagesTimer = null;
+        }
+
         let html = '';
 
         if (Array.isArray(data.errors) && data.errors.length > 0) {
@@ -281,6 +287,17 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         messages.innerHTML = html;
+    }
+
+    function scheduleMessagesCleanup() {
+        if (clearMessagesTimer !== null) {
+            window.clearTimeout(clearMessagesTimer);
+        }
+
+        clearMessagesTimer = window.setTimeout(function () {
+            messages.innerHTML = '';
+            clearMessagesTimer = null;
+        }, 3000);
     }
 
     window.addEventListener('beforeunload', function (event) {
@@ -426,6 +443,10 @@ document.addEventListener('DOMContentLoaded', function () {
             form.classList.remove('is-uploading');
             uploadInProgress = false;
             resetProgress();
+
+            if (results.ok) {
+                scheduleMessagesCleanup();
+            }
         })();
     });
 
