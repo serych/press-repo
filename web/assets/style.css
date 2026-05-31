@@ -2404,6 +2404,25 @@ button.button-small {
     overflow-wrap: anywhere;
 }
 
+.account-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.account-detail-grid strong {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--text-muted);
+    font-size: 13px;
+}
+
+@media (max-width: 800px) {
+    .account-detail-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 .btn-danger {
     background: #7f1d1d;
     color: #fecaca;

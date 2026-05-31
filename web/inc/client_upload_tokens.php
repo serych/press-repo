@@ -9,6 +9,11 @@ function client_upload_tokens_can_manage(): bool
     return has_permission('client_upload_tokens.manage') || has_permission('users.manage');
 }
 
+function client_upload_tokens_can_manage_own(): bool
+{
+    return has_permission('published_photos.upload');
+}
+
 function client_upload_tokens_generate_plain_token(): string
 {
     return 'pcup_' . rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
@@ -203,6 +208,35 @@ function client_upload_tokens_list(): array
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
+function client_upload_tokens_list_for_user(int $userId): array
+{
+    $stmt = db()->prepare("
+        SELECT
+            cut.*,
+            owner.user AS owner_login,
+            owner.jmeno AS owner_jmeno,
+            owner.prijmeni AS owner_prijmeni,
+            owner_role.code AS owner_role_code,
+            owner_role.name AS owner_role_name,
+            creator.user AS created_by_login,
+            creator.jmeno AS created_by_jmeno,
+            creator.prijmeni AS created_by_prijmeni,
+            revoker.user AS revoked_by_login,
+            revoker.jmeno AS revoked_by_jmeno,
+            revoker.prijmeni AS revoked_by_prijmeni
+        FROM client_upload_tokens cut
+        INNER JOIN users owner ON owner.id = cut.user_id
+        INNER JOIN roles owner_role ON owner_role.id = owner.role_id
+        LEFT JOIN users creator ON creator.id = cut.created_by_user_id
+        LEFT JOIN users revoker ON revoker.id = cut.revoked_by_user_id
+        WHERE cut.user_id = :user_id
+        ORDER BY cut.is_revoked ASC, cut.created_at DESC, cut.id DESC
+    ");
+    $stmt->execute([':user_id' => $userId]);
+
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
 function client_upload_tokens_eligible_users(): array
 {
     $currentUser = current_user();
@@ -333,6 +367,25 @@ function client_upload_tokens_revoke(int $id, int $revokedByUserId): void
     $stmt->execute([
         ':id' => $id,
         ':revoked_by_user_id' => $revokedByUserId,
+    ]);
+}
+
+function client_upload_tokens_revoke_own(int $id, int $userId): void
+{
+    $stmt = db()->prepare("
+        UPDATE client_upload_tokens
+        SET
+            is_revoked = 1,
+            revoked_by_user_id = :revoked_by_user_id,
+            revoked_at = NOW()
+        WHERE id = :id
+          AND user_id = :user_id
+          AND is_revoked = 0
+    ");
+    $stmt->execute([
+        ':id' => $id,
+        ':user_id' => $userId,
+        ':revoked_by_user_id' => $userId,
     ]);
 }
 

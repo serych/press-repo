@@ -130,6 +130,7 @@ $styleVersion = is_file($styleFile) ? (string)filemtime($styleFile) : '1';
                 <?php endif; ?>
 
                 <?php if ($user): ?>
+                    <a href="/my-account.php" class="<?= $currentPath === '/my-account.php' ? 'is-active' : '' ?>">Můj účet</a>
                     <a href="/logout.php" class="nav-logout">
                         Odhlásit
                         <?php if ($displayName !== ''): ?>
