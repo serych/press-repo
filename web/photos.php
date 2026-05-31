@@ -328,7 +328,7 @@ require_once __DIR__ . '/inc/header.php';
                             </div>
                         </div>
 
-                        <button type="submit">Publikovat</button>
+                        <button type="submit" disabled>Publikovat</button>
                         <div class="mini-publish-result" id="mini-publish-result"></div>
                     </form>
                 <?php endif; ?>
@@ -564,6 +564,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const miniPublishPercent = document.getElementById('mini-publish-percent');
     const miniPublishBar = document.getElementById('mini-publish-bar');
     const miniPublishResult = document.getElementById('mini-publish-result');
+    const miniPublishSubmitButton = miniPublishForm ? miniPublishForm.querySelector('button[type="submit"]') : null;
+    let miniPublishInProgress = false;
+    let miniPublishClearTimer = null;
 
     ['click', 'keydown', 'touchstart'].forEach(function (eventName) {
         document.addEventListener(eventName, unlockAudio, { once: true });
@@ -691,6 +694,18 @@ document.addEventListener('DOMContentLoaded', function () {
         miniPublishLabel.textContent = label;
     }
 
+    function resetMiniPublishProgress() {
+        if (!miniPublishProgress || !miniPublishBar || !miniPublishPercent || !miniPublishCount || !miniPublishLabel) {
+            return;
+        }
+
+        miniPublishProgress.hidden = true;
+        miniPublishBar.style.width = '0%';
+        miniPublishPercent.textContent = '0 %';
+        miniPublishCount.textContent = '0/0';
+        miniPublishLabel.textContent = 'Nahrávám...';
+    }
+
     function updateMiniPublishSummary() {
         if (!miniPublishFiles || !miniPublishSummary) {
             return;
@@ -704,6 +719,27 @@ document.addEventListener('DOMContentLoaded', function () {
         } else {
             miniPublishSummary.textContent = count + ' souborů vybráno';
         }
+
+        if (miniPublishSubmitButton) {
+            miniPublishSubmitButton.disabled = count === 0;
+        }
+
+        if (miniPublishForm) {
+            miniPublishForm.classList.toggle('has-files', count > 0);
+        }
+    }
+
+    function scheduleMiniPublishCleanup() {
+        if (miniPublishClearTimer !== null) {
+            window.clearTimeout(miniPublishClearTimer);
+        }
+
+        miniPublishClearTimer = window.setTimeout(function () {
+            if (miniPublishResult) {
+                miniPublishResult.innerHTML = '';
+            }
+            miniPublishClearTimer = null;
+        }, 3000);
     }
 
     function formatMiniPublishBytes(bytes) {
@@ -725,6 +761,11 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
+        if (miniPublishClearTimer !== null) {
+            window.clearTimeout(miniPublishClearTimer);
+            miniPublishClearTimer = null;
+        }
+
         let html = '';
 
         if (Array.isArray(data.errors) && data.errors.length > 0) {
@@ -744,6 +785,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
         miniPublishResult.innerHTML = html;
     }
+
+    window.addEventListener('beforeunload', function (event) {
+        if (!miniPublishInProgress) {
+            return;
+        }
+
+        event.preventDefault();
+        event.returnValue = 'Chcete stránku opustit a tím přerušit upload?';
+    });
 
     function uploadMiniPublishFile(file, fileIndex, totalFiles) {
         return new Promise(function (resolve) {
@@ -768,7 +818,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (event.lengthComputable) {
                     const fileProgress = event.loaded / event.total;
                     const overallProgress = ((fileIndex + fileProgress) / totalFiles) * 100;
-                    setMiniPublishProgress(overallProgress, 'Nahrávám ' + file.name + '...');
+                    const label = fileProgress >= 0.999
+                        ? 'Tvořím náhledy a páruji ' + file.name + '...'
+                        : 'Nahrávám ' + file.name + '...';
+                    setMiniPublishProgress(overallProgress, label);
                     if (miniPublishCount) {
                         miniPublishCount.textContent = counterText;
                     }
@@ -846,7 +899,6 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             const files = Array.from(miniPublishFiles.files);
-            const submitButton = miniPublishForm.querySelector('button[type="submit"]');
             const results = {
                 ok: true,
                 errors: [],
@@ -857,9 +909,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 miniPublishResult.innerHTML = '';
             }
             setMiniPublishProgress(0, 'Připravuji...');
+            miniPublishForm.classList.add('is-uploading');
+            miniPublishInProgress = true;
 
-            if (submitButton) {
-                submitButton.disabled = true;
+            if (miniPublishSubmitButton) {
+                miniPublishSubmitButton.disabled = true;
             }
 
             (async function () {
@@ -875,14 +929,14 @@ document.addEventListener('DOMContentLoaded', function () {
                     renderMiniPublishResult(results);
                 }
 
-                setMiniPublishProgress(100, 'Zpracovávám...');
+                setMiniPublishProgress(100, 'Tvořím náhledy a páruji fotky...');
                 if (miniPublishCount) {
                     miniPublishCount.textContent = files.length + '/' + files.length;
                 }
                 renderMiniPublishResult(results);
 
-                if (submitButton) {
-                    submitButton.disabled = false;
+                if (miniPublishSubmitButton) {
+                    miniPublishSubmitButton.disabled = false;
                 }
 
                 if (miniPublishLabel) {
@@ -894,6 +948,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (results.ok) {
                     miniPublishForm.reset();
                     updateMiniPublishSummary();
+                }
+
+                miniPublishForm.classList.remove('is-uploading');
+                miniPublishInProgress = false;
+                resetMiniPublishProgress();
+
+                if (results.ok) {
+                    scheduleMiniPublishCleanup();
                 }
             })();
         });

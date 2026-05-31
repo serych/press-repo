@@ -2831,6 +2831,22 @@ body::after {
     transition: width 0.15s ease;
 }
 
+.published-upload-form button[type="submit"]:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    filter: grayscale(0.7);
+}
+
+.published-upload-form.has-files button[type="submit"]:not(:disabled) {
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.35), 0 0 20px rgba(245, 158, 11, 0.25);
+}
+
+.published-upload-form.is-uploading button[type="submit"]:disabled {
+    opacity: 0.85;
+    cursor: wait;
+    filter: none;
+}
+
 .upload-result-box {
     display: flex;
     flex-direction: column;
@@ -3104,8 +3120,19 @@ body::after {
 }
 
 .mini-publish button:disabled {
-    opacity: 0.65;
+    opacity: 0.45;
+    cursor: not-allowed;
+    filter: grayscale(0.7);
+}
+
+.mini-publish.has-files button:not(:disabled) {
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.35), 0 0 18px rgba(245, 158, 11, 0.25);
+}
+
+.mini-publish.is-uploading button:disabled {
+    opacity: 0.85;
     cursor: wait;
+    filter: none;
 }
 
 .mini-publish-result {

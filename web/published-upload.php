@@ -216,6 +216,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const progressPercent = document.getElementById('upload-progress-percent');
     const progressLabel = document.getElementById('upload-progress-label');
     const messages = document.getElementById('upload-messages');
+    const submitButton = form ? form.querySelector('button[type="submit"]') : null;
+    let uploadInProgress = false;
+    let clearMessagesTimer = null;
 
     if (!form || !fileInput || !dropzone || !fileSummary || !progress || !progressBar || !progressFileCount || !progressPercent || !progressLabel || !messages) {
         return;
@@ -239,6 +242,23 @@ document.addEventListener('DOMContentLoaded', function () {
         } else {
             fileSummary.textContent = count + ' souborů vybráno';
         }
+
+        if (submitButton) {
+            submitButton.disabled = count === 0;
+        }
+
+        form.classList.toggle('has-files', count > 0);
+    }
+
+    function scheduleResultCleanup() {
+        if (clearMessagesTimer !== null) {
+            window.clearTimeout(clearMessagesTimer);
+        }
+
+        clearMessagesTimer = window.setTimeout(function () {
+            messages.innerHTML = '';
+            clearMessagesTimer = null;
+        }, 3000);
     }
 
     function setProgress(percent, label, counterText) {
@@ -248,6 +268,14 @@ document.addEventListener('DOMContentLoaded', function () {
         progressFileCount.textContent = counterText || '0/0';
         progressPercent.textContent = clean + ' %';
         progressLabel.textContent = label;
+    }
+
+    function resetProgress() {
+        progress.hidden = true;
+        progressBar.style.width = '0%';
+        progressFileCount.textContent = '0/0';
+        progressPercent.textContent = '0 %';
+        progressLabel.textContent = 'Nahrávám...';
     }
 
     function formatBytes(bytes) {
@@ -265,6 +293,11 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function renderResults(data) {
+        if (clearMessagesTimer !== null) {
+            window.clearTimeout(clearMessagesTimer);
+            clearMessagesTimer = null;
+        }
+
         let html = '';
 
         if (Array.isArray(data.errors) && data.errors.length > 0) {
@@ -294,6 +327,15 @@ document.addEventListener('DOMContentLoaded', function () {
         messages.innerHTML = html;
     }
 
+    window.addEventListener('beforeunload', function (event) {
+        if (!uploadInProgress) {
+            return;
+        }
+
+        event.preventDefault();
+        event.returnValue = 'Chcete stránku opustit a tím přerušit upload?';
+    });
+
     function uploadSingleFile(file, fileIndex, totalFiles) {
         return new Promise(function (resolve) {
             if (maxFileBytes > 0 && file.size > maxFileBytes) {
@@ -317,7 +359,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (event.lengthComputable) {
                     const fileProgress = event.loaded / event.total;
                     const overallProgress = ((fileIndex + fileProgress) / totalFiles) * 100;
-                    setProgress(overallProgress, 'Nahrávám ' + file.name + '...', counterText);
+                    const label = fileProgress >= 0.999
+                        ? 'Tvořím náhledy a páruji ' + file.name + '...'
+                        : 'Nahrávám ' + file.name + '...';
+                    setProgress(overallProgress, label, counterText);
                 } else {
                     setProgress((fileIndex / totalFiles) * 100, 'Nahrávám ' + file.name + '...', counterText);
                 }
@@ -385,7 +430,6 @@ document.addEventListener('DOMContentLoaded', function () {
         event.preventDefault();
 
         const files = Array.from(fileInput.files);
-        const submitButton = form.querySelector('button[type="submit"]');
         const results = {
             ok: true,
             errors: [],
@@ -394,6 +438,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
         messages.innerHTML = '';
         setProgress(0, 'Připravuji upload...', '0/' + files.length);
+        form.classList.add('is-uploading');
+        uploadInProgress = true;
         if (submitButton) {
             submitButton.disabled = true;
         }
@@ -411,7 +457,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 renderResults(results);
             }
 
-            setProgress(100, 'Zpracovávám...');
+            setProgress(100, 'Tvořím náhledy a páruji fotky...', files.length + '/' + files.length);
             progressFileCount.textContent = files.length + '/' + files.length;
             renderResults(results);
             progressLabel.textContent = results.ok ? 'Hotovo' : 'Dokončeno s chybou';
@@ -423,6 +469,14 @@ document.addEventListener('DOMContentLoaded', function () {
             if (results.ok) {
                 form.reset();
                 updateFileSummary();
+            }
+
+            form.classList.remove('is-uploading');
+            uploadInProgress = false;
+            resetProgress();
+
+            if (results.ok) {
+                scheduleResultCleanup();
             }
         })();
     });
