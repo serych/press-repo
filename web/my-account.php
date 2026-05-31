@@ -52,6 +52,7 @@ require_once __DIR__ . '/inc/header.php';
 <section class="panel">
     <div class="page-head">
         <h1>Můj účet</h1>
+        <a href="/logout.php" class="button button-muted">Odhlásit</a>
     </div>
 
     <div class="card">

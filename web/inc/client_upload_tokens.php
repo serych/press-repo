@@ -14,6 +14,11 @@ function client_upload_tokens_can_manage_own(): bool
     return has_permission('published_photos.upload');
 }
 
+function client_upload_tokens_role_can_upload_published(int $roleId): bool
+{
+    return in_array('published_photos.upload', get_permissions_for_role($roleId), true);
+}
+
 function client_upload_tokens_generate_plain_token(): string
 {
     return 'pcup_' . rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
@@ -386,6 +391,23 @@ function client_upload_tokens_revoke_own(int $id, int $userId): void
         ':id' => $id,
         ':user_id' => $userId,
         ':revoked_by_user_id' => $userId,
+    ]);
+}
+
+function client_upload_tokens_revoke_all_for_user(int $userId, int $revokedByUserId): void
+{
+    $stmt = db()->prepare("
+        UPDATE client_upload_tokens
+        SET
+            is_revoked = 1,
+            revoked_by_user_id = :revoked_by_user_id,
+            revoked_at = NOW()
+        WHERE user_id = :user_id
+          AND is_revoked = 0
+    ");
+    $stmt->execute([
+        ':user_id' => $userId,
+        ':revoked_by_user_id' => $revokedByUserId,
     ]);
 }
 

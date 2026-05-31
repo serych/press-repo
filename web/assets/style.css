@@ -3613,11 +3613,11 @@ body::after {
     }
 }
 
-.top-nav a.nav-logout {
+.top-nav a.nav-account {
     position: relative;
 }
 
-.nav-logout-tooltip {
+.nav-account-tooltip {
     position: absolute;
     right: 0;
     top: calc(100% + 10px);
@@ -3640,15 +3640,15 @@ body::after {
     white-space: nowrap;
 }
 
-.top-nav a.nav-logout:hover .nav-logout-tooltip,
-.top-nav a.nav-logout:focus .nav-logout-tooltip,
-.top-nav a.nav-logout:focus-visible .nav-logout-tooltip {
+.top-nav a.nav-account:hover .nav-account-tooltip,
+.top-nav a.nav-account:focus .nav-account-tooltip,
+.top-nav a.nav-account:focus-visible .nav-account-tooltip {
     opacity: 1;
     transform: translateY(0);
 }
 
 @media (max-width: 900px) {
-    .nav-logout-tooltip {
+    .nav-account-tooltip {
         right: auto;
         left: 10px;
         top: calc(100% + 4px);
