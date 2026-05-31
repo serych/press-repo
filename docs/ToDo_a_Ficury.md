@@ -670,7 +670,8 @@ Cílem sprintu je připravit serverovou stranu pro budoucí Lightroom Classic pl
 
 ### Management Tokenů
 
-- Navrhnout databázovou tabulku pro klientské upload tokeny.
+- Databázový základ je připravený v migraci `sql/sprint12_001_client_upload_tokens.sql`.
+- Tabulka `client_upload_tokens` uchovává metadata klientských upload tokenů.
 - Ukládat pouze hash tokenu, nikdy token v čitelné podobě.
 - Evidovat:
   - vlastníka tokenu,
