@@ -150,6 +150,7 @@ function photos_status_label(string $status): string
         'uploaded' => 'nahráno',
         'processing' => 'zpracování',
         'to_process' => 'ke zpracování',
+        'published' => 'publikováno',
         'ready' => 'připraveno',
         'selected' => 'ke stažení',
         'locked' => 'zamknuto',
@@ -325,6 +326,11 @@ function photos_build_where(array $filters): array
             $where[] = 'COALESCE(p.is_blocked, 0) = 0';
             $where[] = 'COALESCE(p.event_photographer_allowed, 1) = 1';
             $where[] = "NOT $publishedExistsSql";
+        } elseif ($status === 'published') {
+            $where[] = "p.status <> 'deleted'";
+            $where[] = 'COALESCE(p.is_blocked, 0) = 0';
+            $where[] = 'COALESCE(p.event_photographer_allowed, 1) = 1';
+            $where[] = $publishedExistsSql;
         } else {
             $where[] = 'p.status = :status';
             $where[] = 'COALESCE(p.is_blocked, 0) = 0';

@@ -110,7 +110,7 @@ require_once __DIR__ . '/inc/header.php';
 
                 <select name="status">
                     <option value="">-- stav --</option>
-                    <?php foreach (['to_process', 'ready', 'locked', 'downloaded', 'error'] as $s): ?>
+                    <?php foreach (['to_process', 'ready', 'published', 'locked', 'downloaded', 'error'] as $s): ?>
                         <option value="<?= h($s) ?>" <?= $status === $s ? 'selected' : '' ?>>
                             <?= h(photos_status_label($s)) ?>
                         </option>
