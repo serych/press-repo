@@ -121,7 +121,7 @@ $styleVersion = is_file($styleFile) ? (string)filemtime($styleFile) : '1';
                 <?php endif; ?>
 
                 <?php if ($showAdminItems): ?>
-                    <a href="/users.php" class="<?= in_array($currentPath, ['/users.php', '/user-create.php', '/user-edit.php'], true) ? 'is-active' : '' ?>">Uživatelé</a>
+                    <a href="/users.php" class="<?= in_array($currentPath, ['/users.php', '/user-create.php', '/user-edit.php', '/client-upload-tokens.php'], true) ? 'is-active' : '' ?>">Uživatelé</a>
                     <a href="/events.php" class="<?= in_array($currentPath, ['/events.php', '/event-create.php', '/event-edit.php'], true) ? 'is-active' : '' ?>">Eventy</a>
                 <?php endif; ?>
 

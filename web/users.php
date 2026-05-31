@@ -22,7 +22,10 @@ require_once __DIR__ . '/inc/header.php';
 <section class="panel">
     <div class="page-head">
         <h1>Uživatelé</h1>
-        <a href="/user-create.php" class="button">Nový uživatel</a>
+        <div class="table-actions">
+            <a href="/client-upload-tokens.php" class="button button-muted">Upload tokeny</a>
+            <a href="/user-create.php" class="button">Nový uživatel</a>
+        </div>
     </div>
 
     <?php if (empty($users)): ?>

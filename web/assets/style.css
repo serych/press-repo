@@ -699,12 +699,21 @@ h1 {
     white-space: nowrap;
 }
 
+.actions-cell form {
+    display: inline;
+}
+
 .table-action {
     display: inline-block;
     margin-right: 10px;
+    padding: 0;
+    border: 0;
+    background: transparent;
     color: var(--accent);
     text-decoration: none;
     font-weight: 600;
+    font: inherit;
+    cursor: pointer;
 }
 
 .table-action:hover {
@@ -2371,6 +2380,28 @@ button.button-small {
     color: #bfdbfe;
     padding: 10px;
     border-radius: 6px;
+}
+
+.client-token-copy-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin: 10px 0 6px;
+}
+
+.client-token-value {
+    display: inline-block;
+    max-width: 100%;
+    padding: 10px 12px;
+    border: 1px solid rgba(191, 219, 254, 0.35);
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.75);
+    color: #e0f2fe;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: 18px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
 }
 
 .btn-danger {
