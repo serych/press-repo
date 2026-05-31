@@ -5,7 +5,7 @@ require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/inc/auth.php';
 require_once __DIR__ . '/inc/functions.php';
 require_once __DIR__ . '/inc/photos.php';
-require_once __DIR__ . '/inc/published_photos.php';
+require_once __DIR__ . '/inc/published_upload.php';
 
 require_login();
 
@@ -16,110 +16,36 @@ if (!has_permission('published_photos.upload')) {
 
 $event = photos_get_current_event();
 $user = current_user();
-$errors = [];
-$uploaded = [];
+$uploadResult = [
+    'ok' => true,
+    'errors' => [],
+    'uploaded' => [],
+];
 $isAjax = strtolower((string)($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest';
-
-function upload_ini_bytes(string $value): int
-{
-    $value = trim($value);
-    if ($value === '') {
-        return 0;
-    }
-
-    $unit = strtolower(substr($value, -1));
-    $number = (float)$value;
-
-    return match ($unit) {
-        'g' => (int)($number * 1024 * 1024 * 1024),
-        'm' => (int)($number * 1024 * 1024),
-        'k' => (int)($number * 1024),
-        default => (int)$number,
-    };
-}
-
-function upload_format_bytes(int $bytes): string
-{
-    if ($bytes >= 1024 * 1024) {
-        return number_format($bytes / 1024 / 1024, 0, ',', ' ') . ' MB';
-    }
-
-    if ($bytes >= 1024) {
-        return number_format($bytes / 1024, 0, ',', ' ') . ' kB';
-    }
-
-    return $bytes . ' B';
-}
-
-$uploadMaxBytes = upload_ini_bytes((string)ini_get('upload_max_filesize'));
-$postMaxBytes = upload_ini_bytes((string)ini_get('post_max_size'));
-$effectiveMaxBytes = min(
-    $uploadMaxBytes > 0 ? $uploadMaxBytes : PHP_INT_MAX,
-    $postMaxBytes > 0 ? $postMaxBytes : PHP_INT_MAX
-);
+$effectiveMaxBytes = published_upload_effective_max_bytes();
 
 if (!$event) {
-    $errors[] = 'Není vybraný aktivní event.';
+    $uploadResult['ok'] = false;
+    $uploadResult['errors'][] = 'Není vybraný aktivní event.';
 }
 
 if (is_post() && $event) {
-    $files = $_FILES['photos'] ?? null;
-    $contentLength = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);
-
-    if ($postMaxBytes > 0 && $contentLength > $postMaxBytes) {
-        $errors[] = 'Upload je větší než serverový limit post_max_size '
-            . upload_format_bytes($postMaxBytes)
-            . '. Aktuální požadavek má přibližně '
-            . upload_format_bytes($contentLength)
-            . '.';
-    } elseif (!is_array($files) || empty($files['name'])) {
-        $errors[] = 'Vyber alespoň jeden JPG soubor.';
-    } else {
-        $count = is_array($files['name']) ? count($files['name']) : 0;
-
-        for ($i = 0; $i < $count; $i++) {
-            $file = [
-                'name' => $files['name'][$i] ?? '',
-                'type' => $files['type'][$i] ?? '',
-                'tmp_name' => $files['tmp_name'][$i] ?? '',
-                'error' => $files['error'][$i] ?? UPLOAD_ERR_NO_FILE,
-                'size' => $files['size'][$i] ?? 0,
-            ];
-
-            if (($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE
-                && (string)($file['name'] ?? '') === ''
-            ) {
-                continue;
-            }
-
-            try {
-                $uploaded[] = published_photos_store_upload($event, $user, $file);
-            } catch (Throwable $e) {
-                $errors[] = (string)$file['name'] . ': ' . $e->getMessage();
-            }
-        }
-
-        if (!$uploaded && !$errors) {
-            $errors[] = 'Nebyl nahrán žádný soubor.';
-        }
-    }
+    $uploadResult = published_upload_handle_request(
+        $event,
+        $user ?? [],
+        $_FILES['photos'] ?? null,
+        (int)($_SERVER['CONTENT_LENGTH'] ?? 0)
+    );
 }
 
 if (is_post() && $isAjax) {
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode([
-        'ok' => $errors === [],
-        'errors' => $errors,
+        'ok' => $uploadResult['ok'],
+        'errors' => $uploadResult['errors'],
         'uploaded' => array_map(
-            static fn(array $item): array => [
-                'id' => (int)$item['id'],
-                'filename' => (string)$item['filename'],
-                'paired' => !empty($item['source_photo']),
-                'source_filename' => !empty($item['source_photo'])
-                    ? (string)$item['source_photo']['filename']
-                    : null,
-            ],
-            $uploaded
+            static fn(array $item): array => published_upload_json_item($item),
+            $uploadResult['uploaded']
         ),
     ], JSON_UNESCAPED_UNICODE);
     exit;
@@ -140,23 +66,23 @@ require_once __DIR__ . '/inc/header.php';
             <strong><?= h((string)$event['title']) ?></strong>
             <span class="badge badge-info"><?= h((string)$event['slug']) ?></span>
             <?php if ($effectiveMaxBytes !== PHP_INT_MAX): ?>
-                <span class="badge badge-info">limit <?= h(upload_format_bytes($effectiveMaxBytes)) ?> / soubor</span>
+                <span class="badge badge-info">limit <?= h(published_upload_format_bytes($effectiveMaxBytes)) ?> / soubor</span>
             <?php endif; ?>
         </p>
     <?php endif; ?>
 
     <div id="upload-messages">
-    <?php if ($errors): ?>
+    <?php if ($uploadResult['errors']): ?>
         <div class="alert-error upload-result-box">
-            <?php foreach ($errors as $error): ?>
+            <?php foreach ($uploadResult['errors'] as $error): ?>
                 <div><?= h($error) ?></div>
             <?php endforeach; ?>
         </div>
     <?php endif; ?>
 
-    <?php if ($uploaded): ?>
+    <?php if ($uploadResult['uploaded']): ?>
         <div class="upload-result-box">
-            <?php foreach ($uploaded as $item): ?>
+            <?php foreach ($uploadResult['uploaded'] as $item): ?>
                 <div class="upload-result <?= !empty($item['source_photo']) ? 'upload-result-paired' : 'upload-result-unpaired' ?>">
                     <?= h((string)$item['filename']) ?>
                     <?php if (!empty($item['source_photo'])): ?>
@@ -182,7 +108,7 @@ require_once __DIR__ . '/inc/header.php';
 
             <input class="upload-file-input" type="file" name="photos[]" id="photos" accept=".jpg,.jpeg,image/jpeg" multiple required>
             <?php if ($effectiveMaxBytes !== PHP_INT_MAX): ?>
-                <p class="table-subtext">Aktuální serverový limit je <?= h(upload_format_bytes($effectiveMaxBytes)) ?> na jeden soubor.</p>
+                <p class="table-subtext">Aktuální serverový limit je <?= h(published_upload_format_bytes($effectiveMaxBytes)) ?> na jeden soubor.</p>
             <?php endif; ?>
 
             <div class="upload-progress" id="upload-progress" hidden>

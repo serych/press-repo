@@ -685,7 +685,9 @@ Cílem sprintu je připravit serverovou stranu pro budoucí Lightroom Classic pl
 
 ### Upload API
 
-- Přidat samostatný endpoint pro upload hotových JPG z klienta/pluginu, např. `POST /api/published-upload-client.php`.
+- Sdílená serverová logika uploadu hotových JPG je připravená v `web/inc/published_upload.php`.
+- Webový upload `published-upload.php` používá stejnou logiku jako budoucí API.
+- Přidán samostatný endpoint pro upload hotových JPG z klienta/pluginu: `POST /api/published-upload-client.php`.
 - Autentizace přes hlavičku `Authorization: Bearer <token>`.
 - Přijímat multipart upload jednoho JPG souboru v jednom requestu.
 - Přijímat doplňková pole pro párování a debug, např.:
@@ -693,7 +695,7 @@ Cílem sprintu je připravit serverovou stranu pro budoucí Lightroom Classic pl
   - `client_name`,
   - `client_version`.
 - Cílový event se vždy určí na serveru jako aktuálně aktivní event.
-- Doplnit endpoint nebo součást odpovědi API, díky které si plugin může zobrazit název aktivního eventu pro kontrolu uživatelem.
+- Doplněn endpoint `GET /api/client-active-event.php`, díky kterému si plugin může zobrazit název aktivního eventu pro kontrolu uživatelem.
 - Interně použít stejnou doménovou logiku jako webový upload hotových JPG:
   - kontrola typu souboru,
   - uložení do eventové galerie,
@@ -709,7 +711,7 @@ Cílem sprintu je připravit serverovou stranu pro budoucí Lightroom Classic pl
 
 ### Dokumentace API
 
-- Vytvořit samostatnou dokumentaci v `docs/`, např. `docs/lightroom_upload_api.md`.
+- Vytvořena samostatná dokumentace `docs/lightroom_upload_api.md`.
 - Popsat:
   - účel API,
   - autentizaci,
