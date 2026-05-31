@@ -87,7 +87,12 @@ $styleVersion = is_file($styleFile) ? (string)filemtime($styleFile) : '1';
             <?php if ($user && $showChat): ?>
                 <a href="<?= h($chatUrl) ?>" class="header-chat-indicator" aria-label="Otevřít chat">
                     <span class="header-chat-icon" aria-hidden="true">💬</span>
-                    <span class="header-chat-badge" id="chat-unread-badge" hidden>0</span>
+                    <span
+                        class="header-chat-badge"
+                        id="chat-unread-badge"
+                        data-chat-event-id="<?= (int)$currentEventId ?>"
+                        hidden
+                    >0</span>
                 </a>
             <?php endif; ?>
         </div>
@@ -159,12 +164,23 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     async function refreshChatBadge() {
+        const eventId = Number(chatBadge.dataset.chatEventId || 0);
+
+        if (eventId <= 0) {
+            chatBadge.textContent = '0';
+            chatBadge.hidden = true;
+            return;
+        }
+
         if (document.visibilityState !== 'visible') {
             return;
         }
 
         try {
-            const response = await fetch('/api/chat-unread-count.php', {
+            const url = new URL('/api/chat-unread-count.php', window.location.origin);
+            url.searchParams.set('event_id', String(eventId));
+
+            const response = await fetch(url.toString(), {
                 cache: 'no-store'
             });
 
