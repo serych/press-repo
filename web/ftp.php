@@ -152,6 +152,7 @@ require_once __DIR__ . '/inc/header.php';
                 multiple
                 required
             >
+            <input type="hidden" id="ftp-replacement-storage-ready" value="<?= $storage === null ? '0' : '1' ?>">
 
             <p class="table-subtext">
                 Podporované formáty: <?= h($allowedExtensions) ?>.
@@ -171,7 +172,7 @@ require_once __DIR__ . '/inc/header.php';
                 </div>
             </div>
 
-            <button type="submit" <?= $storage === null ? 'disabled' : '' ?>>Nahrát zdrojové fotky</button>
+            <button type="submit" disabled>Nahrát zdrojové fotky</button>
         </form>
     </div>
 </section>
@@ -189,6 +190,10 @@ document.addEventListener('DOMContentLoaded', function () {
     const progressPercent = document.getElementById('ftp-replacement-progress-percent');
     const progressLabel = document.getElementById('ftp-replacement-progress-label');
     const messages = document.getElementById('ftp-upload-messages');
+    const storageReadyInput = document.getElementById('ftp-replacement-storage-ready');
+    const submitButton = form ? form.querySelector('button[type="submit"]') : null;
+    const storageReady = storageReadyInput ? storageReadyInput.value === '1' : false;
+    let uploadInProgress = false;
 
     if (!form || !fileInput || !dropzone || !fileSummary || !progress || !progressBar || !progressFileCount || !progressPercent || !progressLabel || !messages) {
         return;
@@ -212,6 +217,12 @@ document.addEventListener('DOMContentLoaded', function () {
         } else {
             fileSummary.textContent = count + ' souborů vybráno';
         }
+
+        if (submitButton) {
+            submitButton.disabled = !storageReady || count === 0;
+        }
+
+        form.classList.toggle('has-files', storageReady && count > 0);
     }
 
     function formatBytes(bytes) {
@@ -235,6 +246,14 @@ document.addEventListener('DOMContentLoaded', function () {
         progressFileCount.textContent = counterText || '0/0';
         progressPercent.textContent = clean + ' %';
         progressLabel.textContent = label;
+    }
+
+    function resetProgress() {
+        progress.hidden = true;
+        progressBar.style.width = '0%';
+        progressFileCount.textContent = '0/0';
+        progressPercent.textContent = '0 %';
+        progressLabel.textContent = 'Nahrávám...';
     }
 
     function renderResults(data) {
@@ -263,6 +282,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
         messages.innerHTML = html;
     }
+
+    window.addEventListener('beforeunload', function (event) {
+        if (!uploadInProgress) {
+            return;
+        }
+
+        event.preventDefault();
+        event.returnValue = 'Chcete stránku opustit a tím přerušit upload?';
+    });
 
     function uploadSingleFile(file, fileIndex, totalFiles) {
         return new Promise(function (resolve) {
@@ -355,7 +383,6 @@ document.addEventListener('DOMContentLoaded', function () {
         event.preventDefault();
 
         const files = Array.from(fileInput.files);
-        const submitButton = form.querySelector('button[type="submit"]');
         const results = {
             ok: true,
             errors: [],
@@ -364,6 +391,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
         messages.innerHTML = '';
         setProgress(0, 'Připravuji upload...', '0/' + files.length);
+        form.classList.add('is-uploading');
+        uploadInProgress = true;
         if (submitButton) {
             submitButton.disabled = true;
         }
@@ -393,6 +422,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 form.reset();
                 updateFileSummary();
             }
+
+            form.classList.remove('is-uploading');
+            uploadInProgress = false;
+            resetProgress();
         })();
     });
 

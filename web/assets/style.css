@@ -2913,6 +2913,22 @@ body::after {
     background: #2dd4bf;
 }
 
+.ftp-replacement-form button[type="submit"]:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    filter: grayscale(0.7);
+}
+
+.ftp-replacement-form.has-files button[type="submit"]:not(:disabled) {
+    box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.35), 0 0 20px rgba(45, 212, 191, 0.25);
+}
+
+.ftp-replacement-form.is-uploading button[type="submit"]:disabled {
+    opacity: 0.85;
+    cursor: wait;
+    filter: none;
+}
+
 .ftp-upload-result-ok {
     background: #12312d;
     color: #99f6e4;
