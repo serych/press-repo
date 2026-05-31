@@ -23,6 +23,29 @@ $reverseSort = (string)($_GET['reverse'] ?? '') === '1';
 $currentEvent = photos_get_current_event();
 $currentEventId = !empty($currentEvent['id']) ? (int)$currentEvent['id'] : 0;
 
+function photos_published_upload_ini_bytes(string $value): int
+{
+    $value = trim($value);
+    if ($value === '') {
+        return 0;
+    }
+
+    $unit = strtolower(substr($value, -1));
+    $number = (float)$value;
+
+    return match ($unit) {
+        'g' => (int)($number * 1024 * 1024 * 1024),
+        'm' => (int)($number * 1024 * 1024),
+        'k' => (int)($number * 1024),
+        default => (int)$number,
+    };
+}
+
+$publishedUploadMaxBytes = min(
+    photos_published_upload_ini_bytes((string)ini_get('upload_max_filesize')) ?: PHP_INT_MAX,
+    photos_published_upload_ini_bytes((string)ini_get('post_max_size')) ?: PHP_INT_MAX
+);
+
 $downloadJobId = max(0, (int)($_GET['download_job'] ?? 0));
 $downloadTotal = max(0, (int)($_GET['download_total'] ?? 0));
 
@@ -335,6 +358,8 @@ require_once __DIR__ . '/inc/header.php';
 </section>
 
 <script>
+const miniPublishMaxFileBytes = <?= $publishedUploadMaxBytes === PHP_INT_MAX ? '0' : (int)$publishedUploadMaxBytes ?>;
+
 async function runBulkDownload(jobId, total) {
     const statusBox = document.getElementById('bulk-status-text');
 
@@ -681,6 +706,20 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    function formatMiniPublishBytes(bytes) {
+        const value = Number(bytes || 0);
+        if (value >= 1024 * 1024 * 1024) {
+            return (value / 1024 / 1024 / 1024).toFixed(1).replace('.', ',') + ' GB';
+        }
+        if (value >= 1024 * 1024) {
+            return Math.round(value / 1024 / 1024) + ' MB';
+        }
+        if (value >= 1024) {
+            return Math.round(value / 1024) + ' kB';
+        }
+        return value + ' B';
+    }
+
     function renderMiniPublishResult(data) {
         if (!miniPublishResult) {
             return;
@@ -704,6 +743,72 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         miniPublishResult.innerHTML = html;
+    }
+
+    function uploadMiniPublishFile(file, fileIndex, totalFiles) {
+        return new Promise(function (resolve) {
+            if (miniPublishMaxFileBytes > 0 && file.size > miniPublishMaxFileBytes) {
+                resolve({
+                    ok: false,
+                    errors: [
+                        file.name + ': Soubor je větší než serverový limit ' + formatMiniPublishBytes(miniPublishMaxFileBytes) + '.'
+                    ],
+                    uploaded: []
+                });
+                return;
+            }
+
+            const xhr = new XMLHttpRequest();
+            const formData = new FormData();
+            const counterText = (fileIndex + 1) + '/' + totalFiles;
+
+            formData.append('photos[]', file, file.name);
+
+            xhr.upload.addEventListener('progress', function (event) {
+                if (event.lengthComputable) {
+                    const fileProgress = event.loaded / event.total;
+                    const overallProgress = ((fileIndex + fileProgress) / totalFiles) * 100;
+                    setMiniPublishProgress(overallProgress, 'Nahrávám ' + file.name + '...');
+                    if (miniPublishCount) {
+                        miniPublishCount.textContent = counterText;
+                    }
+                } else {
+                    setMiniPublishProgress((fileIndex / totalFiles) * 100, 'Nahrávám ' + file.name + '...');
+                    if (miniPublishCount) {
+                        miniPublishCount.textContent = counterText;
+                    }
+                }
+            });
+
+            xhr.addEventListener('load', function () {
+                try {
+                    const data = JSON.parse(xhr.responseText || '{}');
+                    resolve({
+                        ok: xhr.status >= 200 && xhr.status < 300 && data.ok === true,
+                        errors: Array.isArray(data.errors) ? data.errors : [],
+                        uploaded: Array.isArray(data.uploaded) ? data.uploaded : []
+                    });
+                } catch (e) {
+                    resolve({
+                        ok: false,
+                        errors: [file.name + ': Server vrátil nečitelnou odpověď.'],
+                        uploaded: []
+                    });
+                }
+            });
+
+            xhr.addEventListener('error', function () {
+                resolve({
+                    ok: false,
+                    errors: [file.name + ': Upload se nepodařilo dokončit.'],
+                    uploaded: []
+                });
+            });
+
+            xhr.open('POST', '/published-upload.php');
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+            xhr.send(formData);
+        });
     }
 
     if (miniPublishForm && miniPublishFiles && miniPublishDropzone) {
@@ -740,9 +845,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
-            const xhr = new XMLHttpRequest();
-            const formData = new FormData(miniPublishForm);
+            const files = Array.from(miniPublishFiles.files);
             const submitButton = miniPublishForm.querySelector('button[type="submit"]');
+            const results = {
+                ok: true,
+                errors: [],
+                uploaded: []
+            };
 
             if (miniPublishResult) {
                 miniPublishResult.innerHTML = '';
@@ -753,53 +862,40 @@ document.addEventListener('DOMContentLoaded', function () {
                 submitButton.disabled = true;
             }
 
-            xhr.upload.addEventListener('progress', function (event) {
-                if (event.lengthComputable) {
-                    setMiniPublishProgress((event.loaded / event.total) * 100, 'Nahrávám...');
-                } else {
-                    setMiniPublishProgress(0, 'Nahrávám...');
-                }
-            });
+            (async function () {
+                for (let i = 0; i < files.length; i++) {
+                    const result = await uploadMiniPublishFile(files[i], i, files.length);
 
-            xhr.addEventListener('load', function () {
-                if (submitButton) {
-                    submitButton.disabled = false;
+                    if (!result.ok || result.errors.length > 0) {
+                        results.ok = false;
+                    }
+
+                    results.errors = results.errors.concat(result.errors);
+                    results.uploaded = results.uploaded.concat(result.uploaded);
+                    renderMiniPublishResult(results);
                 }
 
                 setMiniPublishProgress(100, 'Zpracovávám...');
-
-                try {
-                    const data = JSON.parse(xhr.responseText || '{}');
-                    renderMiniPublishResult(data);
-                    if (miniPublishLabel) {
-                        miniPublishLabel.textContent = data.ok ? 'Hotovo' : 'Dokončeno s chybou';
-                    }
-                    refreshPhotoFeed();
-                } catch (e) {
-                    if (miniPublishResult) {
-                        miniPublishResult.innerHTML = '<div class="mini-publish-message mini-publish-error">Server vrátil nečitelnou odpověď.</div>';
-                    }
-                    if (miniPublishLabel) {
-                        miniPublishLabel.textContent = 'Chyba';
-                    }
+                if (miniPublishCount) {
+                    miniPublishCount.textContent = files.length + '/' + files.length;
                 }
-            });
+                renderMiniPublishResult(results);
 
-            xhr.addEventListener('error', function () {
                 if (submitButton) {
                     submitButton.disabled = false;
                 }
-                if (miniPublishResult) {
-                    miniPublishResult.innerHTML = '<div class="mini-publish-message mini-publish-error">Upload se nepodařilo dokončit.</div>';
-                }
-                if (miniPublishLabel) {
-                    miniPublishLabel.textContent = 'Chyba';
-                }
-            });
 
-            xhr.open('POST', '/published-upload.php');
-            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-            xhr.send(formData);
+                if (miniPublishLabel) {
+                    miniPublishLabel.textContent = results.ok ? 'Hotovo' : 'Dokončeno s chybou';
+                }
+
+                refreshPhotoFeed();
+
+                if (results.ok) {
+                    miniPublishForm.reset();
+                    updateMiniPublishSummary();
+                }
+            })();
         });
     }
 
