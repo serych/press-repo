@@ -654,6 +654,81 @@ Tato sekce shrnuje opravy a drobná vylepšení realizované po provozní zkuše
 - Při automatickém obnovování dlouhého seznamu si stránka pamatuje fotku u horní části viewportu a po překreslení vrátí uživatele na stejné místo.
 - Oprava řeší i případ, kdy někdo nahraje nové fotky a ty se objeví výše v seznamu.
 
+## Sprint 12: API pro upload hotových JPG z Lightroomu
+
+Cílem sprintu je připravit serverovou stranu pro budoucí Lightroom Classic plugin, který umožní fotoeditorům nahrávat hotové JPG přímo z exportu do galerie press centra. První fáze se soustředí pouze na server: bezpečné tokeny, upload API a přesnou dokumentaci kontraktu pro samostatný vývoj pluginu.
+
+### Princip a bezpečnostní hranice
+
+- Stávající webový upload hotových fotek v `photos.php` a `published-upload.php` musí zůstat funkční beze změny chování.
+- Nové API bude samostatná vstupní cesta pro klienty/pluginy, ne náhrada současného webového formuláře.
+- Autentizace nebude používat běžné heslo uživatele, ale samostatné upload tokeny.
+- Token bude svázaný s konkrétním uživatelem/fotoeditorem a oprávněním nahrávat hotové JPG.
+- Token musí jít kdykoliv zneplatnit bez zásahu do běžného loginu uživatele.
+- Upload přes API bude vždy mířit do právě aktivního eventu; plugin ani token nebudou vybírat cílový event.
+- Serverová validace musí znovu ověřovat oprávnění, typ souboru, velikost, existenci právě jednoho aktivního eventu a stav cílové galerie; nesmí spoléhat na Lightroom plugin.
+
+### Management Tokenů
+
+- Navrhnout databázovou tabulku pro klientské upload tokeny.
+- Ukládat pouze hash tokenu, nikdy token v čitelné podobě.
+- Evidovat:
+  - vlastníka tokenu,
+  - název tokenu/klienta,
+  - rozsah oprávnění, minimálně `published_upload`,
+  - datum vytvoření,
+  - poslední použití,
+  - zneplatnění/revokaci.
+- Doplnit administrační UI pro vytvoření, zobrazení nově vygenerovaného tokenu, přehled existujících tokenů a jejich zneplatnění.
+- Při vytvoření zobrazit plný token pouze jednou.
+
+### Upload API
+
+- Přidat samostatný endpoint pro upload hotových JPG z klienta/pluginu, např. `POST /api/published-upload-client.php`.
+- Autentizace přes hlavičku `Authorization: Bearer <token>`.
+- Přijímat multipart upload jednoho JPG souboru v jednom requestu.
+- Přijímat doplňková pole pro párování a debug, např.:
+  - `original_filename`,
+  - `client_name`,
+  - `client_version`.
+- Cílový event se vždy určí na serveru jako aktuálně aktivní event.
+- Doplnit endpoint nebo součást odpovědi API, díky které si plugin může zobrazit název aktivního eventu pro kontrolu uživatelem.
+- Interně použít stejnou doménovou logiku jako webový upload hotových JPG:
+  - kontrola typu souboru,
+  - uložení do eventové galerie,
+  - generování náhledů,
+  - automatické párování na originál,
+  - zápis do `published_photos`.
+- Vrací se vždy JSON s jednoznačným výsledkem pro plugin:
+  - úspěch/neúspěch,
+  - ID a název aktivního eventu, do kterého upload mířil,
+  - název uloženého souboru,
+  - zda se podařilo spárovat originál,
+  - případné chybové hlášky vhodné pro zobrazení v Lightroomu.
+
+### Dokumentace API
+
+- Vytvořit samostatnou dokumentaci v `docs/`, např. `docs/lightroom_upload_api.md`.
+- Popsat:
+  - účel API,
+  - autentizaci,
+  - potřebné role/oprávnění,
+  - request formát,
+  - response JSON,
+  - způsob zjištění názvu aktuálně aktivního eventu pro zobrazení v pluginu,
+  - chybové stavy a HTTP kódy,
+  - příklady `curl`,
+  - doporučené chování klienta při opakování uploadu a výpadku sítě.
+- Dokumentace bude kontraktem pro samostatný repozitář Lightroom pluginu.
+
+### Postup Implementace
+
+- Nejprve refaktorovat sdílenou serverovou logiku uploadu hotových JPG tak, aby ji mohly bezpečně používat webový formulář i API.
+- Poté přidat migraci a správu tokenů.
+- Následně implementovat API endpoint s minimálním kontraktem pro upload jednoho JPG.
+- Nakonec doplnit dokumentaci API a základní testovací postup.
+- Po každém kroku ověřit, že současný webový upload a galerie fungují stejně jako před Sprintem 12.
+
 ## Nápady pro další sprinty
 
 - Ruční párování nespárovaných publikovaných fotek s originálem.
