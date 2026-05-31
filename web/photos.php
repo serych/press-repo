@@ -140,8 +140,15 @@ require_once __DIR__ . '/inc/header.php';
 
             <?php if (!empty($photos) && has_permission('photos.download')): ?>
                 <div class="bulk-toolbar">
-                    <form id="bulk-download-form" method="POST" action="/bulk-download-create.php" style="display:inline;">
-                        <button type="submit">Hromadné stažení zamčených</button>
+                    <form id="bulk-download-form" method="POST" action="/bulk-download-create.php" class="bulk-download-form">
+                        <button
+                            type="submit"
+                            class="bulk-download-button"
+                            id="bulk-download-button"
+                            <?= $lockedMineCount <= 0 ? 'disabled' : '' ?>
+                        >
+                            Hromadné stažení zamčených
+                        </button>
                     </form>
 
                     <span id="bulk-status-text">
@@ -549,6 +556,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const currentUserId = <?= (int)$currentUserId ?>;
     const photoGrid = document.getElementById('photo-grid');
     const statusBox = document.getElementById('bulk-status-text');
+    const bulkDownloadForm = document.getElementById('bulk-download-form');
+    const bulkDownloadButton = document.getElementById('bulk-download-button');
     const ingestStatus = document.getElementById('ingest-status');
     const uploadingCountEl = document.getElementById('uploading-count');
     const processingCountEl = document.getElementById('processing-count');
@@ -636,6 +645,25 @@ document.addEventListener('DOMContentLoaded', function () {
             // ticho
         }
     }
+
+    function updateBulkDownloadState(count) {
+        if (bulkDownloadButton) {
+            bulkDownloadButton.disabled = Number(count || 0) <= 0;
+        }
+    }
+
+    if (bulkDownloadForm) {
+        bulkDownloadForm.addEventListener('submit', function (event) {
+            if (bulkDownloadButton && bulkDownloadButton.disabled) {
+                event.preventDefault();
+                if (statusBox) {
+                    statusBox.textContent = 'Nejdřív zamkni alespoň jednu fotku ke stažení.';
+                }
+            }
+        });
+    }
+
+    updateBulkDownloadState(<?= (int)$lockedMineCount ?>);
 
     if (jobId > 0 && total > 0) {
         const ok = window.confirm('Bude se stahovat ' + total + ' fotografií. Pokračovat?');
@@ -1038,7 +1066,9 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             if (statusBox && !current.searchParams.get('download_job')) {
-                statusBox.textContent = 'Moje zamčené v přehledu: ' + Number(data.locked_mine_count || 0);
+                const lockedMineCount = Number(data.locked_mine_count || 0);
+                statusBox.textContent = 'Moje zamčené v přehledu: ' + lockedMineCount;
+                updateBulkDownloadState(lockedMineCount);
             }
         } catch (e) {
             // ticho, zkusíme příště

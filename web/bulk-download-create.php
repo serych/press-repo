@@ -12,9 +12,30 @@ $user = current_user();
 $userId = (int)$user['id'];
 $pdo = db();
 
-/*
- * vezmeme vöechny fotky locked tÌmto uûivatelem
- */
+function bulk_download_error_page(string $message, int $statusCode = 400): never
+{
+    http_response_code($statusCode);
+
+    require_once __DIR__ . '/inc/header.php';
+    ?>
+    <section class="panel">
+        <div class="page-head">
+            <h1>Hromadn√© sta≈æen√≠</h1>
+            <a href="/photos.php" class="button">Zpƒõt na fotografie</a>
+        </div>
+
+        <div class="card">
+            <div class="alert-info">
+                <?= h($message) ?>
+            </div>
+        </div>
+    </section>
+    <?php
+    require_once __DIR__ . '/inc/footer.php';
+    exit;
+}
+
+// Vezmeme v≈°echny fotky zamƒçen√© t√≠mto u≈æivatelem.
 $stmt = $pdo->prepare("
     SELECT id
     FROM photos
@@ -29,16 +50,13 @@ $stmt->execute([$userId]);
 $ids = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
 
 if (!$ids) {
-    http_response_code(400);
-    exit('Nem·te û·dnÈ zamËenÈ fotografie ke staûenÌ.');
+    bulk_download_error_page('Nem√°te ≈æ√°dn√© zamƒçen√© fotografie ke sta≈æen√≠.');
 }
 
 $pdo->beginTransaction();
 
 try {
-    /*
-     * vytvo¯enÌ jobu
-     */
+    // Vytvo≈ôen√≠ jobu.
     $stmt = $pdo->prepare("
         INSERT INTO download_jobs (user_id, status)
         VALUES (?, 'prepared')
@@ -47,9 +65,7 @@ try {
 
     $jobId = (int)$pdo->lastInsertId();
 
-    /*
-     * insert poloûek
-     */
+    // Insert polo≈æek.
     $insert = $pdo->prepare("
         INSERT INTO download_job_items
         (job_id, photo_id, seq_no, status, locked_at)
@@ -62,7 +78,7 @@ try {
         $insert->execute([
             $jobId,
             $photoId,
-            $seq++
+            $seq++,
         ]);
     }
 
@@ -70,15 +86,10 @@ try {
 
     $total = count($ids);
 
-    /*
-     * redirect zpÏt do galerie s parametry pro spuötÏnÌ downloadu
-     */
+    // Redirect zpƒõt do galerie s parametry pro spu≈°tƒõn√≠ downloadu.
     header("Location: /photos.php?download_job=" . $jobId . "&download_total=" . $total);
     exit;
-
 } catch (Throwable $e) {
     $pdo->rollBack();
-
-    http_response_code(500);
-    echo "bulk create failed";
+    bulk_download_error_page('Hromadn√Ω download se nepoda≈ôilo p≈ôipravit.', 500);
 }
