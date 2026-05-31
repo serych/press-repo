@@ -33,7 +33,7 @@ if ($dashboardEvent) {
     $summary = events_stats_summary($eventId);
     $participantCounts = events_stats_counts_of_participants($eventId);
     $photographers = events_stats_photographers($eventId);
-    $editors = events_participants_by_role($eventId, 'editor');
+    $editors = events_stats_editors($eventId);
 }
 
 require_once __DIR__ . '/inc/header.php';
@@ -249,11 +249,15 @@ require_once __DIR__ . '/inc/header.php';
                             <colgroup>
                                 <col class="col-name">
                                 <col class="col-mobile">
+                                <col class="col-mini">
+                                <col class="col-mini">
                             </colgroup>
                             <thead>
                                 <tr>
                                     <th>Jméno</th>
                                     <th>Mobil</th>
+                                    <th>Staženo</th>
+                                    <th>Publikováno</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -264,6 +268,12 @@ require_once __DIR__ . '/inc/header.php';
                                         </td>
                                         <td>
                                             <?= !empty($e['mobile']) ? h(users_format_mobile((string)$e['mobile'])) : '—' ?>
+                                        </td>
+                                        <td class="dashboard-num-cell">
+                                            <?= (int)($e['downloaded_count'] ?? 0) ?>
+                                        </td>
+                                        <td class="dashboard-num-cell">
+                                            <?= (int)($e['published_count'] ?? 0) ?>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>

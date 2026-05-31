@@ -880,6 +880,61 @@ function events_stats_photographers(int $eventId): array
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
+function events_stats_editors(int $eventId): array
+{
+    $stmt = db()->prepare("
+        SELECT
+            u.id,
+            u.jmeno,
+            u.prijmeni,
+            u.mobile,
+            u.user,
+            u.ftp_user,
+            eu.role_in_event,
+            eu.runner,
+            COALESCE(downloaded.downloaded_count, 0) AS downloaded_count,
+            COALESCE(published.published_count, 0) AS published_count
+        FROM event_users eu
+        INNER JOIN users u ON u.id = eu.user_id
+        LEFT JOIN (
+            SELECT
+                downloaded_by_user_id AS user_id,
+                COUNT(*) AS downloaded_count
+            FROM photos
+            WHERE event_id = ?
+              AND downloaded_by_user_id IS NOT NULL
+            GROUP BY downloaded_by_user_id
+        ) downloaded ON downloaded.user_id = eu.user_id
+        LEFT JOIN (
+            SELECT
+                uploaded_by_user_id AS user_id,
+                COUNT(*) AS published_count
+            FROM published_photos
+            WHERE event_id = ?
+              AND status = 'ready'
+              AND uploaded_by_user_id IS NOT NULL
+            GROUP BY uploaded_by_user_id
+        ) published ON published.user_id = eu.user_id
+        WHERE eu.event_id = ?
+          AND eu.role_in_event = 'editor'
+        GROUP BY
+            u.id,
+            u.jmeno,
+            u.prijmeni,
+            u.mobile,
+            u.user,
+            u.ftp_user,
+            eu.role_in_event,
+            eu.runner,
+            downloaded.downloaded_count,
+            published.published_count
+        ORDER BY u.prijmeni, u.jmeno, u.user
+    ");
+    $stmt->execute([$eventId, $eventId, $eventId]);
+
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
 function events_stats_counts_of_participants(int $eventId): array
 {
     $stmt = db()->prepare("
