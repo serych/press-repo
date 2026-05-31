@@ -8,6 +8,29 @@ require_once __DIR__ . '/inc/functions.php';
 
 require_login();
 
+function select_wants_json(): bool
+{
+    $requestedWith = strtolower((string)($_SERVER['HTTP_X_REQUESTED_WITH'] ?? ''));
+    $accept = strtolower((string)($_SERVER['HTTP_ACCEPT'] ?? ''));
+
+    return $requestedWith === 'xmlhttprequest' || str_contains($accept, 'application/json');
+}
+
+function select_finish(bool $ok = true, string $message = ''): never
+{
+    if (select_wants_json()) {
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+        echo json_encode([
+            'ok' => $ok,
+            'message' => $message,
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    redirect($_SERVER['HTTP_REFERER'] ?? '/photos.php');
+}
+
 if (!has_permission('photos.select')) {
     http_response_code(403);
     exit('Přístup odepřen.');
@@ -64,7 +87,7 @@ if ($action === 'block') {
         'uid' => $user['id'],
     ]);
 
-    redirect($_SERVER['HTTP_REFERER'] ?? '/photos.php');
+    select_finish();
 }
 
 if ($action === 'unblock') {
@@ -79,7 +102,7 @@ if ($action === 'unblock') {
 
     db()->prepare($sql)->execute(['id' => $id]);
 
-    redirect($_SERVER['HTTP_REFERER'] ?? '/photos.php');
+    select_finish();
 }
 
 if (!empty($photo['is_blocked'])) {
@@ -96,7 +119,7 @@ if ($action === 'lock') {
     if ($photo['locked_by_user_id']
         && $photo['locked_by_user_id'] != $user['id']) {
 
-        redirect($_SERVER['HTTP_REFERER'] ?? '/photos.php');
+        select_finish(false, 'Fotografii mezitím zamkl jiný uživatel.');
     }
 
     $sql = "
@@ -113,7 +136,7 @@ if ($action === 'lock') {
         'uid'=>$user['id']
     ]);
 
-    redirect($_SERVER['HTTP_REFERER'] ?? '/photos.php');
+    select_finish();
 }
 
 /* UNLOCK */
@@ -123,7 +146,7 @@ if ($action === 'unlock') {
     /* odemknout může jen autor */
 
     if ($photo['locked_by_user_id'] != $user['id']) {
-        redirect($_SERVER['HTTP_REFERER'] ?? '/photos.php');
+        select_finish(false, 'Fotografii může odemknout jen uživatel, který ji zamkl.');
     }
 
     $sql = "
@@ -137,7 +160,7 @@ if ($action === 'unlock') {
 
     db()->prepare($sql)->execute(['id'=>$id]);
 
-    redirect($_SERVER['HTTP_REFERER'] ?? '/photos.php');
+    select_finish();
 }
 
-redirect($_SERVER['HTTP_REFERER'] ?? '/photos.php');
+select_finish(false, 'Neznámá akce.');

@@ -204,7 +204,7 @@ require_once __DIR__ . '/inc/header.php';
                         }
                         ?>
 
-                        <div class="<?= h($cardClass) ?>">
+                        <div class="<?= h($cardClass) ?>" data-photo-id="<?= (int)$p['id'] ?>">
                             <a href="/photo.php?<?= h(http_build_query(['id' => (int)$p['id']] + $photoContextQuery)) ?>" class="photo-card-link">
                                 <div class="thumb">
                                     <?php if (!empty($p['preview_filepath'])): ?>
@@ -532,7 +532,7 @@ function renderPhotoCard(item, currentUserId, canSelect) {
     });
 
     return '' +
-        '<div class="' + cardClass + '">' +
+        '<div class="' + cardClass + '" data-photo-id="' + item.id + '">' +
             '<a href="' + detailUrl.pathname + detailUrl.search + '" class="photo-card-link">' +
                 '<div class="thumb">' +
                     thumbHtml +
@@ -652,6 +652,62 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    function getPhotoScrollAnchor(preferredCard) {
+        const viewportTop = 96;
+        let card = preferredCard || null;
+
+        if (!card && photoGrid) {
+            card = Array.from(photoGrid.querySelectorAll('.photo-card')).find(function (item) {
+                const rect = item.getBoundingClientRect();
+                return rect.bottom > viewportTop;
+            }) || null;
+        }
+
+        if (!card || !card.dataset.photoId) {
+            return {
+                id: '',
+                top: 0,
+                y: window.scrollY || window.pageYOffset || 0
+            };
+        }
+
+        return {
+            id: card.dataset.photoId,
+            top: card.getBoundingClientRect().top,
+            y: window.scrollY || window.pageYOffset || 0
+        };
+    }
+
+    function getStatusClickScrollAnchor(link) {
+        const card = link.closest('.photo-card');
+        if (!card) {
+            return getPhotoScrollAnchor(null);
+        }
+
+        return getPhotoScrollAnchor(
+            card.nextElementSibling || card.previousElementSibling || card
+        );
+    }
+
+    function restorePhotoScrollAnchor(anchor) {
+        if (!anchor) {
+            return;
+        }
+
+        if (anchor.id && photoGrid) {
+            const card = Array.from(photoGrid.querySelectorAll('.photo-card')).find(function (item) {
+                return item.dataset.photoId === String(anchor.id);
+            });
+            if (card) {
+                const delta = card.getBoundingClientRect().top - anchor.top;
+                window.scrollBy(0, delta);
+                return;
+            }
+        }
+
+        window.scrollTo(window.scrollX || window.pageXOffset || 0, anchor.y || 0);
+    }
+
     if (bulkDownloadForm) {
         bulkDownloadForm.addEventListener('submit', function (event) {
             if (bulkDownloadButton && bulkDownloadButton.disabled) {
@@ -664,6 +720,53 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     updateBulkDownloadState(<?= (int)$lockedMineCount ?>);
+
+    document.addEventListener('click', function (event) {
+        const link = event.target.closest('a.status-clickable[href^="/select.php"]');
+        if (!link) {
+            return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (link.dataset.busy === '1') {
+            return;
+        }
+
+        const anchor = getStatusClickScrollAnchor(link);
+        const originalText = link.textContent;
+        link.dataset.busy = '1';
+        link.textContent = 'ukládám...';
+
+        fetch(link.href, {
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            cache: 'no-store'
+        })
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error('HTTP ' + response.status);
+                }
+                return response.json();
+            })
+            .then(function (data) {
+                if (!data || data.ok !== true) {
+                    throw new Error(data && data.message ? data.message : 'Změnu stavu se nepodařilo uložit.');
+                }
+
+                return refreshPhotoFeed({ anchor: anchor });
+            })
+            .catch(function (error) {
+                link.dataset.busy = '0';
+                link.textContent = originalText;
+                if (statusBox) {
+                    statusBox.textContent = error.message || 'Změnu stavu se nepodařilo uložit.';
+                }
+            });
+    }, true);
 
     if (jobId > 0 && total > 0) {
         const ok = window.confirm('Bude se stahovat ' + total + ' fotografií. Pokračovat?');
@@ -989,7 +1092,9 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    async function refreshPhotoFeed() {
+    async function refreshPhotoFeed(options) {
+        const opts = options || {};
+        const anchor = opts.anchor || getPhotoScrollAnchor(null);
         const url = new URL('/api/photos-feed.php', window.location.origin);
         const current = new URL(window.location.href);
 
@@ -1044,6 +1149,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 return [
                     item.id,
                     item.status,
+                    item.published_count || 0,
                     item.preview_exists ? 1 : 0,
                     item.locked_by_user_id || 0,
                     item.exif_problem ? 1 : 0,
@@ -1063,6 +1169,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 photoGrid.innerHTML = data.items.map(function (item) {
                     return renderPhotoCard(item, currentUserId, canSelect);
                 }).join('');
+                restorePhotoScrollAnchor(anchor);
             }
 
             if (statusBox && !current.searchParams.get('download_job')) {
