@@ -68,29 +68,42 @@ function photos_list(array $filters, ?int $limit = null, int $offset = 0, string
     $sql = "
         SELECT
             p.*,
+            au.user AS author_by_user,
+            au.jmeno AS author_jmeno,
+            au.prijmeni AS author_prijmeni,
             lu.user AS locked_by_user,
             lu.jmeno AS locked_jmeno,
             lu.prijmeni AS locked_prijmeni,
             bu.user AS blocked_by_user,
             bu.jmeno AS blocked_jmeno,
             bu.prijmeni AS blocked_prijmeni,
+            du.user AS downloaded_by_user,
+            du.jmeno AS downloaded_jmeno,
+            du.prijmeni AS downloaded_prijmeni,
             pps.published_count,
             pps.first_published_at,
-            pps.last_published_at
+            pps.last_published_at,
+            pu.user AS published_by_user,
+            pu.jmeno AS published_jmeno,
+            pu.prijmeni AS published_prijmeni
         FROM photos p
+        LEFT JOIN users au ON au.id = p.user_id
         LEFT JOIN users lu ON lu.id = p.locked_by_user_id
         LEFT JOIN users bu ON bu.id = p.blocked_by_user_id
+        LEFT JOIN users du ON du.id = p.downloaded_by_user_id
         LEFT JOIN (
             SELECT
                 source_photo_id,
                 COUNT(*) AS published_count,
                 MIN(published_at) AS first_published_at,
-                MAX(published_at) AS last_published_at
+                MAX(published_at) AS last_published_at,
+                SUBSTRING_INDEX(GROUP_CONCAT(uploaded_by_user_id ORDER BY published_at DESC, id DESC), ',', 1) AS published_by_user_id
             FROM published_photos
             WHERE source_photo_id IS NOT NULL
               AND status = 'ready'
             GROUP BY source_photo_id
         ) pps ON pps.source_photo_id = p.id
+        LEFT JOIN users pu ON pu.id = pps.published_by_user_id
         $where
         $orderBy
         $limitSql
@@ -352,12 +365,20 @@ function photos_display_status(array $photo, ?int $currentUserId = null): array
         return [
             'text' => 'publikováno',
             'class' => 'status-published',
-            'note' => '',
+            'note' => photos_person_label($photo, 'published'),
         ];
     }
 
     $status = (string)($photo['status'] ?? 'ready');
-    if (in_array($status, ['uploaded', 'processing', 'downloaded', 'error', 'deleted'], true)) {
+    if ($status === 'downloaded') {
+        return [
+            'text' => photos_status_label($status),
+            'class' => photos_status_class($status),
+            'note' => photos_person_label($photo, 'downloaded'),
+        ];
+    }
+
+    if (in_array($status, ['uploaded', 'processing', 'error', 'deleted'], true)) {
         return [
             'text' => photos_status_label($status),
             'class' => photos_status_class($status),
@@ -582,29 +603,42 @@ function photos_get_stack_variants(array $photo): array
     $stmt = db()->prepare("
         SELECT
             p.*,
+            au.user AS author_by_user,
+            au.jmeno AS author_jmeno,
+            au.prijmeni AS author_prijmeni,
             lu.user AS locked_by_user,
             lu.jmeno AS locked_jmeno,
             lu.prijmeni AS locked_prijmeni,
             bu.user AS blocked_by_user,
             bu.jmeno AS blocked_jmeno,
             bu.prijmeni AS blocked_prijmeni,
+            du.user AS downloaded_by_user,
+            du.jmeno AS downloaded_jmeno,
+            du.prijmeni AS downloaded_prijmeni,
             pps.published_count,
             pps.first_published_at,
-            pps.last_published_at
+            pps.last_published_at,
+            pu.user AS published_by_user,
+            pu.jmeno AS published_jmeno,
+            pu.prijmeni AS published_prijmeni
         FROM photos p
+        LEFT JOIN users au ON au.id = p.user_id
         LEFT JOIN users lu ON lu.id = p.locked_by_user_id
         LEFT JOIN users bu ON bu.id = p.blocked_by_user_id
+        LEFT JOIN users du ON du.id = p.downloaded_by_user_id
         LEFT JOIN (
             SELECT
                 source_photo_id,
                 COUNT(*) AS published_count,
                 MIN(published_at) AS first_published_at,
-                MAX(published_at) AS last_published_at
+                MAX(published_at) AS last_published_at,
+                SUBSTRING_INDEX(GROUP_CONCAT(uploaded_by_user_id ORDER BY published_at DESC, id DESC), ',', 1) AS published_by_user_id
             FROM published_photos
             WHERE source_photo_id IS NOT NULL
               AND status = 'ready'
             GROUP BY source_photo_id
         ) pps ON pps.source_photo_id = p.id
+        LEFT JOIN users pu ON pu.id = pps.published_by_user_id
         WHERE p.event_id = ?
           AND p.ftp_user = ?
           AND p.status <> 'deleted'

@@ -202,6 +202,11 @@ require_once __DIR__ . '/inc/header.php';
                         if ($isBlocked) {
                             $cardClass .= ' blocked-photo';
                         }
+
+                        $photographerLabel = photos_person_label($p, 'author');
+                        if ($photographerLabel === '') {
+                            $photographerLabel = (string)$p['ftp_user'];
+                        }
                         ?>
 
                         <div class="<?= h($cardClass) ?>" data-photo-id="<?= (int)$p['id'] ?>">
@@ -225,7 +230,7 @@ require_once __DIR__ . '/inc/header.php';
                                     </div>
 
                                     <div class="author">
-                                        <?= h((string)$p['ftp_user']) ?>
+                                        <?= h($photographerLabel) ?>
                                     </div>
 
                                     <div class="status-wrapper">
@@ -458,16 +463,31 @@ function renderPhotoCard(item, currentUserId, canSelect) {
         thumbHtml = '<div class="no-preview">bez náhledu</div>';
     }
 
+    function renderStatusLine(statusClass, text, note) {
+        let ownerHtml = '';
+        const noteText = String(note || '').trim();
+
+        if (noteText !== '') {
+            ownerHtml = '<div class="lock-owner">(' + escapeHtml(noteText) + ')</div>';
+        }
+
+        return '' +
+            '<div class="status-line">' +
+                '<div class="status ' + statusClass + '">' + escapeHtml(text) + '</div>' +
+                ownerHtml +
+            '</div>';
+    }
+
     let statusHtml = '';
 
     if (isBlocked) {
-        statusHtml = '<div class="status status-blocked">zablokováno</div>';
+        statusHtml = renderStatusLine('status-blocked', 'zablokováno', item.blocked_by_label || '');
     } else if (!isEventPhotographerAllowed) {
-        statusHtml = '<div class="status status-unassigned">mimo event</div>';
+        statusHtml = renderStatusLine('status-unassigned', 'mimo event', 'fotograf není přiřazen');
     } else if (Number(item.published_count || 0) > 0) {
-        statusHtml = '<div class="status status-published">publikováno</div>';
+        statusHtml = renderStatusLine('status-published', 'publikováno', item.published_by_label || '');
     } else if (item.status === 'downloaded') {
-        statusHtml = '<div class="status status-downloaded">staženo</div>';
+        statusHtml = renderStatusLine('status-downloaded', 'staženo', item.downloaded_by_label || '');
     } else if (item.status === 'processing') {
         statusHtml = '<div class="status status-processing">zpracování</div>';
     } else if (item.status === 'uploaded') {
@@ -480,19 +500,7 @@ function renderPhotoCard(item, currentUserId, canSelect) {
                 '<a href="/select.php?id=' + item.id + '&action=unlock" class="status status-selected status-clickable" onclick="event.stopPropagation();">ke stažení</a>';
         } else {
             const lockedByName = ((item.locked_jmeno || '') + ' ' + (item.locked_prijmeni || '')).trim();
-            let ownerHtml = '';
-
-            if (lockedByName !== '') {
-                ownerHtml = '<div class="lock-owner">(' + escapeHtml(lockedByName) + ')</div>';
-            } else if (item.locked_by_user) {
-                ownerHtml = '<div class="lock-owner">(' + escapeHtml(item.locked_by_user) + ')</div>';
-            }
-
-            statusHtml =
-                '<div class="status-line">' +
-                    '<div class="status status-locked">zamknuto</div>' +
-                    ownerHtml +
-                '</div>';
+            statusHtml = renderStatusLine('status-locked', 'zamknuto', lockedByName || item.locked_by_user || '');
         }
     } else {
         if (canSelect) {
@@ -549,7 +557,7 @@ function renderPhotoCard(item, currentUserId, canSelect) {
                             ? ' <span class="stack-badge" title="Stack obsahuje ' + Number(item.stack_count || 1) + ' variant">▣ ' + Number(item.stack_count || 1) + '</span>'
                             : '') +
                     '</div>' +
-                    '<div class="author">' + escapeHtml(item.ftp_user) + '</div>' +
+                    '<div class="author">' + escapeHtml(item.photographer_label || item.ftp_user) + '</div>' +
                     '<div class="status-wrapper">' + statusHtml + '</div>' +
                     warningHtml +
                     '<div class="time">' + escapeHtml(item.uploaded_at) + '</div>' +
@@ -1160,8 +1168,11 @@ document.addEventListener('DOMContentLoaded', function () {
                     item.id,
                     item.display_filename || item.filename,
                     item.stack_count || 1,
+                    item.photographer_label || item.ftp_user,
                     item.status,
                     item.published_count || 0,
+                    item.downloaded_by_label || '',
+                    item.published_by_label || '',
                     item.preview_exists ? 1 : 0,
                     item.locked_by_user_id || 0,
                     item.exif_problem ? 1 : 0,

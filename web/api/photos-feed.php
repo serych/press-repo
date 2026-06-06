@@ -190,14 +190,23 @@ echo json_encode([
     'total' => $totalFiltered,
     'total_all' => $totalAll,
     'items' => array_map(static function (array $p): array {
+        $photographerLabel = photos_person_label($p, 'author');
+        if ($photographerLabel === '') {
+            $photographerLabel = (string)$p['ftp_user'];
+        }
+
         return [
             'id' => (int)$p['id'],
             'filename' => (string)$p['filename'],
             'display_filename' => (string)($p['stack_display_filename'] ?? $p['filename']),
             'stack_count' => (int)($p['stack_count'] ?? 1),
             'ftp_user' => (string)$p['ftp_user'],
+            'photographer_label' => $photographerLabel,
             'status' => (string)$p['status'],
             'published_count' => (int)($p['published_count'] ?? 0),
+            'downloaded_by_label' => photos_person_label($p, 'downloaded'),
+            'published_by_label' => photos_person_label($p, 'published'),
+            'blocked_by_label' => photos_person_label($p, 'blocked'),
             'uploaded_at' => (string)$p['uploaded_at'],
             'published_duration_label' => (!empty($p['first_published_at']) && !empty($p['captured_at']))
                 ? photos_format_duration_between((string)$p['captured_at'], (string)$p['first_published_at'])
