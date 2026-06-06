@@ -11,7 +11,10 @@ $galleryAccess = gallery_access_require_login_or_public_access();
 
 $event = $galleryAccess ? events_get((int)$galleryAccess['event_id']) : published_photos_current_event();
 $eventId = !empty($event['id']) ? (int)$event['id'] : 0;
+$eventTimezoneName = events_normalize_timezone((string)($event['timezone'] ?? ''));
+$eventTimezone = new DateTimeZone($eventTimezoneName);
 $photos = $eventId > 0 ? published_photos_list_ready($eventId) : [];
+$timelinePhotos = array_values(array_filter($photos, static fn(array $photo): bool => !empty($photo['captured_at'])));
 $publishedPhotoCount = count($photos);
 $publishedPhotoCountLabel = $publishedPhotoCount === 1
     ? 'fotografie'
@@ -80,13 +83,38 @@ require_once __DIR__ . '/inc/header.php';
             <span class="table-subtext" id="published-download-status"></span>
         </div>
 
-        <div class="published-grid">
+        <div class="published-gallery-shell">
+            <?php if (count($timelinePhotos) >= 2): ?>
+                <div class="published-timeline" id="published-timeline" aria-hidden="true">
+                    <div class="published-timeline-track" id="published-timeline-track">
+                        <div class="published-timeline-ticks" id="published-timeline-ticks"></div>
+                        <button type="button" class="published-timeline-thumb" id="published-timeline-thumb" tabindex="-1"></button>
+                    </div>
+                </div>
+            <?php endif; ?>
+
+        <div class="published-grid" id="published-grid">
             <?php foreach ($photos as $photo): ?>
                 <?php
                 $id = (int)$photo['id'];
                 $downloadedInSession = published_photos_was_downloaded_in_session($id);
+                $capturedTimelineTs = null;
+                if (!empty($photo['captured_at'])) {
+                    $capturedDate = new DateTimeImmutable((string)$photo['captured_at'], $eventTimezone);
+                    $capturedTimelineTs = gmmktime(
+                        (int)$capturedDate->format('H'),
+                        (int)$capturedDate->format('i'),
+                        (int)$capturedDate->format('s'),
+                        (int)$capturedDate->format('m'),
+                        (int)$capturedDate->format('d'),
+                        (int)$capturedDate->format('Y')
+                    );
+                }
                 ?>
-                <article class="published-card<?= $downloadedInSession ? ' is-downloaded-session' : '' ?>">
+                <article
+                    class="published-card<?= $downloadedInSession ? ' is-downloaded-session' : '' ?>"
+                    data-captured-ts="<?= $capturedTimelineTs !== false && $capturedTimelineTs !== null ? (int)$capturedTimelineTs : '' ?>"
+                >
                     <label class="published-select">
                         <input type="checkbox" class="published-checkbox" value="<?= $id ?>">
                     </label>
@@ -113,6 +141,7 @@ require_once __DIR__ . '/inc/header.php';
                 </article>
             <?php endforeach; ?>
         </div>
+        </div>
     <?php endif; ?>
 </section>
 
@@ -122,6 +151,11 @@ document.addEventListener('DOMContentLoaded', function () {
     const selectAll = document.getElementById('published-select-all');
     const selectedButton = document.getElementById('published-download-selected');
     const status = document.getElementById('published-download-status');
+    const grid = document.getElementById('published-grid');
+    const timeline = document.getElementById('published-timeline');
+    const timelineTrack = document.getElementById('published-timeline-track');
+    const timelineTicks = document.getElementById('published-timeline-ticks');
+    const timelineThumb = document.getElementById('published-timeline-thumb');
 
     function selectedIds() {
         return checkboxes
@@ -164,6 +198,140 @@ document.addEventListener('DOMContentLoaded', function () {
             downloadIds(selectedIds());
         });
     }
+
+    function pad2(value) {
+        return String(value).padStart(2, '0');
+    }
+
+    function formatTickLabel(timestamp) {
+        const date = new Date(timestamp * 1000);
+        return pad2(date.getUTCHours()) + ':' + pad2(date.getUTCMinutes());
+    }
+
+    function formatTickHour(timestamp) {
+        const date = new Date(timestamp * 1000);
+        return pad2(date.getUTCHours());
+    }
+
+    function buildTimeline() {
+        if (!grid || !timeline || !timelineTrack || !timelineTicks || !timelineThumb) {
+            return;
+        }
+
+        const timestamps = Array.from(grid.querySelectorAll('[data-captured-ts]'))
+            .map(function (card) { return Number(card.dataset.capturedTs || 0); })
+            .filter(function (value) { return value > 0; });
+
+        if (timestamps.length < 2) {
+            timeline.style.display = 'none';
+            return;
+        }
+
+        const cards = Array.from(grid.querySelectorAll('[data-captured-ts]'))
+            .map(function (card) {
+                return {
+                    element: card,
+                    ts: Number(card.dataset.capturedTs || 0)
+                };
+            })
+            .filter(function (item) { return item.ts > 0; });
+        const minTs = Math.min.apply(null, timestamps);
+        const maxTs = Math.max.apply(null, timestamps);
+        const range = Math.max(1, maxTs - minTs);
+        const quarter = 15 * 60;
+        const firstTick = Math.ceil(minTs / quarter) * quarter;
+        let html = '';
+
+        for (let ts = firstTick; ts <= maxTs; ts += quarter) {
+            const ratio = (maxTs - ts) / range;
+            const top = Math.max(0, Math.min(100, ratio * 100));
+            const date = new Date(ts * 1000);
+            const isHour = date.getUTCMinutes() === 0;
+            html += '<div class="published-timeline-tick ' + (isHour ? 'is-hour' : 'is-quarter') + '" style="top:' + top + '%">';
+            html += '<span></span>';
+            if (isHour) {
+                html += '<strong data-hour="' + formatTickHour(ts) + '">' + formatTickLabel(ts) + '</strong>';
+            }
+            html += '</div>';
+        }
+
+        timelineTicks.innerHTML = html;
+
+        function nearestCardByTime(targetTs) {
+            let best = cards[0];
+            let bestDistance = Math.abs(cards[0].ts - targetTs);
+
+            cards.forEach(function (item) {
+                const distance = Math.abs(item.ts - targetTs);
+                if (distance < bestDistance) {
+                    best = item;
+                    bestDistance = distance;
+                }
+            });
+
+            return best;
+        }
+
+        function updateThumb() {
+            const viewportAnchor = window.scrollY + 140;
+            let current = cards[cards.length - 1];
+
+            for (let i = 0; i < cards.length; i++) {
+                const top = window.scrollY + cards[i].element.getBoundingClientRect().top;
+                if (top >= viewportAnchor) {
+                    current = cards[i];
+                    break;
+                }
+            }
+
+            const ratio = Math.max(0, Math.min(1, (maxTs - current.ts) / range));
+            timelineThumb.style.top = (ratio * 100) + '%';
+        }
+
+        function scrollToTrackPosition(clientY) {
+            const rect = timelineTrack.getBoundingClientRect();
+            const ratio = Math.max(0, Math.min(1, (clientY - rect.top) / Math.max(1, rect.height)));
+            const targetTs = maxTs - ratio * range;
+            const target = nearestCardByTime(targetTs);
+            window.scrollTo({
+                top: Math.max(0, window.scrollY + target.element.getBoundingClientRect().top - 120),
+                behavior: 'auto'
+            });
+        }
+
+        let dragging = false;
+
+        timelineTrack.addEventListener('pointerdown', function (event) {
+            dragging = true;
+            timelineTrack.setPointerCapture(event.pointerId);
+            scrollToTrackPosition(event.clientY);
+        });
+
+        timelineTrack.addEventListener('pointermove', function (event) {
+            if (!dragging) {
+                return;
+            }
+            scrollToTrackPosition(event.clientY);
+        });
+
+        timelineTrack.addEventListener('pointerup', function () {
+            dragging = false;
+        });
+
+        timelineTrack.addEventListener('pointercancel', function () {
+            dragging = false;
+        });
+
+        timelineTrack.addEventListener('click', function (event) {
+            scrollToTrackPosition(event.clientY);
+        });
+
+        window.addEventListener('scroll', updateThumb, { passive: true });
+        window.addEventListener('resize', updateThumb);
+        updateThumb();
+    }
+
+    buildTimeline();
 });
 </script>
 

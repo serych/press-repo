@@ -450,9 +450,9 @@ function published_photos_list_ready(int $eventId): array
           AND pp.status = 'ready'
         ORDER BY
           pp.captured_at IS NULL,
-          pp.captured_at ASC,
-          pp.published_at ASC,
-          pp.id ASC
+          pp.captured_at DESC,
+          pp.published_at DESC,
+          pp.id DESC
     ");
     $stmt->execute([$eventId]);
 
