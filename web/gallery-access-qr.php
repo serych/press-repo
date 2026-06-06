@@ -9,14 +9,16 @@ require_once __DIR__ . '/inc/gallery_access.php';
 
 require_login();
 
-if (!has_permission('users.manage')) {
-    http_response_code(403);
-    exit('Přístup odepřen.');
-}
-
 $eventId = max(0, (int)($_GET['event_id'] ?? 0));
 $event = $eventId > 0 ? events_get($eventId) : null;
 $access = $event ? gallery_access_get($eventId) : null;
+$dashboardEvent = events_get_current_dashboard_event();
+$isCurrentDashboardEvent = $dashboardEvent && (int)$dashboardEvent['id'] === $eventId;
+
+if (!has_permission('users.manage') && !$isCurrentDashboardEvent) {
+    http_response_code(403);
+    exit('Přístup odepřen.');
+}
 
 if (!$event || !$access || empty($access['token'])) {
     http_response_code(404);

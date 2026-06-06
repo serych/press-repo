@@ -5,6 +5,7 @@ require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/inc/auth.php';
 require_once __DIR__ . '/inc/functions.php';
 require_once __DIR__ . '/inc/events.php';
+require_once __DIR__ . '/inc/gallery_access.php';
 require_once __DIR__ . '/inc/users.php';
 
 require_login();
@@ -15,6 +16,8 @@ $summary = null;
 $participantCounts = null;
 $photographers = [];
 $editors = [];
+$galleryAccess = null;
+$galleryAccessUrl = '';
 $serverNow = microtime(true);
 $eventTimezone = events_default_timezone();
 $serverMsToday = 0;
@@ -34,6 +37,8 @@ if ($dashboardEvent) {
     $participantCounts = events_stats_counts_of_participants($eventId);
     $photographers = events_stats_photographers($eventId);
     $editors = events_stats_editors($eventId);
+    $galleryAccess = gallery_access_get($eventId);
+    $galleryAccessUrl = $galleryAccess ? gallery_access_url($galleryAccess) : '';
 }
 
 require_once __DIR__ . '/inc/header.php';
@@ -67,6 +72,31 @@ require_once __DIR__ . '/inc/header.php';
         ?>
 
         <div class="dashboard-grid">
+            <?php if ($galleryAccess && !empty($galleryAccess['token'])): ?>
+                <div class="card dashboard-card dashboard-card-gallery-access">
+                    <div class="dashboard-gallery-access-copy">
+                        <h2>QR galerie</h2>
+                        <div class="dashboard-label">Krátký přístup</div>
+                        <a href="<?= h($galleryAccessUrl) ?>" target="_blank" rel="noopener noreferrer" class="dashboard-gallery-url">
+                            <?= h($galleryAccessUrl) ?>
+                        </a>
+                        <?php if (empty($galleryAccess['is_enabled'])): ?>
+                            <div class="dashboard-gallery-warning">Přístup je vypnutý.</div>
+                        <?php elseif (!empty($galleryAccess['expires_at'])): ?>
+                            <div class="dashboard-gallery-note">Platí do <?= h((string)$galleryAccess['expires_at']) ?></div>
+                        <?php endif; ?>
+                    </div>
+
+                    <a href="<?= h($galleryAccessUrl) ?>" target="_blank" rel="noopener noreferrer" class="dashboard-gallery-qr-link">
+                        <img
+                            src="/gallery-access-qr.php?event_id=<?= (int)$eventId ?>"
+                            alt="QR kód pro krátký přístup do galerie"
+                            class="dashboard-gallery-qr"
+                        >
+                    </a>
+                </div>
+            <?php endif; ?>
+
             <div class="card dashboard-card dashboard-card-main">
                 <div class="dashboard-event-head">
                     <div>
