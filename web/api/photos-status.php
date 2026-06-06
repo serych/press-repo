@@ -228,7 +228,7 @@ $sql .= "
 
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
-$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$rows = photos_stack_rows($stmt->fetchAll(PDO::FETCH_ASSOC));
 
 $sql = "
     SELECT COUNT(*)
@@ -261,6 +261,8 @@ foreach ($rows as $row) {
     $data[] = [
         'id' => (int)$row['id'],
         'filename' => (string)$row['filename'],
+        'display_filename' => (string)($row['stack_display_filename'] ?? $row['filename']),
+        'stack_count' => (int)($row['stack_count'] ?? 1),
         'ftp_user' => (string)$row['ftp_user'],
         'preview_url' => !empty($row['preview_filepath'])
             ? '/preview.php?id=' . (int)$row['id'] . '&size=small'

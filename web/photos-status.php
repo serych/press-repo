@@ -111,7 +111,7 @@ $sql .= "
 
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
-$photos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$photos = photos_stack_rows($stmt->fetchAll(PDO::FETCH_ASSOC));
 
 require_once __DIR__ . '/inc/header.php';
 ?>
@@ -210,7 +210,10 @@ require_once __DIR__ . '/inc/header.php';
 
                     <div class="status-photo-meta">
                         <div class="status-photo-file" data-role="filename">
-                            <?= h((string)$photo['filename']) ?>
+                            <?= h((string)($photo['stack_display_filename'] ?? $photo['filename'])) ?>
+                            <?php if ((int)($photo['stack_count'] ?? 1) > 1): ?>
+                                <span class="stack-badge" title="Stack obsahuje <?= (int)$photo['stack_count'] ?> variant">▣ <?= (int)$photo['stack_count'] ?></span>
+                            <?php endif; ?>
                         </div>
 
                         <?php if ($scope === 'all'): ?>
@@ -333,7 +336,12 @@ document.addEventListener('DOMContentLoaded', function () {
                     previewHtml +
                 '</div>' +
                 '<div class="status-photo-meta">' +
-                    '<div class="status-photo-file" data-role="filename">' + escapeHtml(item.filename) + '</div>' +
+                    '<div class="status-photo-file" data-role="filename">' +
+                        escapeHtml(item.display_filename || item.filename) +
+                        (Number(item.stack_count || 1) > 1
+                            ? ' <span class="stack-badge" title="Stack obsahuje ' + Number(item.stack_count || 1) + ' variant">▣ ' + Number(item.stack_count || 1) + '</span>'
+                            : '') +
+                    '</div>' +
                     authorHtml +
                     '<div class="status-photo-state">' +
                         '<span class="status ' + escapeHtml(item.status_class) + '" data-role="status-badge">' + spinnerHtml + escapeHtml(item.status_text) + '</span>' +
@@ -403,7 +411,10 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         if (file) {
-            file.textContent = item.filename;
+            file.innerHTML = escapeHtml(item.display_filename || item.filename) +
+                (Number(item.stack_count || 1) > 1
+                    ? ' <span class="stack-badge" title="Stack obsahuje ' + Number(item.stack_count || 1) + ' variant">▣ ' + Number(item.stack_count || 1) + '</span>'
+                    : '');
         }
 
         if (ftpUser && scope === 'all') {
@@ -441,10 +452,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
-            data.items.forEach(function (item) {
-                upsertItem(item);
-            });
-
+            if (list) {
+                list.innerHTML = data.items.map(renderPhotoCard).join('');
+            }
             ensureListVisibility(true);
         } catch (e) {
             // ticho, zkusíme příště

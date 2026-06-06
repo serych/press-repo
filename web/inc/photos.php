@@ -178,26 +178,28 @@ function photos_stack_exact_base_match(array $photo): bool
 function photos_stack_representative_score(array $photo): array
 {
     $status = (string)($photo['status'] ?? '');
-    $usable = (
-        $status !== 'error'
-        && $status !== 'deleted'
-        && photos_is_event_photographer_allowed($photo)
-        && !photos_is_blocked($photo)
-    ) ? 1 : 0;
+    $published = (int)($photo['published_count'] ?? 0) > 0;
+    $blocked = photos_is_blocked($photo);
 
-    $statusScore = match ($status) {
-        'downloaded' => 6,
-        'locked' => 5,
-        'ready' => 4,
-        'selected' => 3,
-        'processing' => 2,
-        'uploaded' => 1,
-        default => 0,
-    };
+    if ($published) {
+        $statusScore = 60;
+    } elseif ($status === 'downloaded') {
+        $statusScore = 50;
+    } elseif ($status === 'locked') {
+        $statusScore = 45;
+    } elseif (!$blocked && in_array($status, ['ready', 'selected'], true)) {
+        $statusScore = 40;
+    } elseif (!$blocked && $status === 'processing') {
+        $statusScore = 30;
+    } elseif (!$blocked && $status === 'uploaded') {
+        $statusScore = 20;
+    } elseif ($blocked) {
+        $statusScore = 10;
+    } else {
+        $statusScore = 0;
+    }
 
     return [
-        $usable,
-        (int)($photo['published_count'] ?? 0) > 0 ? 1 : 0,
         $statusScore,
         !empty($photo['preview_filepath']) ? 1 : 0,
         (int)($photo['filesize'] ?? 0),
@@ -244,6 +246,29 @@ function photos_stack_rows(array $rows): array
     }
 
     return $stacked;
+}
+
+function photos_with_stack_counts(array $rows): array
+{
+    $counts = [];
+    foreach ($rows as $row) {
+        $key = photos_stack_key($row);
+        if ($key === '||') {
+            $key = 'photo|' . (string)($row['id'] ?? '');
+        }
+        $counts[$key] = ($counts[$key] ?? 0) + 1;
+    }
+
+    foreach ($rows as &$row) {
+        $key = photos_stack_key($row);
+        if ($key === '||') {
+            $key = 'photo|' . (string)($row['id'] ?? '');
+        }
+        $row['stack_count'] = $counts[$key] ?? 1;
+    }
+    unset($row);
+
+    return $rows;
 }
 
 function photos_count_stacked(array $filters): int
