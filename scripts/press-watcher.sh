@@ -631,12 +631,25 @@ update_photo_ready() {
 
 update_photo_error() {
     local photo_id="$1"
-    mysql -e "
-        UPDATE photos
-        SET status = 'error',
-            processed_at = NOW()
-        WHERE id = ${photo_id};
-    " 2>/dev/null
+    local note="${2:-}"
+
+    if [ -n "$note" ]; then
+        mysql -e "
+            UPDATE photos
+            SET status = 'error',
+                processed_at = NOW(),
+                exif_problem = 1,
+                exif_problem_note = '$(sql_escape "$note")'
+            WHERE id = ${photo_id};
+        " 2>/dev/null
+    else
+        mysql -e "
+            UPDATE photos
+            SET status = 'error',
+                processed_at = NOW()
+            WHERE id = ${photo_id};
+        " 2>/dev/null
+    fi
 }
 
 update_photo_exif_problem() {
@@ -985,6 +998,61 @@ generate_preview_from_raw() {
     return 1
 }
 
+validate_raw_integrity_with_exiftool() {
+    local file="$1"
+    local output
+
+    if ! command -v exiftool >/dev/null 2>&1; then
+        return 0
+    fi
+
+    output="$(exiftool -a -s -validate -warning -error "$file" 2>&1)"
+    if printf '%s\n' "$output" | grep -Eqi 'error|unexpected end|past end of file|bad .*directory|invalid offset|corrupt|truncated'; then
+        printf '%s\n' "$output" >> "$LOG_FILE"
+        return 1
+    fi
+
+    return 0
+}
+
+validate_photo_integrity() {
+    local file="$1"
+    local filetype="$2"
+    local output
+
+    if [ "$filetype" = "jpeg" ]; then
+        if ! get_image_dimensions "$file" >/dev/null; then
+            log "ERROR: JPEG integrity check failed: $file"
+            return 1
+        fi
+
+        return 0
+    fi
+
+    if command -v dcraw >/dev/null 2>&1; then
+        output="$(dcraw -i -v "$file" 2>&1)"
+        if [ $? -eq 0 ]; then
+            return 0
+        fi
+
+        printf '%s\n' "$output" >> "$LOG_FILE"
+
+        if printf '%s\n' "$output" | grep -Eqi 'unexpected end|corrupt|truncated|read error|data error'; then
+            log "ERROR: RAW integrity check failed: $file"
+            return 1
+        fi
+
+        log "WARNING: dcraw neumí ověřit RAW, používám exiftool fallback: $file"
+    fi
+
+    if ! validate_raw_integrity_with_exiftool "$file"; then
+        log "ERROR: RAW integrity check failed via exiftool: $file"
+        return 1
+    fi
+
+    return 0
+}
+
 process_file() {
     local file="$1"
 
@@ -1150,6 +1218,11 @@ process_file() {
 
     update_photo_exif_problem "$photo_id" "$exif_problem" "$exif_problem_note"
     update_photo_processing "$photo_id"
+
+    if ! validate_photo_integrity "$file" "$filetype"; then
+        update_photo_error "$photo_id" "Soubor je pravděpodobně neúplný nebo poškozený. Fotograf musí nahrát originál znovu."
+        return 1
+    fi
 
     # Zápis metadat jen při prvním zpracování nového souboru
     if [ "$is_new_file" -eq 1 ] && [ "$skip_metadata_write" -ne 1 ]; then
