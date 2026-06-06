@@ -168,13 +168,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cleanup_action'])) {
             $result = events_archive($id);
             $flashMessage = 'Event byl archivován. Uložený souhrn: nahráno '
                 . (int)$result['archived_uploaded_total'] . ', staženo '
-                . (int)$result['archived_downloaded_total'] . '. Smazané fotky: '
+                . (int)$result['archived_downloaded_total'] . ', publikováno '
+                . (int)$result['archived_published_total'] . '. Smazané fotky: '
                 . (int)$result['deleted_photos'] . '.';
             $flashType = 'success';
         } elseif ($cleanupAction === 'cleanup_published_gallery') {
             $result = events_cleanup_published_gallery($id);
             $flashMessage = 'Hotová galerie byla smazána. Publikované fotky: '
                 . (int)$result['deleted_published_photos']
+                . ', uložený souhrn: ' . (int)$result['archived_published_total']
                 . ', soubory: ' . (int)$result['deleted_files']
                 . ', náhledy: ' . (int)$result['deleted_previews'] . '.';
             $flashType = 'success';

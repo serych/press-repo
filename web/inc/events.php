@@ -751,6 +751,10 @@ function events_stats_summary(int $eventId): array
     $publishedStmt->execute([$eventId]);
     $publishedRow = $publishedStmt->fetch(PDO::FETCH_ASSOC) ?: [];
     $publishedTotal = (int)($publishedRow['published_total'] ?? 0);
+    $archivedPublishedTotal = (int)($event['archived_published_total'] ?? 0);
+    if ($archivedPublishedTotal > $publishedTotal) {
+        $publishedTotal = $archivedPublishedTotal;
+    }
 
     $workflowStmt = db()->prepare("
         SELECT TIMESTAMPDIFF(SECOND, captured_at, published_at) AS workflow_seconds
@@ -1397,6 +1401,7 @@ function events_cleanup_photos_of_event(int $eventId): array
 function events_cleanup_published_gallery(int $eventId): array
 {
     $pdo = db();
+    $summary = events_stats_summary($eventId);
     $files = events_get_cleanup_published_files($eventId);
 
     $deletedPublishedPhotos = count($files);
@@ -1438,6 +1443,17 @@ function events_cleanup_published_gallery(int $eventId): array
     $pdo->beginTransaction();
 
     try {
+        $archivePublishedTotal = $pdo->prepare("
+            UPDATE events
+            SET archived_published_total = GREATEST(archived_published_total, :published_total)
+            WHERE id = :event_id
+            LIMIT 1
+        ");
+        $archivePublishedTotal->execute([
+            ':published_total' => (int)$summary['published_total'],
+            ':event_id' => $eventId,
+        ]);
+
         $deletePublishedLogs = $pdo->prepare("
             DELETE ppl
             FROM published_photo_log ppl
@@ -1464,6 +1480,7 @@ function events_cleanup_published_gallery(int $eventId): array
         'deleted_published_photos' => $deletedPublishedPhotos,
         'deleted_files'            => $deletedFiles,
         'deleted_previews'         => $deletedPreviews,
+        'archived_published_total' => (int)$summary['published_total'],
     ];
 }
 
@@ -1492,6 +1509,7 @@ function events_archive(int $eventId): array
         SET
             archived_uploaded_total = :uploaded,
             archived_downloaded_total = :downloaded,
+            archived_published_total = GREATEST(archived_published_total, :published),
             archived_at = NOW(),
             status = 'finished'
         WHERE id = :id
@@ -1501,12 +1519,14 @@ function events_archive(int $eventId): array
     $stmt->execute([
         ':uploaded'   => (int)$summary['uploaded_total'],
         ':downloaded' => (int)$summary['downloaded_total'],
+        ':published'  => (int)$summary['published_total'],
         ':id'         => $eventId,
     ]);
 
     return [
         'archived_uploaded_total'   => (int)$summary['uploaded_total'],
         'archived_downloaded_total' => (int)$summary['downloaded_total'],
+        'archived_published_total'  => (int)$summary['published_total'],
         'deleted_photos'            => (int)$cleanup['deleted_photos'],
         'deleted_files'             => (int)$cleanup['deleted_files'],
         'deleted_previews'          => (int)$cleanup['deleted_previews'],
