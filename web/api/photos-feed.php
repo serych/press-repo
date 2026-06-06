@@ -140,8 +140,8 @@ $filters = [
     'status'   => $status,
 ];
 
-$totalFiltered = photos_count($filters);
-$totalAll = photos_count(['event_id' => $currentEventId]);
+$totalFiltered = photos_count_stacked($filters);
+$totalAll = photos_count_stacked(['event_id' => $currentEventId]);
 $photos = photos_feed($filters, null, 0, $sort, $reverseSort);
 
 $currentUser = current_user();
@@ -193,6 +193,8 @@ echo json_encode([
         return [
             'id' => (int)$p['id'],
             'filename' => (string)$p['filename'],
+            'display_filename' => (string)($p['stack_display_filename'] ?? $p['filename']),
+            'stack_count' => (int)($p['stack_count'] ?? 1),
             'ftp_user' => (string)$p['ftp_user'],
             'status' => (string)$p['status'],
             'published_count' => (int)($p['published_count'] ?? 0),

@@ -117,7 +117,138 @@ function photos_list(array $filters, ?int $limit = null, int $offset = 0, string
 
 function photos_feed(array $filters, ?int $limit = null, int $offset = 0, string $sort = 'uploaded', bool $reverse = false): array
 {
-    return photos_list($filters, $limit, $offset, $sort, $reverse);
+    return photos_stack_rows(photos_list($filters, $limit, $offset, $sort, $reverse));
+}
+
+function photos_stack_base(string $filename): string
+{
+    $base = pathinfo($filename, PATHINFO_FILENAME);
+    if (function_exists('mb_strtolower')) {
+        $base = mb_strtolower($base, 'UTF-8');
+    } else {
+        $base = strtolower($base);
+    }
+
+    $base = preg_replace('~\s+\(\d+\)$~u', '', $base) ?? $base;
+    if (preg_match('~^(.+)[-_]\d+$~u', $base, $matches) && preg_match('~\d{3,}$~', $matches[1])) {
+        $base = $matches[1];
+    }
+
+    return trim($base);
+}
+
+function photos_stack_display_filename(array $photo): string
+{
+    $filename = (string)($photo['filename'] ?? '');
+    $base = pathinfo($filename, PATHINFO_FILENAME);
+    $base = preg_replace('~\s+\(\d+\)$~u', '', $base) ?? $base;
+    if (preg_match('~^(.+)[-_]\d+$~u', $base, $matches) && preg_match('~\d{3,}$~', $matches[1])) {
+        $base = $matches[1];
+    }
+    $ext = pathinfo($filename, PATHINFO_EXTENSION);
+
+    if ($base === '') {
+        return $filename;
+    }
+
+    return $ext !== '' ? $base . '.' . $ext : $base;
+}
+
+function photos_stack_key(array $photo): string
+{
+    return implode('|', [
+        (string)($photo['event_id'] ?? ''),
+        (string)($photo['ftp_user'] ?? ''),
+        photos_stack_base((string)($photo['filename'] ?? '')),
+    ]);
+}
+
+function photos_stack_exact_base_match(array $photo): bool
+{
+    $filenameBase = pathinfo((string)($photo['filename'] ?? ''), PATHINFO_FILENAME);
+    if (function_exists('mb_strtolower')) {
+        $filenameBase = mb_strtolower($filenameBase, 'UTF-8');
+    } else {
+        $filenameBase = strtolower($filenameBase);
+    }
+
+    return $filenameBase === photos_stack_base((string)($photo['filename'] ?? ''));
+}
+
+function photos_stack_representative_score(array $photo): array
+{
+    $status = (string)($photo['status'] ?? '');
+    $usable = (
+        $status !== 'error'
+        && $status !== 'deleted'
+        && photos_is_event_photographer_allowed($photo)
+        && !photos_is_blocked($photo)
+    ) ? 1 : 0;
+
+    $statusScore = match ($status) {
+        'downloaded' => 6,
+        'locked' => 5,
+        'ready' => 4,
+        'selected' => 3,
+        'processing' => 2,
+        'uploaded' => 1,
+        default => 0,
+    };
+
+    return [
+        $usable,
+        (int)($photo['published_count'] ?? 0) > 0 ? 1 : 0,
+        $statusScore,
+        !empty($photo['preview_filepath']) ? 1 : 0,
+        (int)($photo['filesize'] ?? 0),
+        photos_stack_exact_base_match($photo) ? 1 : 0,
+        strtotime((string)($photo['uploaded_at'] ?? '')) ?: 0,
+        (int)($photo['id'] ?? 0),
+    ];
+}
+
+function photos_stack_best_row(array $rows): array
+{
+    usort($rows, static function (array $a, array $b): int {
+        return photos_stack_representative_score($b) <=> photos_stack_representative_score($a);
+    });
+
+    $best = $rows[0];
+    $best['stack_count'] = count($rows);
+    $best['stack_key'] = photos_stack_key($best);
+    $best['stack_display_filename'] = photos_stack_display_filename($best);
+
+    return $best;
+}
+
+function photos_stack_rows(array $rows): array
+{
+    $groups = [];
+    $order = [];
+
+    foreach ($rows as $row) {
+        $key = photos_stack_key($row);
+        if ($key === '||') {
+            $key = 'photo|' . (string)($row['id'] ?? '');
+        }
+        if (!array_key_exists($key, $groups)) {
+            $groups[$key] = [];
+            $order[] = $key;
+        }
+        $groups[$key][] = $row;
+    }
+
+    $stacked = [];
+    foreach ($order as $key) {
+        $stacked[] = photos_stack_best_row($groups[$key]);
+    }
+
+    return $stacked;
+}
+
+function photos_count_stacked(array $filters): int
+{
+    return count(photos_feed($filters));
 }
 
 function photos_order_by(string $sort, bool $reverse = false): string
@@ -411,6 +542,59 @@ function photos_get_published_for_source(int $sourcePhotoId): array
     $stmt->execute([$sourcePhotoId]);
 
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+function photos_get_stack_variants(array $photo): array
+{
+    $eventId = (int)($photo['event_id'] ?? 0);
+    $ftpUser = (string)($photo['ftp_user'] ?? '');
+    $base = photos_stack_base((string)($photo['filename'] ?? ''));
+
+    if ($eventId <= 0 || $ftpUser === '' || $base === '') {
+        return [$photo];
+    }
+
+    $stmt = db()->prepare("
+        SELECT
+            p.*,
+            lu.user AS locked_by_user,
+            lu.jmeno AS locked_jmeno,
+            lu.prijmeni AS locked_prijmeni,
+            bu.user AS blocked_by_user,
+            bu.jmeno AS blocked_jmeno,
+            bu.prijmeni AS blocked_prijmeni,
+            pps.published_count,
+            pps.first_published_at,
+            pps.last_published_at
+        FROM photos p
+        LEFT JOIN users lu ON lu.id = p.locked_by_user_id
+        LEFT JOIN users bu ON bu.id = p.blocked_by_user_id
+        LEFT JOIN (
+            SELECT
+                source_photo_id,
+                COUNT(*) AS published_count,
+                MIN(published_at) AS first_published_at,
+                MAX(published_at) AS last_published_at
+            FROM published_photos
+            WHERE source_photo_id IS NOT NULL
+              AND status = 'ready'
+            GROUP BY source_photo_id
+        ) pps ON pps.source_photo_id = p.id
+        WHERE p.event_id = ?
+          AND p.ftp_user = ?
+          AND p.status <> 'deleted'
+        ORDER BY p.uploaded_at ASC, p.id ASC
+    ");
+    $stmt->execute([$eventId, $ftpUser]);
+
+    $variants = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        if (photos_stack_base((string)$row['filename']) === $base) {
+            $variants[] = $row;
+        }
+    }
+
+    return $variants ?: [$photo];
 }
 
 function photos_datetime_seconds(?string $value): ?int

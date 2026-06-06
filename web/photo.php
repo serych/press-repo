@@ -42,6 +42,7 @@ $publishedPhotos = photos_get_published_for_source((int)$photo['id']);
 $firstPublishedPhoto = $publishedPhotos[0] ?? null;
 $photo['published_count'] = count($publishedPhotos);
 $statusInfo = photos_display_status($photo, $currentUserId);
+$stackVariants = photos_get_stack_variants($photo);
 $currentEvent = photos_get_current_event();
 $currentEventId = !empty($currentEvent['id']) ? (int)$currentEvent['id'] : (int)($photo['event_id'] ?? 0);
 
@@ -50,12 +51,13 @@ $contextFilters = [
     'ftp_user' => $ftpUser,
     'status' => $status,
 ];
-$contextPhotos = photos_list($contextFilters, null, 0, $sort, $reverseSort);
+$contextPhotos = photos_feed($contextFilters, null, 0, $sort, $reverseSort);
 $prevPhotoId = null;
 $nextPhotoId = null;
+$currentStackKey = photos_stack_key($photo);
 
 foreach ($contextPhotos as $index => $contextPhoto) {
-    if ((int)$contextPhoto['id'] !== (int)$photo['id']) {
+    if ((int)$contextPhoto['id'] !== (int)$photo['id'] && photos_stack_key($contextPhoto) !== $currentStackKey) {
         continue;
     }
 
@@ -153,7 +155,12 @@ require_once __DIR__ . '/inc/header.php';
 
 <tr>
 <th>Soubor</th>
-<td><?= h((string)$photo['filename']) ?></td>
+<td>
+    <?= h((string)$photo['filename']) ?>
+    <?php if (count($stackVariants) > 1): ?>
+        <span class="stack-badge" title="Stack obsahuje <?= count($stackVariants) ?> variant">▣ <?= count($stackVariants) ?></span>
+    <?php endif; ?>
+</td>
 </tr>
 
 <tr>
@@ -202,7 +209,7 @@ require_once __DIR__ . '/inc/header.php';
 
 <tr>
 <th>Velikost</th>
-<td><?= number_format((int)$photo['filesize'], 0, ' ', ' ') ?> B</td>
+<td><?= h(format_bytes_human(isset($photo['filesize']) ? (int)$photo['filesize'] : null)) ?></td>
 </tr>
 
 <tr>
@@ -234,6 +241,36 @@ require_once __DIR__ . '/inc/header.php';
 </tr>
 
 </table>
+
+<?php if (count($stackVariants) > 1): ?>
+<h2>Varianty ve stacku</h2>
+
+<table class="detail-table stack-variants-table">
+<?php foreach ($stackVariants as $variant): ?>
+<?php
+$variantStatus = photos_display_status($variant, $currentUserId);
+$isCurrentVariant = (int)$variant['id'] === (int)$photo['id'];
+?>
+<tr class="<?= $isCurrentVariant ? 'is-current-stack-variant' : '' ?>">
+<th>
+    <?php if ($isCurrentVariant): ?>
+        <?= h((string)$variant['filename']) ?>
+    <?php else: ?>
+        <a href="<?= h($photoDetailUrl((int)$variant['id'])) ?>"><?= h((string)$variant['filename']) ?></a>
+    <?php endif; ?>
+</th>
+<td>
+    <span class="status <?= h($variantStatus['class']) ?>"><?= h($variantStatus['text']) ?></span>
+    <span class="detail-muted"><?= h(format_bytes_human(isset($variant['filesize']) ? (int)$variant['filesize'] : null)) ?></span>
+    <span class="detail-muted"><?= h((string)$variant['uploaded_at']) ?></span>
+    <?php if (!empty($variant['exif_problem_note'])): ?>
+        <div class="photo-warning"><?= h((string)$variant['exif_problem_note']) ?></div>
+    <?php endif; ?>
+</td>
+</tr>
+<?php endforeach; ?>
+</table>
+<?php endif; ?>
 
 <h2>Časy workflow</h2>
 

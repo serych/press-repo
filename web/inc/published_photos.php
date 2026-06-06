@@ -207,38 +207,92 @@ function published_photos_lower(string $value): string
     return strtolower($value);
 }
 
+function published_photos_pairing_base(string $filename): string
+{
+    $base = published_photos_lower(pathinfo($filename, PATHINFO_FILENAME));
+    $base = preg_replace('~\s+\(\d+\)$~u', '', $base) ?? $base;
+    if (preg_match('~^(.+)[-_]\d+$~u', $base, $matches) && preg_match('~\d{3,}$~', $matches[1])) {
+        $base = $matches[1];
+    }
+
+    return $base;
+}
+
+function published_photos_source_match_score(array $photo): array
+{
+    $status = (string)($photo['status'] ?? '');
+    $statusScore = match ($status) {
+        'downloaded' => 5,
+        'locked' => 4,
+        'ready' => 3,
+        'selected' => 2,
+        'uploaded', 'processing' => 1,
+        default => 0,
+    };
+
+    return [
+        $statusScore,
+        (int)($photo['filesize'] ?? 0),
+        strtotime((string)($photo['downloaded_at'] ?? '')) ?: 0,
+        strtotime((string)($photo['uploaded_at'] ?? '')) ?: 0,
+        (int)($photo['id'] ?? 0),
+    ];
+}
+
+function published_photos_best_source_match(array $matches): ?array
+{
+    if (!$matches) {
+        return null;
+    }
+
+    usort($matches, static function (array $a, array $b): int {
+        return published_photos_source_match_score($b) <=> published_photos_source_match_score($a);
+    });
+
+    return $matches[0];
+}
+
 function published_photos_find_source_photo(int $eventId, string $publishedFilename): ?array
 {
-    $publishedBase = published_photos_lower(pathinfo($publishedFilename, PATHINFO_FILENAME));
+    $publishedBase = published_photos_pairing_base($publishedFilename);
 
     $stmt = db()->prepare("
         SELECT
             id,
             filename,
+            status,
+            filesize,
             uploaded_at,
             downloaded_at,
             captured_at
         FROM photos
         WHERE event_id = ?
           AND event_photographer_allowed = 1
-          AND status <> 'deleted'
+          AND status NOT IN ('deleted', 'error')
         ORDER BY LENGTH(filename) DESC, id DESC
     ");
     $stmt->execute([$eventId]);
 
-    $matches = [];
+    $matchesByBase = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $photo) {
-        $sourceBase = published_photos_lower(pathinfo((string)$photo['filename'], PATHINFO_FILENAME));
+        $sourceBase = published_photos_pairing_base((string)$photo['filename']);
         if ($sourceBase !== '' && str_contains($publishedBase, $sourceBase)) {
-            $matches[] = $photo;
+            $matchesByBase[$sourceBase][] = $photo;
         }
     }
 
-    if (count($matches) !== 1) {
+    if (!$matchesByBase) {
         return null;
     }
 
-    return $matches[0];
+    uksort($matchesByBase, static fn(string $a, string $b): int => strlen($b) <=> strlen($a));
+
+    $bestBase = array_key_first($matchesByBase);
+    if ($bestBase === null) {
+        return null;
+    }
+
+    return published_photos_best_source_match($matchesByBase[$bestBase]);
 }
 
 function published_photos_store_upload(array $event, array $user, array $file): array

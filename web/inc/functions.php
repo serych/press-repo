@@ -6,6 +6,32 @@ function h(?string $value): string
     return htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
+function format_bytes_human(?int $bytes): string
+{
+    if ($bytes === null || $bytes < 0) {
+        return '—';
+    }
+
+    $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    $value = (float)$bytes;
+    $unitIndex = 0;
+
+    while ($value >= 1024 && $unitIndex < count($units) - 1) {
+        $value /= 1024;
+        $unitIndex++;
+    }
+
+    if ($unitIndex === 0) {
+        return (string)$bytes . ' B';
+    }
+
+    $decimals = $value >= 10 ? 1 : 2;
+    $formatted = number_format($value, $decimals, ',', ' ');
+    $formatted = rtrim(rtrim($formatted, '0'), ',');
+
+    return $formatted . ' ' . $units[$unitIndex];
+}
+
 function redirect(string $url): never
 {
     header("Location: {$url}");

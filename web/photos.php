@@ -55,9 +55,9 @@ $filters = [
     'status'   => $status,
 ];
 
-$totalFiltered = photos_count($filters);
-$totalAll = photos_count(['event_id' => $currentEventId]);
-$photos = photos_list($filters, null, 0, $sort, $reverseSort);
+$totalFiltered = photos_count_stacked($filters);
+$totalAll = photos_count_stacked(['event_id' => $currentEventId]);
+$photos = photos_feed($filters, null, 0, $sort, $reverseSort);
 $photographers = photos_get_photographers(['event_id' => $currentEventId]);
 $photoContextQuery = array_filter([
     'ftp_user' => $ftpUser,
@@ -216,7 +216,12 @@ require_once __DIR__ . '/inc/header.php';
 
                                 <div class="meta">
                                     <div class="file">
-                                        <?= h((string)$p['filename']) ?>
+                                        <?= h((string)($p['stack_display_filename'] ?? $p['filename'])) ?>
+                                        <?php if ((int)($p['stack_count'] ?? 1) > 1): ?>
+                                            <span class="stack-badge" title="Stack obsahuje <?= (int)$p['stack_count'] ?> variant">
+                                                ▣ <?= (int)$p['stack_count'] ?>
+                                            </span>
+                                        <?php endif; ?>
                                     </div>
 
                                     <div class="author">
@@ -538,7 +543,12 @@ function renderPhotoCard(item, currentUserId, canSelect) {
                     thumbHtml +
                 '</div>' +
                 '<div class="meta">' +
-                    '<div class="file">' + escapeHtml(item.filename) + '</div>' +
+                    '<div class="file">' +
+                        escapeHtml(item.display_filename || item.filename) +
+                        (Number(item.stack_count || 1) > 1
+                            ? ' <span class="stack-badge" title="Stack obsahuje ' + Number(item.stack_count || 1) + ' variant">▣ ' + Number(item.stack_count || 1) + '</span>'
+                            : '') +
+                    '</div>' +
                     '<div class="author">' + escapeHtml(item.ftp_user) + '</div>' +
                     '<div class="status-wrapper">' + statusHtml + '</div>' +
                     warningHtml +
@@ -1148,6 +1158,8 @@ document.addEventListener('DOMContentLoaded', function () {
             const signature = JSON.stringify(data.items.map(function (item) {
                 return [
                     item.id,
+                    item.display_filename || item.filename,
+                    item.stack_count || 1,
                     item.status,
                     item.published_count || 0,
                     item.preview_exists ? 1 : 0,
