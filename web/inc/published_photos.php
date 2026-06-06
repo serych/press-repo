@@ -254,6 +254,7 @@ function published_photos_best_source_match(array $matches): ?array
 
 function published_photos_find_source_photo(int $eventId, string $publishedFilename): ?array
 {
+    $publishedRawBase = published_photos_lower(pathinfo($publishedFilename, PATHINFO_FILENAME));
     $publishedBase = published_photos_pairing_base($publishedFilename);
 
     $stmt = db()->prepare("
@@ -273,11 +274,27 @@ function published_photos_find_source_photo(int $eventId, string $publishedFilen
     ");
     $stmt->execute([$eventId]);
 
+    $exactMatchesByBase = [];
     $matchesByBase = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $photo) {
+        $sourceRawBase = published_photos_lower(pathinfo((string)$photo['filename'], PATHINFO_FILENAME));
+        if ($sourceRawBase !== '' && str_contains($publishedRawBase, $sourceRawBase)) {
+            $exactMatchesByBase[$sourceRawBase][] = $photo;
+            continue;
+        }
+
         $sourceBase = published_photos_pairing_base((string)$photo['filename']);
         if ($sourceBase !== '' && str_contains($publishedBase, $sourceBase)) {
             $matchesByBase[$sourceBase][] = $photo;
+        }
+    }
+
+    if ($exactMatchesByBase) {
+        uksort($exactMatchesByBase, static fn(string $a, string $b): int => strlen($b) <=> strlen($a));
+
+        $bestExactBase = array_key_first($exactMatchesByBase);
+        if ($bestExactBase !== null) {
+            return published_photos_best_source_match($exactMatchesByBase[$bestExactBase]);
         }
     }
 
