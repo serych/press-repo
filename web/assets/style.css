@@ -273,11 +273,44 @@ h1 {
 .meta {
     padding: 12px;
     font-size: 13px;
+    position: relative;
 }
 
 .file {
     font-weight: bold;
     margin-bottom: 4px;
+    padding-right: 26px;
+}
+
+.photo-block-toggle {
+    position: absolute;
+    top: 9px;
+    right: 9px;
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    background: rgba(15, 23, 42, 0.66);
+    color: rgba(203, 213, 225, 0.72);
+    font-size: 14px;
+    line-height: 1;
+    text-decoration: none;
+    opacity: 0.58;
+    transition: 0.15s ease;
+    z-index: 2;
+}
+
+.photo-block-toggle:hover,
+.photo-block-toggle:focus-visible {
+    border-color: rgba(244, 63, 94, 0.75);
+    background: rgba(127, 29, 29, 0.9);
+    color: #fecdd3;
+    opacity: 1;
+    transform: translateY(-1px);
+    text-decoration: none;
 }
 
 .stack-badge {

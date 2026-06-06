@@ -207,6 +207,7 @@ require_once __DIR__ . '/inc/header.php';
                         if ($photographerLabel === '') {
                             $photographerLabel = (string)$p['ftp_user'];
                         }
+                        $canToggleBlock = has_permission('photos.select') && $isEventPhotographerAllowed;
                         ?>
 
                         <div class="<?= h($cardClass) ?>" data-photo-id="<?= (int)$p['id'] ?>">
@@ -220,6 +221,16 @@ require_once __DIR__ . '/inc/header.php';
                                 </div>
 
                                 <div class="meta">
+                                    <?php if ($canToggleBlock && !$isBlocked): ?>
+                                        <a href="/select.php?id=<?= (int)$p['id'] ?>&action=block"
+                                           class="photo-block-toggle"
+                                           title="Zablokovat fotografii"
+                                           aria-label="Zablokovat fotografii"
+                                           onclick="event.stopPropagation();">
+                                            ⊘
+                                        </a>
+                                    <?php endif; ?>
+
                                     <div class="file">
                                         <?= h((string)($p['stack_display_filename'] ?? $p['filename'])) ?>
                                         <?php if ((int)($p['stack_count'] ?? 1) > 1): ?>
@@ -243,6 +254,23 @@ require_once __DIR__ . '/inc/header.php';
                                                    onclick="event.stopPropagation();">
                                                     <?= h($statusInfo['text']) ?>
                                                 </a>
+                                        <?php elseif (
+                                            $canToggleBlock
+                                            && $statusInfo['class'] === 'status-blocked'
+                                        ): ?>
+                                            <div class="status-line">
+                                                <a href="/select.php?id=<?= (int)$p['id'] ?>&action=unblock"
+                                                   class="status <?= h($statusInfo['class']) ?> status-clickable"
+                                                   title="Odblokovat fotografii"
+                                                   onclick="event.stopPropagation();">
+                                                    <?= h($statusInfo['text']) ?>
+                                                </a>
+                                                <?php if ($statusInfo['note'] !== ''): ?>
+                                                    <div class="lock-owner">
+                                                        (<?= h($statusInfo['note']) ?>)
+                                                    </div>
+                                                <?php endif; ?>
+                                            </div>
                                         <?php elseif (
                                             $statusInfo['class'] === 'status-ready'
                                             && has_permission('photos.select')
@@ -322,7 +350,6 @@ require_once __DIR__ . '/inc/header.php';
                     <form class="mini-publish" id="mini-publish-form" enctype="multipart/form-data">
                         <div class="mini-publish-head">
                             <strong>Publikace fotek</strong>
-                            <a href="/published-upload.php">plná stránka</a>
                         </div>
 
                         <label class="mini-publish-dropzone" id="mini-publish-dropzone" for="mini-publish-files">
@@ -463,6 +490,14 @@ function renderPhotoCard(item, currentUserId, canSelect) {
         thumbHtml = '<div class="no-preview">bez náhledu</div>';
     }
 
+    let blockToggleHtml = '';
+    if (canSelect && isEventPhotographerAllowed && !isBlocked) {
+        blockToggleHtml =
+            '<a href="/select.php?id=' + item.id + '&action=block" ' +
+            'class="photo-block-toggle" title="Zablokovat fotografii" aria-label="Zablokovat fotografii" ' +
+            'onclick="event.stopPropagation();">⊘</a>';
+    }
+
     function renderStatusLine(statusClass, text, note) {
         let ownerHtml = '';
         const noteText = String(note || '').trim();
@@ -481,7 +516,16 @@ function renderPhotoCard(item, currentUserId, canSelect) {
     let statusHtml = '';
 
     if (isBlocked) {
-        statusHtml = renderStatusLine('status-blocked', 'zablokováno', item.blocked_by_label || '');
+        if (canSelect && isEventPhotographerAllowed) {
+            const noteText = String(item.blocked_by_label || '').trim();
+            statusHtml =
+                '<div class="status-line">' +
+                    '<a href="/select.php?id=' + item.id + '&action=unblock" class="status status-blocked status-clickable" title="Odblokovat fotografii" onclick="event.stopPropagation();">zablokováno</a>' +
+                    (noteText !== '' ? '<div class="lock-owner">(' + escapeHtml(noteText) + ')</div>' : '') +
+                '</div>';
+        } else {
+            statusHtml = renderStatusLine('status-blocked', 'zablokováno', item.blocked_by_label || '');
+        }
     } else if (!isEventPhotographerAllowed) {
         statusHtml = renderStatusLine('status-unassigned', 'mimo event', 'fotograf není přiřazen');
     } else if (Number(item.published_count || 0) > 0) {
@@ -551,6 +595,7 @@ function renderPhotoCard(item, currentUserId, canSelect) {
                     thumbHtml +
                 '</div>' +
                 '<div class="meta">' +
+                    blockToggleHtml +
                     '<div class="file">' +
                         escapeHtml(item.display_filename || item.filename) +
                         (Number(item.stack_count || 1) > 1
@@ -1007,7 +1052,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
             });
 
-            xhr.open('POST', '/published-upload.php');
+            xhr.open('POST', '/api/published-upload.php');
             xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
             xhr.send(formData);
         });
