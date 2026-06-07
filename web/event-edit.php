@@ -150,9 +150,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cleanup_action'])) {
             $result = events_cleanup_test_data($id);
             $restoreResult = event_restore_ftp_homedirs($ftpHomedirs);
 
-            $flashMessage = 'Testovací data byla smazána. Fotky: ' . (int)$result['deleted_photos']
-                . ', soubory: ' . (int)$result['deleted_files']
-                . ', náhledy: ' . (int)$result['deleted_previews'] . '.';
+            $flashMessage = 'Testovací data byla smazána. RAW fotky: ' . (int)$result['deleted_photos']
+                . ', RAW soubory: ' . (int)$result['deleted_files']
+                . ', RAW náhledy: ' . (int)$result['deleted_previews']
+                . ', publikované fotky: ' . (int)$result['deleted_published_photos']
+                . ', publikované soubory: ' . (int)$result['deleted_published_files']
+                . ', publikované náhledy: ' . (int)$result['deleted_published_previews']
+                . ', chat zprávy: ' . (int)$result['deleted_chat_messages']
+                . '. Statistiky eventu byly vynulovány.';
 
             if (!empty($restoreResult['restored'])) {
                 $flashMessage .= ' FTP adresáře obnoveny: ' . count($restoreResult['restored']) . '.';
@@ -409,7 +414,7 @@ require_once __DIR__ . '/inc/header.php';
         <div class="form-actions">
             <form method="post" class="js-confirm-form"
                   data-confirm-title="Vyčistit testovací data?"
-                  data-confirm-message="Budou odstraněny všechny nahrané testovací fotky, náhledy i databázové záznamy, které k nim patří."
+                  data-confirm-message="Budou odstraněny všechny RAW fotky, náhledy, hotová galerie včetně náhledů, chat eventu i databázové záznamy. Statistiky eventu budou vynulovány."
                   data-confirm-submit="Ano, smazat testovací data">
                 <input type="hidden" name="id" value="<?= (int)$id ?>">
                 <input type="hidden" name="cleanup_action" value="cleanup_test_data">

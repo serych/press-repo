@@ -1398,10 +1398,12 @@ function events_cleanup_photos_of_event(int $eventId): array
     ];
 }
 
-function events_cleanup_published_gallery(int $eventId): array
+function events_cleanup_published_gallery(int $eventId, bool $preserveStats = true): array
 {
     $pdo = db();
-    $summary = events_stats_summary($eventId);
+    $summary = $preserveStats
+        ? events_stats_summary($eventId)
+        : ['published_total' => 0];
     $files = events_get_cleanup_published_files($eventId);
 
     $deletedPublishedPhotos = count($files);
@@ -1443,16 +1445,18 @@ function events_cleanup_published_gallery(int $eventId): array
     $pdo->beginTransaction();
 
     try {
-        $archivePublishedTotal = $pdo->prepare("
-            UPDATE events
-            SET archived_published_total = GREATEST(archived_published_total, :published_total)
-            WHERE id = :event_id
-            LIMIT 1
-        ");
-        $archivePublishedTotal->execute([
-            ':published_total' => (int)$summary['published_total'],
-            ':event_id' => $eventId,
-        ]);
+        if ($preserveStats) {
+            $archivePublishedTotal = $pdo->prepare("
+                UPDATE events
+                SET archived_published_total = GREATEST(archived_published_total, :published_total)
+                WHERE id = :event_id
+                LIMIT 1
+            ");
+            $archivePublishedTotal->execute([
+                ':published_total' => (int)$summary['published_total'],
+                ':event_id' => $eventId,
+            ]);
+        }
 
         $deletePublishedLogs = $pdo->prepare("
             DELETE ppl
@@ -1484,6 +1488,47 @@ function events_cleanup_published_gallery(int $eventId): array
     ];
 }
 
+function events_cleanup_chat_of_event(int $eventId): array
+{
+    $pdo = db();
+    $deletedReads = 0;
+    $deletedMessages = 0;
+
+    $stmt = $pdo->prepare("
+        DELETE FROM event_chat_reads
+        WHERE event_id = ?
+    ");
+    $stmt->execute([$eventId]);
+    $deletedReads = $stmt->rowCount();
+
+    $stmt = $pdo->prepare("
+        DELETE FROM event_chat_messages
+        WHERE event_id = ?
+    ");
+    $stmt->execute([$eventId]);
+    $deletedMessages = $stmt->rowCount();
+
+    return [
+        'deleted_chat_reads' => $deletedReads,
+        'deleted_chat_messages' => $deletedMessages,
+    ];
+}
+
+function events_reset_archived_stats(int $eventId): void
+{
+    $stmt = db()->prepare("
+        UPDATE events
+        SET
+            archived_uploaded_total = 0,
+            archived_downloaded_total = 0,
+            archived_published_total = 0,
+            archived_at = NULL
+        WHERE id = ?
+        LIMIT 1
+    ");
+    $stmt->execute([$eventId]);
+}
+
 function events_cleanup_test_data(int $eventId): array
 {
     $event = events_get($eventId);
@@ -1491,7 +1536,22 @@ function events_cleanup_test_data(int $eventId): array
         throw new RuntimeException('Event nebyl nalezen.');
     }
 
-    return events_cleanup_photos_of_event($eventId);
+    $photos = events_cleanup_photos_of_event($eventId);
+    $published = events_cleanup_published_gallery($eventId, false);
+    $chat = events_cleanup_chat_of_event($eventId);
+
+    events_reset_archived_stats($eventId);
+
+    return [
+        'deleted_photos' => (int)$photos['deleted_photos'],
+        'deleted_files' => (int)$photos['deleted_files'],
+        'deleted_previews' => (int)$photos['deleted_previews'],
+        'deleted_published_photos' => (int)$published['deleted_published_photos'],
+        'deleted_published_files' => (int)$published['deleted_files'],
+        'deleted_published_previews' => (int)$published['deleted_previews'],
+        'deleted_chat_messages' => (int)$chat['deleted_chat_messages'],
+        'deleted_chat_reads' => (int)$chat['deleted_chat_reads'],
+    ];
 }
 
 function events_archive(int $eventId): array
