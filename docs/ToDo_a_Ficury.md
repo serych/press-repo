@@ -732,6 +732,90 @@ Cílem sprintu je připravit serverovou stranu pro budoucí Lightroom Classic pl
 - Nakonec doplnit dokumentaci API a základní testovací postup.
 - Po každém kroku ověřit, že současný webový upload a galerie fungují stejně jako před Sprintem 12.
 
+## Provozní změny 2026-06-06 až 2026-06-07
+
+### Spolehlivost RAW Uploadu A Párování
+
+- Watcher nově po FTP uploadu ověřuje integritu RAW/JPG souborů univerzálně pro běžné typy fotografů:
+  - `NEF`,
+  - `CR2`,
+  - `CR3`,
+  - `ARW`,
+  - další podporované RAW formáty.
+- Kontrola používá validaci přes RAW/EXIF nástroje a podezřele poškozené nebo nedotažené soubory označí jako chybové místo toho, aby v přehledu vypadaly jako použitelné.
+- Zpětně byly označené konkrétní poškozené malé soubory z FTP adresářů.
+- Párování publikovaných JPG s RAW originály bylo uvolněné pro opakované uploady stejné fotky.
+- Párování ignoruje běžné pořadové suffixy za názvem souboru:
+  - `-1`, `-2`,
+  - `_1`, `_2`,
+  - ` (1)`, ` (2)`.
+- Přesná shoda názvu má pořád přednost před uvolněným stack párováním, aby se omylem nespárovala jiná varianta.
+- Pro aktivní event bylo jednorázově spuštěno zpětné párování publikované galerie s RAW fotkami podle nových pravidel.
+
+### Stacky Opakovaných Fotek
+
+- `photos.php` i `photos-status.php` slučují opakovaně nahrané varianty stejné fotky do jednoho záznamu.
+- Zobrazuje se původní základní název bez pořadového suffixu.
+- U stacku se zobrazuje ikonka s počtem variant.
+- Reprezentant stacku se vybírá podle nejpokročilejšího stavu:
+  - publikováno,
+  - staženo,
+  - připraveno / zamčeno,
+  - nahráno / zpracování,
+  - zablokováno,
+  - chybové stavy.
+- V detailu fotky jsou vidět jednotlivé varianty stacku.
+- Velikosti souborů v detailu jsou zobrazované v human-readable formátu.
+
+### Galerie
+
+- Publikovaná galerie je dál řazená podle EXIF času pořízení, ale nově reverzně, takže nejnovější fotky přibývají nahoře.
+- Do galerie byla doplněna vlastní časová osa místo spoléhání na běžný scrollbar.
+- Časová osa respektuje časové pásmo eventu, ne UTC ani čas prohlížeče.
+- Mobilní verze galerie má úzkou poloprůhlednou časovou osu s čitelnými hodinovými značkami.
+- Čtvrthodinové značky jsou jemnější než celé hodiny.
+
+### Dashboard A Krátký Přístup Do Galerie
+
+- `dashboard.php` zobrazuje QR kód a krátkou URL galerie, pokud má aktuální event vygenerovaný krátký přístup.
+- Na mobilu se QR kód zobrazuje jako první blok dashboardu, aby ho fotograf mohl rychle ukázat lidem na eventu.
+- QR endpoint povoluje zobrazení pro aktuální dashboard event i bez administrátorského oprávnění ke správě uživatelů.
+
+### Fotoeditorský Přehled
+
+- V `photos.php` se pod názvem fotky místo FTP username zobrazuje celé jméno a příjmení fotografa z tabulky uživatelů.
+- U stavů `staženo` a `publikováno` se v závorce zobrazuje jméno fotoeditora, který RAW stáhl nebo publikoval hotové JPG.
+- Stejné popisky fungují i při automatickém AJAX refreshi feedu.
+- Do karet v `photos.php` byla přidána nenápadná šedá ikonka pro blokaci fotky přímo z přehledu.
+- Kliknutím na stav `zablokováno` v přehledu lze fotku zase odblokovat.
+- Blokace z přehledu používá stejný endpoint a stejná oprávnění jako blokace v detailu fotky.
+
+### Upload Hotových JPG
+
+- Z malého upload boxu v `photos.php` byl odstraněn odkaz `plná stránka`.
+- Samostatná stránka `published-upload.php` byla zrušena a odstraněna.
+- Malý upload box dál funguje, ale posílá soubory na nový čistý endpoint `POST /api/published-upload.php`.
+- Klientský endpoint pro Lightroom plugin `POST /api/published-upload-client.php` zůstává samostatný.
+
+### Eventy, Statistiky A Čištění
+
+- Do eventů byl doplněn uložený souhrn `archived_published_total`.
+- Při smazání hotové galerie se před odstraněním souborů a databázových záznamů uloží poslední počet publikovaných fotek.
+- `events.php` zobrazuje větší hodnotu z aktuálního počtu publikovaných fotek a uloženého historického souhrnu.
+- Archivace eventu ukládá souhrn:
+  - nahráno,
+  - staženo,
+  - publikováno.
+- `Vyčistit testovací data` v `event-edit.php` nově znamená úplný reset eventu:
+  - smaže RAW fotky,
+  - smaže RAW náhledy,
+  - smaže publikovanou testovací galerii,
+  - smaže náhledy galerie,
+  - smaže chat eventu,
+  - vynuluje archivované statistiky eventu.
+- `Archivovat po eventu` dál maže jen pracovní RAW soubory a náhledy, ale statistiky zachovává.
+- `Smazání hotové galerie` dál maže jen publikované JPG a jejich náhledy, ale statistiku publikovaných fotek zachovává.
+
 ## Nápady pro další sprinty
 
 - Ruční párování nespárovaných publikovaných fotek s originálem.
