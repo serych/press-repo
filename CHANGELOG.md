@@ -2,11 +2,13 @@
 
 Pracovní changelog press centra. Číslování mezi `1.0.0` a plánovanou `2.0.0` je zpětně sestavený návrh podle git historie, sprint tagů a poznámek v `docs/ToDo_a_Ficury.md`.
 
-## 2026-06-08 [2.0.0] - připravuje se
+## 2026-06-08 [2.0.0]
 
 - Finální vydání po provozních opravách z B+D.
-- Před vydáním ještě projít a ručně doladit tento changelog.
-- Zkontrolovat sladění `schema.sql` a sprintových migrací pro čistou instalaci.
+- Přidáno statické zobrazení aktuální verze na stránce `help.php`.
+- Verze v nápovědě je zvýrazněná jako samostatný štítek.
+- Na `photos.php` je hlavním nadpisem název aktuálního eventu.
+- Původní text `Fotografie download RAW, upload hotových` je přesunutý do menšího popisu pod názvem eventu.
 
 ## 2026-06-07 [1.9.0]
 

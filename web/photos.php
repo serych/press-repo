@@ -83,16 +83,17 @@ require_once __DIR__ . '/inc/header.php';
 ?>
 
 <section class="panel">
-    <h1>Fotografie download RAW, upload hotových</h1>
-
     <?php if (!empty($currentEvent)): ?>
+        <h1><?= h((string)$currentEvent['title']) ?></h1>
         <p class="table-subtext">
-            Aktuální event:
-            <strong><?= h((string)$currentEvent['title']) ?></strong>
+            Fotografie download RAW, upload hotových
             <?php if (!empty($currentEvent['is_temporary'])): ?>
                 <span class="badge badge-info">temporary</span>
             <?php endif; ?>
         </p>
+    <?php else: ?>
+        <h1>Fotografie</h1>
+        <p class="table-subtext">Download RAW, upload hotových</p>
     <?php endif; ?>
 
     <div class="photos-layout">

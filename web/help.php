@@ -8,6 +8,8 @@ require_once __DIR__ . '/inc/help.php';
 
 require_login();
 
+const PRESS_CENTER_VERSION = '2.0.0';
+
 $user = current_user();
 if (!help_can_view($user)) {
     http_response_code(403);
@@ -60,7 +62,10 @@ require_once __DIR__ . '/inc/header.php';
 
 <section class="panel">
     <div class="page-head">
-        <h1>Nápověda</h1>
+        <div>
+            <h1>Nápověda</h1>
+            <p class="help-version">PRESS centrum <?= h(PRESS_CENTER_VERSION) ?></p>
+        </div>
     </div>
 
     <?php if ($flashMessage !== ''): ?>

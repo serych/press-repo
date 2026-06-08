@@ -1509,6 +1509,20 @@ h1 {
     margin-top: 0;
 }
 
+.help-version {
+    display: inline-flex;
+    align-items: center;
+    margin: 4px 0 0;
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(245, 158, 11, 0.38);
+    background: rgba(245, 158, 11, 0.12);
+    color: #fbbf24;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0;
+}
+
 .help-title-cell {
     display: flex;
     flex-direction: column;
