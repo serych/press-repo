@@ -1,7 +1,5 @@
 # Changelog
 
-Pracovní changelog press centra. Číslování mezi `1.0.0` a plánovanou `2.0.0` je zpětně sestavený návrh podle git historie, sprint tagů a poznámek v `docs/ToDo_a_Ficury.md`.
-
 ## 2026-06-08 [2.0.0]
 
 - Finální vydání po provozních opravách z B+D.
